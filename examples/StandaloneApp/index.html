@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An interactive standalone XAML application powered by the shared Xamora web runtime.">
+  <title>Launchboard · Xamora Runtime</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="../../" aria-label="Open Xamora Studio"><span class="brand-symbol" aria-hidden="true">X</span><span>Xamora <strong>Runtime</strong></span></a>
+    <nav aria-label="Example navigation"><a href="../../docs/WEB-RUNTIME.md">Runtime guide</a><a href="./MainView.xaml">View XAML</a><a href="https://github.com/wieslawsoltes/XamoraStudio">GitHub <span aria-hidden="true">↗</span></a></nav>
+  </header>
+  <main>
+    <div class="intro"><div><p class="eyebrow">STANDALONE WEB APPLICATION</p><h1>Your XAML. In the browser.</h1><p class="lede">An interactive project workspace using the same document model, controls, bindings and motion engine as the designer.</p></div><span class="runtime-indicator" id="runtime-status" role="status">Starting runtime…</span></div>
+    <section class="app-card" aria-label="Launchboard application">
+      <div class="app-titlebar"><div><span class="project-mark" aria-hidden="true">L</span><strong>Launchboard</strong><span class="titlebar-divider" aria-hidden="true">/</span><span>Project overview</span></div><span class="local-badge">Local session</span></div>
+      <div id="application" class="application" aria-label="Project workspace" aria-busy="true"><p class="loading">Loading MainView.xaml…</p></div>
+    </section>
+    <section class="developer-card" aria-label="Runtime inspector">
+      <div class="inspector-toolbar"><div class="inspector-tabs" role="tablist" aria-label="Inspect application"><button type="button" id="data-tab" role="tab" aria-controls="data-panel" aria-selected="true" tabindex="0">Live data</button><button type="button" id="source-tab" role="tab" aria-controls="source-panel" aria-selected="false" tabindex="-1">MainView.xaml</button><button type="button" id="events-tab" role="tab" aria-controls="events-panel" aria-selected="false" tabindex="-1">Activity</button></div><div class="lifecycle-actions"><button type="button" id="dispose-app">Dispose</button><button type="button" id="remount-app">Remount</button></div></div>
+      <div class="inspector-panel" id="data-panel" role="tabpanel" aria-labelledby="data-tab"><p>Change a field above to update the view model. Commands and collection edits use the same observable data.</p><pre id="model-output" tabindex="0" aria-label="Current view model"></pre></div>
+      <div class="inspector-panel" id="source-panel" role="tabpanel" aria-labelledby="source-tab" hidden><p>This XAML is fetched and rendered directly. The page imports no studio entry point or studio stylesheet.</p><pre id="source-output" tabindex="0" aria-label="Application XAML source"></pre></div>
+      <div class="inspector-panel" id="events-panel" role="tabpanel" aria-labelledby="events-tab" hidden><p>Runtime lifecycle, command execution and view model changes from this session.</p><ol id="activity-output" class="activity-output" aria-label="Runtime activity"></ol></div>
+    </section>
+    <footer><span>Shared AST · DOM controls · Observable data · XAML motion</span><span>No server or .NET runtime required</span></footer>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

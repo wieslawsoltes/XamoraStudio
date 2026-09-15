@@ -1,0 +1,63 @@
+{
+  "name": "@wieslawsoltes/xamora-data",
+  "version": "0.8.0",
+  "description": "Observable design databases, bindings, and data queries",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/data"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./design-data": {
+      "import": {
+        "types": "./dist/esm/design-data.d.ts",
+        "default": "./dist/esm/design-data.js"
+      },
+      "require": {
+        "types": "./dist/cjs/design-data.d.cts",
+        "default": "./dist/cjs/design-data.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0"
+  }
+}

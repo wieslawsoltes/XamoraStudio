@@ -38,3 +38,8 @@ export * from './history.js';
 export * from './language-service.js';
 
 export * from './html-states.js';
+
+export * from './runtime-properties.js';
+export * from './web-runtime.js';
+export * from './runtime-element.js';
+

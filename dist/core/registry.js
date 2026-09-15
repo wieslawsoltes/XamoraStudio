@@ -1,7 +1,7 @@
 import {element,localName,clone} from './model.js';
 export class ToolkitRegistry extends EventTarget {
   constructor(){super();this.controls=new Map();this.adapters=new Map();this.toolkits=new Map();}
-  registerControl(descriptor){if(!descriptor.type||!descriptor.category)throw Error('Controls require type and category.');this.controls.set(descriptor.type,{properties:[],defaults:{},...descriptor});this.dispatchEvent(new Event('change'));return()=>this.controls.delete(descriptor.type);}
+  registerControl(descriptor){if(!descriptor.type||!descriptor.category)throw Error('Controls require type and category.');const previous=this.controls.get(descriptor.type),registered={properties:[],defaults:{},...descriptor};this.controls.set(descriptor.type,registered);this.dispatchEvent(new Event('change'));return()=>{if(this.controls.get(descriptor.type)!==registered)return false;if(previous)this.controls.set(descriptor.type,previous);else this.controls.delete(descriptor.type);this.dispatchEvent(new Event('change'));return true;};}
   get(type,namespace){return this.controls.get(type)||(type.includes(':')&&['http://schemas.microsoft.com/winfx/2006/xaml/presentation','https://github.com/avaloniaui'].includes(namespace)?this.controls.get(localName(type)):undefined);}
   list(){return [...this.controls.values()];}
   registerAdapter(name,adapter){if(typeof adapter.serialize!=='function')throw Error('Adapter needs a serialize function.');this.adapters.set(name,adapter);}

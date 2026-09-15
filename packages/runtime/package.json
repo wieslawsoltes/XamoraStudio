@@ -1,0 +1,84 @@
+{
+  "name": "@wieslawsoltes/xamora-runtime",
+  "version": "0.8.0",
+  "description": "Standalone XAML browser applications with bindings, commands, resources, and motion",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/runtime"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./web-runtime": {
+      "import": {
+        "types": "./dist/esm/web-runtime.d.ts",
+        "default": "./dist/esm/web-runtime.js"
+      },
+      "require": {
+        "types": "./dist/cjs/web-runtime.d.cts",
+        "default": "./dist/cjs/web-runtime.cjs"
+      }
+    },
+    "./runtime-element": {
+      "import": {
+        "types": "./dist/esm/runtime-element.d.ts",
+        "default": "./dist/esm/runtime-element.js"
+      },
+      "require": {
+        "types": "./dist/cjs/runtime-element.d.cts",
+        "default": "./dist/cjs/runtime-element.cjs"
+      }
+    },
+    "./runtime.css": "./dist/assets/runtime.css",
+    "./browser": {
+      "types": "./dist/esm/index.d.ts",
+      "default": "./dist/browser/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-animation": "0.8.0",
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-data": "0.8.0",
+    "@wieslawsoltes/xamora-markup": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-properties": "0.8.0",
+    "@wieslawsoltes/xamora-renderer": "0.8.0",
+    "@wieslawsoltes/xamora-styling": "0.8.0"
+  }
+}

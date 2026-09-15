@@ -1,0 +1,84 @@
+name: Prepare or publish npm packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: Branch for validation, or an existing vVERSION tag for publication
+        required: true
+        default: main
+        type: string
+      expected_sha:
+        description: Full commit SHA (required for publication)
+        required: false
+        default: ''
+        type: string
+      publish:
+        description: Publish checksum-verified packages to npm (default only validates and packs)
+        required: true
+        default: false
+        type: boolean
+      dist_tag:
+        description: npm distribution tag
+        required: true
+        default: latest
+        type: choice
+        options: [latest, next]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-${{ inputs.release_ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_REF: ${{ inputs.release_ref }}
+      EXPECTED_SHA: ${{ inputs.expected_sha }}
+      NPM_DIST_TAG: ${{ inputs.dist_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - name: Verify selected commit and release metadata
+        run: |
+          if [ -n "$EXPECTED_SHA" ]; then test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"; fi
+          if [ "${{ inputs.publish }}" = true ]; then
+            test "$RELEASE_REF" = "v$(node -p 'require("./package.json").version')"
+            test -n "$EXPECTED_SHA"
+          fi
+          npm run release:check
+      - run: npm run check
+      - run: npm test
+      - run: npm run test:package
+      - run: npx playwright install --with-deps --only-shell chromium
+      - run: npm run test:browser
+      - run: npm run pack:packages
+      - run: npm run release:verify
+      - run: npm run release:dry-run
+        if: inputs.publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xamora-npm-${{ github.run_id }}
+          path: .artifacts/npm/
+          if-no-files-found: error
+      - name: Publish exact verified artifacts with provenance
+        if: inputs.publish
+        env:
+          XAMORA_NPM_PUBLISH: 'true'
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/package-release.mjs publish

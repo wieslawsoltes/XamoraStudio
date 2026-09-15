@@ -1,4 +1,7 @@
 export type Framework = 'WPF' | 'Avalonia' | 'WinUI' | 'MAUI' | 'HTML' | (string & {});
+export * from './runtime-properties.js';
+export * from './web-runtime.js';
+export * from './runtime-element.js';
 export type PropertyValue = string | number | boolean;
 export interface ElementNode {
   id: string;
@@ -26,6 +29,25 @@ export interface DesignDocument {
   postamble?: TextNode[];
 }
 export interface PropertyDescriptor { name: string; editor?: string; type?: string; values?: string[] }
+/** Structural runtime services supplied to custom control lifecycle hooks. */
+export interface ControlApplicationHost {
+  readonly data: object;
+  invalidate(): void;
+  setData(path: string, value: unknown): unknown;
+  findName(name: string): Element | null;
+  findNode(nameOrId: string): ElementNode | null;
+  getValue(nameOrId: string, property: string): unknown;
+  setValue(nameOrId: string, property: string, value: unknown): unknown;
+  clearValue(nameOrId: string, property: string): boolean;
+}
+export interface ControlMountContext {
+  descriptor: ControlDescriptor;
+  node: ElementNode;
+  element: Element;
+  properties: Record<string, PropertyValue>;
+  application: ControlApplicationHost;
+  data: unknown;
+}
 export interface ControlDescriptor {
   type: string;
   category: string;
@@ -39,6 +61,7 @@ export interface ControlDescriptor {
   defaults?: Record<string, PropertyValue>;
   properties?: Array<string | PropertyDescriptor>;
   children?: Array<{ type: string; props?: Record<string, PropertyValue>; children?: unknown[] }>;
+  mount?: (context: ControlMountContext) => void | (() => void);
   render?: (context: { node: ElementNode; properties: Record<string, PropertyValue>; renderer: PreviewRenderer; interactive: boolean }) => Element;
 }
 export interface ExportResult { content: string; extension?: string; mimeType?: string }

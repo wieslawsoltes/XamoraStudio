@@ -1,0 +1,94 @@
+{
+  "name": "@wieslawsoltes/xamora-styling",
+  "version": "0.8.0",
+  "description": "Resources, styles, property paths, and appearance",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/styling"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./styling": {
+      "import": {
+        "types": "./dist/esm/styling.d.ts",
+        "default": "./dist/esm/styling.js"
+      },
+      "require": {
+        "types": "./dist/cjs/styling.d.cts",
+        "default": "./dist/cjs/styling.cjs"
+      }
+    },
+    "./property-path": {
+      "import": {
+        "types": "./dist/esm/property-path.d.ts",
+        "default": "./dist/esm/property-path.js"
+      },
+      "require": {
+        "types": "./dist/cjs/property-path.d.cts",
+        "default": "./dist/cjs/property-path.cjs"
+      }
+    },
+    "./appearance": {
+      "import": {
+        "types": "./dist/esm/appearance.d.ts",
+        "default": "./dist/esm/appearance.js"
+      },
+      "require": {
+        "types": "./dist/cjs/appearance.d.cts",
+        "default": "./dist/cjs/appearance.cjs"
+      }
+    },
+    "./vector": {
+      "import": {
+        "types": "./dist/esm/vector.d.ts",
+        "default": "./dist/esm/vector.js"
+      },
+      "require": {
+        "types": "./dist/cjs/vector.d.cts",
+        "default": "./dist/cjs/vector.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-data": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0"
+  }
+}

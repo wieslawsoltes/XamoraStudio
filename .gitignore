@@ -7,3 +7,8 @@ deliverables/
 
 upload/
 test-results/
+
+node_modules/
+packages/*/dist/
+.package-build/
+.artifacts/

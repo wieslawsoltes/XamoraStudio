@@ -1,0 +1,129 @@
+{
+  "name": "@wieslawsoltes/xamora-designer",
+  "version": "0.8.0",
+  "description": "Reusable designer authoring, solution, prototype, geometry, and code editor services",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/designer"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./authoring": {
+      "import": {
+        "types": "./dist/esm/authoring.d.ts",
+        "default": "./dist/esm/authoring.js"
+      },
+      "require": {
+        "types": "./dist/cjs/authoring.d.cts",
+        "default": "./dist/cjs/authoring.cjs"
+      }
+    },
+    "./design-tools": {
+      "import": {
+        "types": "./dist/esm/design-tools.d.ts",
+        "default": "./dist/esm/design-tools.js"
+      },
+      "require": {
+        "types": "./dist/cjs/design-tools.d.cts",
+        "default": "./dist/cjs/design-tools.cjs"
+      }
+    },
+    "./prototype": {
+      "import": {
+        "types": "./dist/esm/prototype.d.ts",
+        "default": "./dist/esm/prototype.js"
+      },
+      "require": {
+        "types": "./dist/cjs/prototype.d.cts",
+        "default": "./dist/cjs/prototype.cjs"
+      }
+    },
+    "./solution": {
+      "import": {
+        "types": "./dist/esm/solution.d.ts",
+        "default": "./dist/esm/solution.js"
+      },
+      "require": {
+        "types": "./dist/cjs/solution.d.cts",
+        "default": "./dist/cjs/solution.cjs"
+      }
+    },
+    "./editor": {
+      "import": {
+        "types": "./dist/esm/editor.d.ts",
+        "default": "./dist/esm/editor.js"
+      },
+      "require": {
+        "types": "./dist/cjs/editor.d.cts",
+        "default": "./dist/cjs/editor.cjs"
+      }
+    },
+    "./samples": {
+      "import": {
+        "types": "./dist/esm/samples.d.ts",
+        "default": "./dist/esm/samples.js"
+      },
+      "require": {
+        "types": "./dist/cjs/samples.d.cts",
+        "default": "./dist/cjs/samples.cjs"
+      }
+    },
+    "./overlay-layout": {
+      "import": {
+        "types": "./dist/esm/overlay-layout.d.ts",
+        "default": "./dist/esm/overlay-layout.js"
+      },
+      "require": {
+        "types": "./dist/cjs/overlay-layout.d.cts",
+        "default": "./dist/cjs/overlay-layout.cjs"
+      }
+    },
+    "./editor.css": "./dist/assets/editor.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-animation": "0.8.0",
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-data": "0.8.0",
+    "@wieslawsoltes/xamora-markup": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-renderer": "0.8.0",
+    "@wieslawsoltes/xamora-styling": "0.8.0"
+  }
+}

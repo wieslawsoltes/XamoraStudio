@@ -1,0 +1,114 @@
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:launch="urn:launchboard"
+      FontFamily="Inter, system-ui, sans-serif"
+      Foreground="#26354A">
+    <Grid.Resources>
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource Accent}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="14,8" />
+        </Style>
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SoftAccent}" />
+            <Setter Property="Foreground" Value="#66758D" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="12,7" />
+        </Style>
+        <Storyboard x:Key="Celebrate" Duration="0:00:00.7">
+            <DoubleAnimation Storyboard.TargetName="SummaryCard"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.45" To="1" Duration="0:00:00.7">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut" />
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+    </Grid.Resources>
+    <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="5*" />
+        <ColumnDefinition Width="3*" />
+    </Grid.ColumnDefinitions>
+    <StackPanel Margin="0,0,32,0">
+        <TextBlock Text="PROJECT BRIEF" FontSize="10" FontWeight="SemiBold" Foreground="#94A0B2" />
+        <TextBlock Text="{Binding Project.Title}" FontSize="25" FontWeight="SemiBold" Margin="0,8,0,6" TextWrapping="Wrap" />
+        <TextBlock Text="Keep the team aligned, one small launch at a time."
+                   FontSize="12" Foreground="#8A95A7" TextWrapping="Wrap" Margin="0,0,0,23" />
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*" />
+                <ColumnDefinition Width="2*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Margin="0,0,14,0">
+                <TextBlock Text="Project name" FontSize="11" FontWeight="SemiBold" Foreground="#647189" Margin="0,0,0,7" />
+                <TextBox x:Name="ProjectTitle" Text="{Binding Project.Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         Height="36" Padding="10,8" ToolTip="Project name" />
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+                <TextBlock Text="Project owner" FontSize="11" FontWeight="SemiBold" Foreground="#647189" Margin="0,0,0,7" />
+                <TextBox x:Name="ProjectOwner" Text="{Binding Project.Owner, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         Height="36" Padding="10,8" ToolTip="Project owner" />
+            </StackPanel>
+        </Grid>
+        <Grid Margin="0,28,0,14">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock Text="Launch checklist" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding TaskSummary}" FontSize="10" Foreground="#8D98AA" VerticalAlignment="Center" />
+        </Grid>
+        <ItemsControl x:Name="TaskList" ItemsSource="{Binding Tasks}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="30" /><ColumnDefinition Width="*" /><ColumnDefinition Width="60" /></Grid.ColumnDefinitions>
+                        <CheckBox IsChecked="{Binding Done, Mode=TwoWay}" VerticalAlignment="Center" ToolTip="Complete task" />
+                        <TextBox Grid.Column="1" Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Height="32" Padding="6,7" ToolTip="Task title" />
+                        <Button Grid.Column="2" Content="Remove" Command="RemoveTask" CommandParameter="{Binding Id}"
+                                Background="Transparent" Foreground="#98A1B0" Height="32" Padding="4" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBox x:Name="NewTask" Text="{Binding NewTask, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Watermark="Add the next step…" Height="36" Padding="10,8" Margin="0,0,10,0" ToolTip="New task title" />
+            <Button x:Name="AddTaskButton" Grid.Column="1" Content="Add task" Command="AddTask" Style="{StaticResource PrimaryButton}" />
+        </Grid>
+        <TextBlock Text="{Binding Message}" FontSize="11" Foreground="#91A0B6" Margin="0,17,0,0" TextWrapping="Wrap" />
+    </StackPanel>
+    <Border x:Name="SummaryCard" Grid.Column="1" Background="#F7F9FC" BorderBrush="#E9EDF4" BorderThickness="1" CornerRadius="10" Padding="23" Opacity="1">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="CardStates">
+                <VisualState x:Name="Normal">
+                    <Storyboard><DoubleAnimation Storyboard.TargetName="SummaryCard" Storyboard.TargetProperty="Opacity" To="1" Duration="0" /></Storyboard>
+                </VisualState>
+                <VisualState x:Name="Quiet">
+                    <Storyboard><DoubleAnimation Storyboard.TargetName="SummaryCard" Storyboard.TargetProperty="Opacity" To="0.45" Duration="0" /></Storyboard>
+                </VisualState>
+                <VisualStateGroup.Transitions><VisualTransition GeneratedDuration="0:00:00.25" /></VisualStateGroup.Transitions>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+        <StackPanel>
+            <Grid Margin="0,0,0,25">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock Text="AT A GLANCE" FontSize="10" FontWeight="SemiBold" Foreground="#93A0B3" VerticalAlignment="Center" />
+                <launch:StatusBadge Grid.Column="1" Label="{Binding Status}" />
+            </Grid>
+            <TextBlock Text="{Binding ProgressLabel}" FontSize="35" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Margin="0,0,0,6" />
+            <TextBlock Text="Launch readiness" FontSize="12" Foreground="#8996AA" Margin="0,0,0,17" />
+            <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6" Foreground="{DynamicResource Accent}" Background="#E5EAF4" Margin="0,0,0,25" />
+            <TextBlock Text="PROJECT OWNER" FontSize="9" FontWeight="SemiBold" Foreground="#9AA5B6" Margin="0,0,0,6" />
+            <TextBlock Text="{Binding Project.Owner}" FontSize="13" FontWeight="Medium" Margin="0,0,0,24" />
+            <Button x:Name="CelebrateButton" Content="Preview celebration" Command="Celebrate" Style="{StaticResource PrimaryButton}" Margin="0,0,0,9" />
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Button x:Name="ThemeButton" Content="Switch accent" Command="SwitchTheme" Style="{StaticResource SecondaryButton}" Margin="0,0,4,0" />
+                <Button x:Name="StateButton" Grid.Column="1" Content="Toggle state" Command="ToggleState" Style="{StaticResource SecondaryButton}" Margin="4,0,0,0" />
+            </Grid>
+            <TextBlock Text="Try live bindings, collection commands, shared resources and XAML animation."
+                       FontSize="11" Foreground="#95A1B4" TextWrapping="Wrap" Margin="0,24,0,0" />
+        </StackPanel>
+    </Border>
+</Grid>

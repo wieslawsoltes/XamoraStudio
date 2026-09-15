@@ -119,3 +119,14 @@ Independent browser QA at 1366×768 and 1600×1100 verified that all ten selecte
 Closing the state panel or switching from HTML to XAML restores original preview stylesheet text and temporary attributes/control state, clears recording, and leaves exact source and revision unchanged. Imported selectors, nested media conditions, comments and unrelated declarations were preserved. A conflicting inline-important state value was rejected atomically, preserving source and revision. These checks produced zero uncaught browser errors.
 
 See [HTML states and transitions](HTML-STATES.md) for the authored CSS/runtime ownership model and supported selector boundaries.
+
+
+## 0.8 standalone framework and packages
+
+The isolated framework/package change passed 444 Node tests, static syntax/module/asset checks, and all seven applicable Chromium suites (five established designer suites plus runtime and standalone-example suites). Twelve actual npm tarballs passed isolated dependency-closure installation, ESM/CommonJS module imports and constructor-identity checks, and strict TypeScript consumer programs without `skipLibCheck`.
+
+The standalone browser bundle test mounts the application with exactly two requests: its host HTML and the runtime bundle. It verifies two-way input, commands, resource updates, a custom control, and custom-element disposal without studio modules. The larger example adds template collections, state/storyboard sampling, keyboard access, narrow viewport handling, load races and repeated reconnection.
+
+Focused runtime checks include invalid-source/render-failure retention, async source/dictionary races, focus and caret restoration, typed property defaults/inheritance/coercion, forward ElementName binding, remount lifecycle and restoration after animation disposal. Existing source/canvas/property synchronization, HTML motion/states and semantic-navigation tests remain passing.
+
+No npm release was performed. Packaging, consumer installation and artifact integrity are validated separately from future publication authorization. The browser implementation retains the support and scaling boundaries documented in WEB-RUNTIME.md and WEB-FRAMEWORK-ARCHITECTURE.md.
