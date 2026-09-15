@@ -34,7 +34,7 @@ export async function graph({allowMissing=false}={}) {
   const umbrella = entries.find(entry=>entry.umbrella);
   for(const entry of entries) if(entry!==umbrella) umbrella.dependencies.add(entry.name);
   const known = new Set([...owners.keys(),'dist/core/index.js']);
-  for(const name of await readdir(resolve(root,'dist/core'))) if(name.endsWith('.js')&&!known.has('dist/core/'+name)&&!name.startsWith('semantic-compiler')) throw Error(`Core module has no package owner: ${name}`);
+  for(const name of await readdir(resolve(root,'dist/core'))) if(name.endsWith('.js')&&!known.has('dist/core/'+name)) throw Error(`Core module has no package owner: ${name}`);
   return {entries,owners,contents};
 }
 export function specifierFor(owner) {return `${owner.entry.name}/${owner.name}`;}
