@@ -72,6 +72,8 @@ export declare class DocumentStore extends EventTarget {
   future: Array<{label: string; document: DesignDocument}>;
   select(ids: string[]): void;
   transaction(label: string, action: (document: DesignDocument) => void): void;
+  addCommitHook(hook: (change: {store: DocumentStore; label: string; before: DesignDocument; document: DesignDocument}) => void): () => void;
+  commitSnapshot(label: string, before: DesignDocument): void;
   setProperty(ids: string[], property: string, value: PropertyValue | null): void;
   insert(parentId: string, node: DesignNode, index?: number): string;
   move(ids: string[], parentId: string, index?: number): void;
@@ -248,3 +250,5 @@ export * from './timeline-editing.js';
 
 export * from './html.js';
 export * from './html-render.js';
+
+export * from './document-session.js';

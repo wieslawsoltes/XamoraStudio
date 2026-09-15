@@ -8,6 +8,12 @@ An extensible visual UI authoring application written in plain JavaScript, HTML,
 
 The canvas uses WebGPU for its infinite dot-grid surface when available. Accessible controls, text, and preview layout use the browser DOM and CSS. The source model remains independent of the preview.
 
+## Live document synchronization
+
+The code editor, design canvas and property/tool panels now edit one document session. Valid XAML and HTML source changes update the design automatically; visual edits update source through the same undoable transaction. Incomplete markup remains visible as a recoverable draft while the canvas keeps its last valid document. Source locations connect code selection to design selection, and each open file retains its own buffer and caret.
+
+The reusable `DocumentSession` coordinates source adapters, stable node identity, source diagnostics, revisions and history around `DocumentStore`. See [document synchronization and AST architecture](docs/DOCUMENT-SYNC.md) for the API, preservation rules and extension contract.
+
 ## New in 0.7
 
 - Selection actions use measured, collision-aware placement beside or above the element type label.
@@ -35,7 +41,7 @@ Density changes preserve the live code buffer/caret, document history, dock arra
 - Solution resource browser with swatches, merge controls, scoped reference renaming and visual property-editor extensions.
 - Retained view cards, filters, card sizing, selected-view tiling and inline navigation connections.
 
-Read the [0.5 editor workflows](docs/EDITOR-WORKFLOWS.md) for gestures, behavior and current limits. The source remains dependency-free and buildless. **236 automated tests pass**; browser and native framework qualification are still separate work.
+Read the [0.5 editor workflows](docs/EDITOR-WORKFLOWS.md) for gestures, behavior and current limits. The source remains dependency-free and buildless. Automated unit and integration checks cover the implemented workflows. Chromium tests now exercise document synchronization in the complete application; native framework qualification remains separate.
 
 ## New in 0.4
 
@@ -95,7 +101,7 @@ To deploy on a static host, upload the contents of `dist/`. There are no runtime
 - Grid rows/columns, Auto/pixel/star definitions, cell placement and spans; StackPanel, Canvas, DockPanel, WrapPanel, UniformGrid, Border, and common input/content controls.
 - Designer property inspector with named and attached properties, color controls, enum metadata, bindings, reset-to-unset, custom properties, and resource references.
 - Template editing in a separate visual scope, template preview properties, reusable UserControl extraction, brush resources, style setters, and basic keyed/implicit style preview.
-- Code highlighting, line numbers, XML validation, formatting, tag/property completion, find/replace, indentation, comment toggling, document symbols, selected-element navigation, and explicit Apply to canvas.
+- Code highlighting, line numbers, XML validation, formatting, tag/property completion, find/replace, indentation, comment toggling, document symbols, selected-element navigation, and automatic bidirectional synchronization.
 - Per-page undo/redo with 100 snapshots, device-local saving, project export/import, and canvas annotations.
 - WPF/Avalonia namespace and common-property conversion with the original page retained; source preservation modes for WinUI and MAUI.
 - XAML, standalone HTML, project JSON, and browser-compatible SVG `foreignObject` export. Registered export adapters appear in the export dialog.
@@ -104,7 +110,7 @@ To deploy on a static host, upload the contents of `dist/`. There are no runtime
 
 ## Compatibility and release status
 
-This is version **0.4.0**, an implemented extensible designer foundation. It is **not a fully qualified replacement for Blend, Visual Studio, or native framework designers**. It does not provide complete WPF/Avalonia control, API, layout, or theme parity, and it does not execute arbitrary .NET assemblies in a browser.
+This is version **0.7.0**, an implemented extensible designer foundation. It is **not a fully qualified replacement for Blend, Visual Studio, or native framework designers**. It does not provide complete WPF/Avalonia control, API, layout, or theme parity, and it does not execute arbitrary .NET assemblies in a browser.
 
 | Capability | Status |
 | --- | --- |

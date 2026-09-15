@@ -74,3 +74,12 @@ The complete suite passed **236 tests** with zero failures. Static checks passed
 The 16 new checks cover raw script/style serialization, void and empty attributes, original-source restoration through undo, HTML attribute edits retaining similarly named children, relaxed HTML attributes alongside strict XML validation, raw closing-tag rollback, preformatted leading newlines, template-content projection, CSS fallback/unknown/data-URL preservation, cycle rejection and reparent undo, HTML/CSS completions, diagnostics dispatch, separate design/runtime sandbox capabilities, frame geometry with zoom, toolbar/type-label collision avoidance, scroll-button key isolation, tab offset retention and insertion precedence, and auto-hide drag wiring.
 
 The parser projection test supplies a parsed DOM fixture; it does not run a browser HTML parser. Sandbox tests verify configuration and emitted design source, not a penetration test. Browser-driven interaction and screenshot qualification were not performed. The source ZIP is checked for archive integrity before delivery.
+
+
+## Document synchronization validation — 15 September 2026
+
+The synchronization change passed **291 Node tests** and the real Chromium integration suite. The browser run starts the complete app and checks XAML/HTML typing, rendered output, inspector changes, source preservation, stable selections, shared undo/redo, invalid draft protection, file switching, same-turn code/property changes, IME guards and artboard dimensions. It asserts there are no uncaught browser errors.
+
+The browser workflow exposed and fixed a fresh-session parser-cache initialization bug and a synchronous passive-preview resource-resolver initialization bug. Both also have focused Node regressions. The earlier version-specific statements above about browser tests describe those historical releases; they are superseded for these tested workflows.
+
+This coverage establishes the specified Chromium workflows, not exhaustive browser/device/native-framework qualification or full IDE parity. Static syntax/module checks and source preservation tests remain separate from native layout fidelity.
