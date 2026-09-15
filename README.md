@@ -2,7 +2,7 @@
 
 [Open the designer](https://wieslawsoltes.github.io/XamoraStudio/) · [Standalone docking demo](https://wieslawsoltes.github.io/XamoraStudio/examples/DockingDemo.html)
 
-[![Validate Xamora](https://github.com/wieslawsoltes/XamoraStudio/actions/workflows/ci.yml/badge.svg)](https://github.com/wieslawsoltes/XamoraStudio/actions/workflows/ci.yml)
+[![Validate and publish Xamora](https://github.com/wieslawsoltes/XamoraStudio/actions/workflows/ci.yml/badge.svg)](https://github.com/wieslawsoltes/XamoraStudio/actions/workflows/ci.yml)
 
 An extensible visual UI authoring application written in plain JavaScript, HTML, and CSS. It opens directly into a design workspace with a sample desktop application, layer tree, control toolkit, property inspector, XAML editor, and design canvas.
 
@@ -183,3 +183,7 @@ Work is saved in this browser's local storage. Export a project JSON for a porta
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## GitHub Pages deployment
+
+Pushes to `main` run validation and publish the contents of `dist/`. The workflow verifies the deployed HTML, JavaScript, CSS and docking example against the source commit. See [GitHub Pages hosting](docs/GITHUB-PAGES.md).

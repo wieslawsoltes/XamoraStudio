@@ -1,12 +1,15 @@
-name: Validate Xamora
+name: Validate and publish Xamora
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,3 +21,67 @@ jobs:
         with:
           name: xamora-static-app
           path: dist/
+          include-hidden-files: true
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: github-pages-production
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: https://wieslawsoltes.github.io/XamoraStudio/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Read Pages configuration
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/pages" > "$RUNNER_TEMP/xamora-pages.json"
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/xamora-pages.json"));fs.appendFileSync(process.env.GITHUB_OUTPUT,"mode="+(p.build_type||"legacy")+"\nurl="+p.html_url+"\n");if((p.build_type||"legacy")==="legacy"&&(p.source?.branch!=="gh-pages"||p.source?.path!=="/"))throw Error("Pages must use gh-pages / or GitHub Actions.");'
+      - name: Publish static branch
+        if: steps.pages.outputs.mode == 'legacy'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          publish_dir="$RUNNER_TEMP/xamora-pages"
+          mkdir -p "$publish_dir"
+          cp -R dist/. "$publish_dir/"
+          touch "$publish_dir/.nojekyll"
+          git -C "$publish_dir" init --initial-branch=gh-pages
+          git -C "$publish_dir" config user.name 'github-actions[bot]'
+          git -C "$publish_dir" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          gh auth setup-git
+          git -C "$publish_dir" remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git -C "$publish_dir" fetch --depth=1 origin gh-pages
+          git -C "$publish_dir" reset --soft FETCH_HEAD
+          git -C "$publish_dir" add --all
+          if ! git -C "$publish_dir" diff --cached --quiet; then
+            git -C "$publish_dir" commit -m "Deploy Xamora Studio from $GITHUB_SHA"
+            git -C "$publish_dir" push origin HEAD:gh-pages
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq '{status,url}'
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.pages.outputs.mode == 'workflow'
+        with:
+          path: dist/
+      - uses: actions/deploy-pages@v4
+        if: steps.pages.outputs.mode == 'workflow'
+        id: deployment
+      - name: Verify published files
+        env:
+          PAGES_URL: ${{ steps.pages.outputs.url }}
+        run: node scripts/verify-pages.mjs
