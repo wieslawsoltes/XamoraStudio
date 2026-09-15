@@ -277,3 +277,15 @@ test('root property panel dimensions synchronize the artboard, code, and shared 
  store.setProperty([store.document.root.id],'Width','Auto');assert.equal(store.document.design.width,620);
  store.transaction('Set root and explicit artboard',d=>{d.root.props.Height='450';d.design.height=900;});assert.equal(store.document.design.height,900);assert.match(session.source,/Height="450"/);
 });
+
+
+test('fresh sample sessions initialize without an explicit source and retain undoable visual edits', async()=>{
+ const {samples}=await import('../dist/core/samples.js');
+ for(const doc of samples()){
+  const store=new DocumentStore(doc),session=new DocumentSession(store);
+  assert.ok(session.source.length>0,doc.name);assert.equal(session.isValid,true);
+  const original=session.source;store.setProperty([store.document.root.id],'Tag','source-session-smoke');
+  assert.match(session.source,/Tag=["']source-session-smoke["']/);
+  session.undo();assert.equal(session.source,original);session.dispose();
+ }
+});

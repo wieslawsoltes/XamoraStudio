@@ -159,7 +159,7 @@ export class DocumentSession extends EventTarget {
  /** Restore sessions after solution snapshot swaps, without creating history. */
  refresh({emit=true}={}){
   const doc=this.store.document;let saved=doc.metadata?.source,source=saved?.validText;let parsed;
-  if(this._pendingParsed?.source===source&&this._pendingParsed.document===doc){parsed=this._pendingParsed;this._pendingParsed=null;}
+  if(this._pendingParsed&&this._pendingParsed.source===source&&this._pendingParsed.document===doc){parsed=this._pendingParsed;this._pendingParsed=null;}
   if(!parsed&&this.index?.source===source&&this._lastRoot===doc.root&&this._lastShape===documentShape(doc)){if(emit)this._emit();return this;}
   if(!parsed&&typeof source==='string'){try{parsed=this._parse(source);if(documentShape(parsed.doc)!==documentShape(doc))parsed=null;}catch{parsed=null;}}
   if(!parsed){source=this.adapter.serialize(doc);parsed=this._parse(source);this._record(doc,source,source);saved=doc.metadata.source;}
