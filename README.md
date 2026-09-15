@@ -8,6 +8,12 @@ An extensible visual UI authoring application written in plain JavaScript, HTML,
 
 The canvas uses WebGPU for its infinite dot-grid surface when available. Accessible controls, text, and preview layout use the browser DOM and CSS. The source model remains independent of the preview.
 
+## HTML animation timeline
+
+HTML pages now have an editable CSS animation timeline with presets, target bindings, animation rename, keyframe dragging and value editors, recording from properties and canvas gestures, playback/scrubbing, easing, delay, repeats, direction and fill controls. Animation edits flow through the shared source session and undo history. The browser samples native CSS animations without changing authored base styles, and exported HTML runs its own CSS animations.
+
+See [HTML animation workflows and core API](docs/HTML-ANIMATIONS.md) and [the HTML Motion Lab example](dist/examples/HtmlMotionLab.html). External stylesheets and scroll-linked/dynamically scripted effects have explicit authoring boundaries documented there.
+
 ## Live document synchronization
 
 The code editor, design canvas and property/tool panels now edit one document session. Valid XAML and HTML source changes update the design automatically; visual edits update source through the same undoable transaction. Incomplete markup remains visible as a recoverable draft while the canvas keeps its last valid document. Source locations connect code selection to design selection, and each open file retains its own buffer and caret.
@@ -21,7 +27,7 @@ The reusable `DocumentSession` coordinates source adapters, stable node identity
 - Main horizontal command bars use scroll buttons without scrollbar rows.
 - Native HTML pages share solution files, docking, Design/Code/Split/Views modes, undo/redo and source recovery. Use **File → New → HTML page** or add `.html`/`.htm` files.
 - HTML authoring includes a native browser canvas, element toolkit, nested selection, flow reordering/reparenting, absolute movement, resize handles, inline text, HTML attributes, CSS properties, styles/scripts and isolated interactive preview.
-- The HTML source adapter preserves untouched original source; visual changes produce canonical HTML while retaining CSS/script bodies. See [HTML workflows](docs/HTML-WORKFLOWS.md) for details and boundaries.
+- The HTML source adapter preserves untouched original source; the document session patches visual changes while retaining unrelated CSS/script bodies. See [HTML workflows](docs/HTML-WORKFLOWS.md) for details and boundaries.
 
 ## New in 0.6 — compact workspace
 

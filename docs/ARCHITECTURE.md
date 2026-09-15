@@ -356,3 +356,12 @@ Storage failure falls back to a working in-memory preference. The root controlle
 `core/overlay-layout.js` positions selection actions outside the element type label, with viewport-aware fallback. `controls/scroll-buttons.js` is an independent horizontal scrolling control, with keyboard isolation, resize/content observation, active-item reveal and disposal. Its stylesheet is imported by the docking stylesheet for standalone consumers. `studio/chrome-scroll.js` applies the control to the existing shell bars without rebuilding their children.
 
 DockWorkspace preserves per-group scroll offsets across synchronous tree reconstruction, prioritizes tab-strip destinations over outer edge zones, paints an insertion marker, scrolls near overflow edges during dragging, and supports auto-hide rail drag origins. Selection/source input nodes still move intact through docking operations.
+
+
+## 23. HTML animation source and native preview
+
+`core/html-animation.js` scans editable style elements into CSS rule/keyframe ranges. Timeline operations patch those ranges and ordinary inline CSS animation bindings inside the document tree. `DocumentSession` then synchronizes the resulting HTML and source locations in the same transaction, including undo/redo. Stable keyframe definition identities combine the style node identity, animation name and occurrence.
+
+`studio/html-animation-workspace.js` integrates animation controls with the existing docked timeline and IDE menus. Recording intercepts property/canvas edits inside the document transaction, captures keyframe values, and restores base CSS before committing. It never stores preview samples as authored layout.
+
+`HtmlAnimationPreview` operates on native browser CSS animation objects and restores their captured state on disposal. The design renderer pauses effects through the Web Animations API, preserving authored `animation-play-state` for the separate interactive preview. See [HTML animation architecture and workflows](HTML-ANIMATIONS.md) for API contracts, CSS source preservation, timing and authoring limits.
