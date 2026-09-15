@@ -268,3 +268,12 @@ test('a direct document snapshot swap rebuilds source mappings for replacement n
  const {session,store}=setup('<Grid><Button Content="Same"/></Grid>');const original=store.document.root.children[0].id;const replacement=parseXaml(session.source);replacement.metadata.source=structuredClone(store.document.metadata.source);store.document=replacement;session.refresh();
  assert.equal(session.sourceAtNode(original),null);const id=store.document.root.children[0].id;assert.ok(session.sourceAtNode(id));assert.equal(session.nodeAtOffset(session.source.indexOf('<Button')).id,id);
 });
+
+test('root property panel dimensions synchronize the artboard, code, and shared undo history',()=>{
+ const {session,store}=setup('<Grid Width="400" Height="300"/>');
+ store.setProperty([store.document.root.id],'Width','620');assert.equal(store.document.design.width,620);assert.match(session.source,/Width="620"/);assert.equal(store.history.length,1);
+ store.undo();assert.equal(store.document.design.width,400);assert.equal(store.document.root.props.Width,'400');assert.match(session.source,/Width="400"/);
+ store.redo();assert.equal(store.document.design.width,620);assert.equal(store.document.root.props.Width,'620');
+ store.setProperty([store.document.root.id],'Width','Auto');assert.equal(store.document.design.width,620);
+ store.transaction('Set root and explicit artboard',d=>{d.root.props.Height='450';d.design.height=900;});assert.equal(store.document.design.height,900);assert.match(session.source,/Height="450"/);
+});

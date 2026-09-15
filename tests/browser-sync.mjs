@@ -77,7 +77,11 @@ try{
   assert.ok(composed.buffer.includes('Composed'));assert.ok(!composed.committed.includes('Composed'),'composition does not publish partial semantic state');
   await input.dispatchEvent('compositionend',{data:'Composed'});
   await page.waitForFunction(()=>window.xamora.studio.store.session.source.includes('Composed')&&window.xamora.studio.store.session.isValid);
-  console.log('PASS XAML: source, rendered canvas, inspector, shared history, invalid draft, document switching, immediate edit race, IME');
+  await replaceToken("Width='640'","Width='800'");
+  await page.waitForFunction(()=>window.xamora.studio.doc.design.width===800&&document.querySelector('#artboard').style.width==='800px');
+  await input.press('Control+z');
+  await page.waitForFunction(()=>window.xamora.studio.doc.design.width===640&&document.querySelector('#artboard').style.width==='640px');
+  console.log('PASS XAML: source, rendered canvas, inspector, shared history, invalid draft, document switching, immediate edit race, IME, artboard dimensions');
 
   const html=`<!doctype html>\n<html lang='en'><head><title>Sync</title><style>button { color: rgb(10, 20, 30); }</style></head><body>\n<!-- preserve HTML comment -->\n<button id='action' style='width: 120px; height: 40px;'>Before</button><p id='stable'>Untouched</p>\n</body></html>`;
   const htmlId=await page.evaluate(source=>{const s=window.xamora.studio;s.importText(source,'sync.html');s.setView('split');let id;const visit=n=>{if(n.props?.id==='action')id=n.id;(n.children||[]).forEach(visit);};visit(s.doc.root);s.store.select([id]);return id;},html);

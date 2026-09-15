@@ -129,6 +129,9 @@ export class DocumentSession extends EventTarget {
   const changed=documentShape(before)!==documentShape(after);
   if(!changed)return;
   if((before.metadata?.source?.diagnostics||[]).some(d=>d.severity==='error'))throw Error('Fix the source errors or discard the source draft before editing the design. Your draft has been preserved.');
+  // Literal root dimensions drive the artboard across property panels and gestures.
+  // An explicit artboard adjustment in the same transaction takes precedence.
+  if(after.framework!=='HTML')for(const [property,dimension] of [['Width','width'],['Height','height']]){const value=after.root.props[property];if(value!==before.root.props[property]&&after.design[dimension]===before.design[dimension]&&value!==undefined&&String(value).trim()!==''&&Number.isFinite(Number(value))&&Number(value)>0)after.design[dimension]=Number(value);}
   const oldSource=before.metadata?.source?.validText||this.adapter.serialize(before);
   let index=this.index;if(index?.source!==oldSource){const parsedOld=this._parse(oldSource).doc;reconcileDocumentIds(before,parsedOld);index=buildSourceIndex(oldSource,parsedOld);}
   const text=patchDocumentSource(oldSource,before,after,{adapter:this.adapter,index});

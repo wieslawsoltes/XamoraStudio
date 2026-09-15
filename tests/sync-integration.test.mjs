@@ -117,3 +117,15 @@ test('source editing a named element across containers preserves selected ID and
   assert.equal(store.document.root.children[1].children[0].id,id);assert.equal(store.document.annotations[0].targetId,id);
   session.dispose();
 });
+
+test('root code dimensions update the artboard and shared undo restores its prior viewport',()=>{
+  const {store,session}=fixture('<Canvas Width="640" Height="420"><Button Content="Hi"/></Canvas>');
+  store.document.design.zoomHint=1.25;store.document.design.height=500;
+  session.updateSource('<Canvas Width="800" Height="420"><Button Content="Hi"/></Canvas>');
+  assert.equal(store.document.root.props.Width,'800');assert.equal(store.document.design.width,800);
+  assert.equal(store.document.design.height,500,'unchanged source height retains an independently configured viewport');
+  assert.equal(store.document.design.zoomHint,1.25);
+  store.undo();assert.equal(store.document.root.props.Width,'640');assert.equal(store.document.design.width,640);
+  assert.equal(store.document.design.height,500);assert.equal(store.document.design.zoomHint,1.25);
+  store.redo();assert.equal(store.document.design.width,800);session.dispose();
+});
