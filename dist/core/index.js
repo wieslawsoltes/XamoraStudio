@@ -28,3 +28,5 @@ export * from './html-render.js';
 export * from './overlay-layout.js';
 
 export * from './document-session.js';
+
+export * from './html-animation.js';

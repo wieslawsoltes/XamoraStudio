@@ -252,3 +252,5 @@ export * from './html.js';
 export * from './html-render.js';
 
 export * from './document-session.js';
+
+export * from './html-animation.js';

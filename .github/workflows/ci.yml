@@ -27,6 +27,8 @@ jobs:
         run: npx playwright install --with-deps --only-shell chromium
       - name: Browser synchronization checks
         run: node tests/browser-sync.mjs
+      - name: Browser HTML animation checks
+        run: node tests/browser-html-motion.mjs
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
