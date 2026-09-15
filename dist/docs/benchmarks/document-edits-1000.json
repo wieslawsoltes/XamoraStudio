@@ -1,0 +1,61 @@
+{
+  "nodes": 1000,
+  "edits": 40,
+  "sourceCodeUnits": 61860,
+  "nodeVersion": "v24.19.0",
+  "note": "CPU timings vary by machine and load. String copies, validation, transient rollback clones and rendering are separate remaining costs. Retention values are estimates, not measured heap usage.",
+  "results": [
+    {
+      "mode": "full parsing",
+      "elapsedMs": 7435.5,
+      "averageEditMs": 185.89,
+      "counts": {
+        "fullParses": 40,
+        "localParses": 0,
+        "fullScans": 40,
+        "localScans": 0,
+        "charactersParsed": 2474440,
+        "charactersScanned": 2474440,
+        "incrementalUpdates": 0,
+        "fullUpdates": 40
+      },
+      "history": {
+        "entries": 40,
+        "pastEntries": 40,
+        "futureEntries": 0,
+        "estimatedBytes": 1203062,
+        "entryLimit": 100,
+        "byteLimit": 33554432,
+        "droppedEntries": 0
+      },
+      "estimatedSnapshotPayloadBytes": 39985114,
+      "undoRedoVerified": true
+    },
+    {
+      "mode": "localized parsing",
+      "elapsedMs": 2000.69,
+      "averageEditMs": 50.02,
+      "counts": {
+        "fullParses": 0,
+        "localParses": 40,
+        "fullScans": 0,
+        "localScans": 40,
+        "charactersParsed": 4680,
+        "charactersScanned": 4680,
+        "incrementalUpdates": 40,
+        "fullUpdates": 0
+      },
+      "history": {
+        "entries": 40,
+        "pastEntries": 40,
+        "futureEntries": 0,
+        "estimatedBytes": 267314,
+        "entryLimit": 100,
+        "byteLimit": 33554432,
+        "droppedEntries": 0
+      },
+      "estimatedSnapshotPayloadBytes": 40148234,
+      "undoRedoVerified": true
+    }
+  ]
+}

@@ -6,7 +6,7 @@ Xamora uses one `DocumentStore` and one `DocumentSession` per open document. Cod
 
 - Editing XAML or HTML synchronizes automatically. **Synchronize source** / **Ctrl+Enter** performs an explicit synchronization check; an Apply step is no longer required.
 - Inspector, canvas, resource, layout, and extension edits patch the source in the same transaction. Unchanged comments, attribute spelling, quote style, whitespace, and untouched subtrees retain their authored text.
-- Undo and redo use the document's shared history, including code drafts and visual edits. The current snapshot history retains up to 100 document changes.
+- Undo and redo use the document's shared history, including code drafts and visual edits. History retains up to 100 reversible document changes within a configurable byte budget; source strings use compact range deltas.
 - Caret movement selects the corresponding semantic element. Selecting a visual element reveals its concrete source range. IDs remain stable when nodes can be matched by unique name, HTML `id`, resource key, subtree, or scope-local position.
 - Switching documents retains source drafts, selection where the node still exists, and each editor's caret and scroll position during the session.
 - Incomplete source remains visible and editable. Diagnostics link to the source error; the last valid design continues rendering. Visual mutations of markup are rejected while the draft is invalid. **Restore last valid source** explicitly discards the draft through an undoable change.
@@ -99,6 +99,8 @@ session.redo();
 | `session.validSource` | Exact source corresponding to the current valid model. |
 | `session.isValid`, `session.diagnostics` | Current draft validity and source diagnostics. |
 | `session.revision` | Current `DocumentStore` revision. |
+| `applySourceEdits(edits, { origin, expectedRevision, expectedVersion })` | Commit atomic UTF-16 range edits against a document and text version. |
+| `buffer`, `processingStats`, `lastUpdate` | Inspect text mapping/version and localized/full processing work. |
 | `updateSource(text, { origin, expectedRevision })` | Commit code or a retained draft; return `{ accepted, valid, revision, diagnostics }`. |
 | `serialize({ draft: false })` | Return the last valid source; use `draft: true` for the current buffer. |
 | `discardDraft()` | Restore the last valid source as an undoable source change. |
@@ -155,7 +157,7 @@ Property-only edits change attribute value ranges where possible. Adding or remo
 
 HTML can be repaired or normalized by the browser parser. Synthetic wrappers, foster-parented table contents, unusual duplicate attributes, or other ambiguous source/model mappings may prevent a safe structural patch. Such edits fail atomically with an explanation to make the relevant container explicit in code. The source buffer itself remains available for editing. CSS and JavaScript bodies are retained as text; the session is a markup AST and concrete syntax index, not a full CSS or JavaScript semantic IDE.
 
-Parsing currently processes the complete source and history stores document snapshots. Rendering is coalesced, but this is not an incremental parser, rope text engine, worker language server, CRDT, or a claim of production-scale performance qualification. Existing document import limits apply. The browser preview does not execute native WPF/Avalonia assemblies or provide exhaustive native runtime layout validation.
+Eligible quoted attribute and ordinary text edits use localized parsing and cached syntax-range updates; structural and uncertain edits use the complete parser. History retains reversible document and string deltas. Rendering is coalesced. This remains an immutable-string buffer with transient transaction clones, not a rope, worker language server, CRDT, or production-scale qualification. See [editing-engine architecture](EDITOR-ENGINE.md) for measured costs and exact boundaries. Existing document import limits apply. The browser preview does not execute native WPF/Avalonia assemblies or provide exhaustive native runtime layout validation.
 
 IDs are stable for identifiable matches. Completely identical, unkeyed siblings remain inherently ambiguous after arbitrary source rewrites. Use `x:Name`, `Name`, resource keys, or HTML `id` when integrations require a persistent logical target.
 

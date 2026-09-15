@@ -6,13 +6,15 @@ Version 0.7.0 with document synchronization and HTML animation authoring · 15 S
 
 | Check | Result |
 | --- | --- |
-| `npm test` | **330 passed, 0 failed, 0 skipped**. |
+| `npm test` | **394 passed, 0 failed, 0 skipped**. |
 | `npm run check` | **Passed**: JavaScript syntax, module linkage, and local entrypoint assets verified. |
 | `node tests/browser-sync.mjs` | **Passed** in real headless Chromium. |
 | `node tests/browser-html-motion.mjs` | **Passed** in real headless Chromium. |
+| `node tests/browser-incremental.mjs` | **Passed**, including 12 native HTML parser contexts and 30 sequential edits. |
+| `node tests/browser-language.mjs` | **Passed**, including definition/reference navigation, rename, completion and diagnostic ranges. |
 | Compact timeline inspection | Inspected at **1600 × 1100** and **1366 × 768**, including selected-key editor access after scrolling. |
 
-The complete Node run reported 17.35 seconds. This is an execution result for the test suite, not an application performance benchmark. The browser suites also assert that their tested workflows produce no uncaught browser errors.
+The final incremental-engine Node run reported 14.34 seconds. This is an execution result for the test suite, not an application performance benchmark. The browser suites also assert that their tested workflows produce no uncaught browser errors.
 
 These results describe the combined source synchronization and HTML animation implementation. They supersede the older release notes stating that no browser application tests had been run. They do not establish exhaustive native framework, browser, device, or production-scale qualification.
 
@@ -93,4 +95,14 @@ The following were not established by this validation:
 - Production-scale memory use, continuous editing latency, parser throughput, snapshot history size, or long-running session stability.
 - Arbitrary CSS/JavaScript semantic IDE behavior, every CSS feature and interpolation case, or a security penetration test of HTML preview isolation.
 
-Source and stylesheet parsing currently process full inputs; document history uses snapshots. The generated large-document test validates its parsing/serialization behavior and does not claim an interactive performance result. The browser tests establish the particular workflows described above, not complete IDE parity or universal runtime fidelity.
+Eligible markup attribute/text edits use localized parsing; structural markup and stylesheet processing still use full scans. Document history retains reversible deltas; transactions still clone transiently for rollback. The generated large-document test validates its parsing/serialization behavior and does not claim an interactive performance result. The browser tests establish the particular workflows described above, not complete IDE parity or universal runtime fidelity.
+
+## Incremental engine and semantic editor validation
+
+The 394-test suite includes 13 localized source-processing tests, eight source-buffer tests (including 600 deterministic randomized edit batches), 16 compact-history tests and 27 semantic-service tests. Differential tests compare semantic output and concrete node/attribute ranges against full parsing. Stale revisions, invalid drafts, namespaces, raw HTML text, contextual parsing and repeated element types have explicit regression coverage.
+
+The additional Chromium suites use the browser's actual DOMParser and full application. They verify native HTML context fallback, repeated local edits, canvas/property transactions and history, F12 definition navigation, references, F2 rename with exact undo, preserved JavaScript/comments, accepted toolkit enum completions, and Error List line remapping after a multiline edit. Existing synchronization and HTML keyframe suites also passed with the new engine.
+
+The [recorded 1,000-control benchmark](benchmarks/document-edits-1000.json) verifies exact undo/redo and reports localized parser work, observed edit time and estimated history retention. The benchmark excludes DOM rendering and its timing is not a cross-device performance claim. A separate 100-entry history regression retained an estimated 666,368 bytes versus 90,445,800 bytes for snapshots and verified all 100 undo/redo operations.
+
+See [editing-engine contracts](EDITOR-ENGINE.md) for the optimized cases, fallback rules, retention budget and remaining linear work.
