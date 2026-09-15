@@ -1,14 +1,14 @@
 {
-  "name": "@wieslawsoltes/xamora",
+  "name": "@wieslawsoltes/xamora-compiler",
   "version": "0.8.0",
-  "description": "Xamora universal UI framework and reusable designer SDK",
+  "description": "Bidirectional semantic XAML and HTML compiler with document, folder, and solution conversion",
   "type": "module",
   "license": "MIT",
   "author": "Xamora contributors",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
-    "directory": "packages/xamora"
+    "directory": "packages/compiler"
   },
   "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
   "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
@@ -27,9 +27,25 @@
       }
     },
     "./package.json": "./package.json",
-    "./browser": {
-      "types": "./dist/esm/index.d.ts",
-      "default": "./dist/browser/index.js"
+    "./semantic-compiler": {
+      "import": {
+        "types": "./dist/esm/semantic-compiler.d.ts",
+        "default": "./dist/esm/semantic-compiler.js"
+      },
+      "require": {
+        "types": "./dist/cjs/semantic-compiler.d.cts",
+        "default": "./dist/cjs/semantic-compiler.cjs"
+      }
+    },
+    "./conversion-project": {
+      "import": {
+        "types": "./dist/esm/conversion-project.d.ts",
+        "default": "./dist/esm/conversion-project.js"
+      },
+      "require": {
+        "types": "./dist/cjs/conversion-project.d.cts",
+        "default": "./dist/cjs/conversion-project.cjs"
+      }
     }
   },
   "files": [
@@ -52,16 +68,24 @@
   },
   "dependencies": {
     "@wieslawsoltes/xamora-animation": "0.8.0",
-    "@wieslawsoltes/xamora-compiler": "0.8.0",
     "@wieslawsoltes/xamora-contracts": "0.8.0",
-    "@wieslawsoltes/xamora-controls": "0.8.0",
-    "@wieslawsoltes/xamora-data": "0.8.0",
     "@wieslawsoltes/xamora-designer": "0.8.0",
     "@wieslawsoltes/xamora-markup": "0.8.0",
     "@wieslawsoltes/xamora-model": "0.8.0",
-    "@wieslawsoltes/xamora-properties": "0.8.0",
-    "@wieslawsoltes/xamora-renderer": "0.8.0",
-    "@wieslawsoltes/xamora-runtime": "0.8.0",
-    "@wieslawsoltes/xamora-styling": "0.8.0"
+    "@wieslawsoltes/xamora-styling": "0.8.0",
+    "happy-dom": "^20.14.3"
+  },
+  "bin": {
+    "xamora-convert": "./dist/esm/cli/index.js"
+  },
+  "xamora": {
+    "modules": [
+      "semantic-compiler",
+      "conversion-project"
+    ],
+    "cli": "dist/compiler-cli/index.js",
+    "cliModules": [
+      "assets"
+    ]
   }
 }

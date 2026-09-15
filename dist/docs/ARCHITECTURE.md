@@ -390,3 +390,12 @@ See [HTML states and transitions](HTML-STATES.md) for source/API contracts, inte
 The package build assigns every exported source module to one owner and rewrites cross-package imports to explicit package subpaths. This preserves shared constructor identities while keeping the original buildless studio imports intact. ESM/CommonJS, declarations, browser bundles, styles and actual installed-tarball consumer checks form the distributable contract. The repository root is private; npm publication is separately gated by a manual release workflow and remains disabled by default.
 
 See [web framework architecture](WEB-FRAMEWORK-ARCHITECTURE.md), [runtime APIs](WEB-RUNTIME.md), and [package/release setup](PACKAGES.md). Browser layout remains an implementation of the supported web control subset; native framework services and arbitrary code-behind require adapters.
+
+
+## 27. Semantic conversion and shared project planning
+
+`core/semantic-compiler.js` lowers the universal document AST between supported XAML and HTML semantics. It uses the same parsers/serializers and source index as the IDE, emits source/target node mappings and explicit diagnostic/loss reports, and exposes per-node compiler plugins. Portable metadata retains source constructs that have no direct target representation; mapped edits are merged back into preserved semantics when converting in the opposite direction. Source metadata is data, not executable code.
+
+`core/conversion-project.js` plans document, folder and solution outputs without writes. It centralizes target path selection, collision policy, invalid-draft rejection and static reference relocation. `studio/compiler-workspace.js` previews those plans, verifies the captured solution has not changed, and commits selected outputs through solution history while preserving unchanged document stores and source sessions. `compiler-cli/` consumes the same planner, injects a Node HTML parser, resolves local assets and commits output files with exclusive writes and rollback.
+
+Conversion does not infer arbitrary JavaScript behavior, native platform services or unsupported CSS into equivalent native XAML. Strict mode rejects known semantic losses; ordinary mode preserves available source information and reports the target behavior needing an adapter. See [the compiler contract](SEMANTIC-COMPILER.md) and [CLI file/asset rules](COMPILER-CLI.md).

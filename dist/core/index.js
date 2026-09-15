@@ -43,3 +43,5 @@ export * from './runtime-properties.js';
 export * from './web-runtime.js';
 export * from './runtime-element.js';
 
+export * from './semantic-compiler.js';
+export * from './conversion-project.js';
