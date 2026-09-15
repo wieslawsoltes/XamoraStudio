@@ -22,3 +22,17 @@ test('folder selection prevents file-only solution actions from changing an unre
 test('applying a replacement solution works when all documents change and the old active index is nonzero',()=>{installDockDOM();const old=[parseXaml('<Grid/>'),parseXaml('<Canvas/>')],replacement=parseXaml('<StackPanel/>'),s={stores:old.map(d=>new DocumentStore(d)),active:1,get doc(){return this.stores[this.active].document;},blend:{animation:{stop(){}}},docking:{refreshing:false,syncDocuments(){},control:{activate(){}}},editor:{dirty:false,setValue(){}},addStore(d){assert.ok(this.doc);const st=new DocumentStore(d);this.stores.push(st);return st;},render(){assert.ok(this.doc);},save(){}};const sol=Object.assign(Object.create(SolutionWorkspace.prototype),{s});sol.apply({documents:[replacement],solution:createSolution([replacement]),activeId:replacement.id});assert.equal(s.stores.length,1);assert.equal(s.doc.id,replacement.id);assert.equal(s.active,0);});
 test('view tiling aborts without dock changes when source guards reject activation',()=>{let edits=0;const board=Object.assign(Object.create(ViewBoard.prototype),{selected:new Set(['a','b']),s:{stores:[{document:{id:'a'}},{document:{id:'b'}}],docking:{model:{dock(){edits++;}}}},open(){return false;}});board.tile();assert.equal(edits,0);});
 test('minimum-size hints compose through nested splits with a compact fallback',()=>{const panels=new Map([['a',{minWidth:240,minHeight:120}],['b',{minWidth:300,minHeight:100}]]),root=dockSplit('horizontal',dockGroup(['a']),dockGroup(['b']));assert.deepEqual(dockMinimum(root,panels),{width:545,height:172});const [min,max]=dockRatioLimits(root,panels,1005);assert.equal(min,.24);assert.equal(max,.7);assert.deepEqual(dockRatioLimits(root,panels,400),[.08,.92]);});
+
+test('solution resolver is ready when docking synchronously renders during panel registration',()=>{
+ installDockDOM();
+ const documents=[parseXaml('<Grid/>',{name:'MainView.xaml'}),parseXaml('<ResourceDictionary/>',{name:'Resources.xaml'})];
+ let resolvedDuringRegistration;
+ const studio={stores:documents.map(doc=>new DocumentStore(doc)),active:0,get doc(){return this.stores[this.active].document;},renderer:{},render(){},save(){},addStore(){},switchDocument(){},docking:{originalSwitch(){},registerPanel(){
+  assert.equal(typeof studio.solution.resolverFor,'function');
+  resolvedDuringRegistration=studio.solution.resolverFor(studio.doc)('Resources.xaml',studio.doc.root);
+ }}};
+ class MinimalSolution extends SolutionWorkspace {render(){}}
+ new MinimalSolution(studio);
+ assert.equal(resolvedDuringRegistration,studio.stores[1].document.root);
+ assert.equal(studio.renderer.resourceResolver('Resources.xaml',studio.doc.root),resolvedDuringRegistration);
+});

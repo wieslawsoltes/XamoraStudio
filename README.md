@@ -41,7 +41,7 @@ Density changes preserve the live code buffer/caret, document history, dock arra
 - Solution resource browser with swatches, merge controls, scoped reference renaming and visual property-editor extensions.
 - Retained view cards, filters, card sizing, selected-view tiling and inline navigation connections.
 
-Read the [0.5 editor workflows](docs/EDITOR-WORKFLOWS.md) for gestures, behavior and current limits. The source remains dependency-free and buildless. Automated unit and integration checks cover the implemented workflows; browser and native framework qualification are still separate work.
+Read the [0.5 editor workflows](docs/EDITOR-WORKFLOWS.md) for gestures, behavior and current limits. The source remains dependency-free and buildless. Automated unit and integration checks cover the implemented workflows. Chromium tests now exercise document synchronization in the complete application; native framework qualification remains separate.
 
 ## New in 0.4
 
