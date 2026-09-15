@@ -2,7 +2,7 @@
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 const base=process.env.PAGES_URL||'https://wieslawsoltes.github.io/XamoraStudio/';
-const files=['index.html','app.js','studio/html-workspace.js','core/html.js','styles/density.css','examples/DockingDemo.html','core/document-session.js','core/source-syntax.js','studio/document-sync.js','core/html-animation.js','studio/html-animation-workspace.js','styles/html-animation.css','examples/HtmlMotionLab.html','core/source-text-buffer.js','core/history.js','core/language-service.js','studio/language-workspace.js','core/html-states.js','studio/html-states-workspace.js','styles/html-states.css','examples/HtmlInteractionLab.html'];
+const files=['index.html','app.js','studio/html-workspace.js','core/html.js','styles/density.css','examples/DockingDemo.html','core/document-session.js','core/source-syntax.js','studio/document-sync.js','core/html-animation.js','studio/html-animation-workspace.js','styles/html-animation.css','examples/HtmlMotionLab.html','core/source-text-buffer.js','core/history.js','core/language-service.js','studio/language-workspace.js','core/html-states.js','studio/html-states-workspace.js','styles/html-states.css','examples/HtmlInteractionLab.html','core/web-runtime.js','core/runtime-properties.js','core/runtime-element.js','styles/runtime.css','examples/StandaloneApp/index.html','examples/StandaloneApp/app.js','examples/StandaloneApp/MainView.xaml'];
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 const expected=new Map(await Promise.all(files.map(async path=>[path,digest(await readFile(new URL('../dist/'+path,import.meta.url)))])));
 let failure='';

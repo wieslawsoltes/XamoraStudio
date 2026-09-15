@@ -1,0 +1,105 @@
+{
+  "name": "@wieslawsoltes/xamora-animation",
+  "version": "0.8.0",
+  "description": "XAML animation clocks, storyboards, visual states, and timeline editing",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/animation"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./animation": {
+      "import": {
+        "types": "./dist/esm/animation.d.ts",
+        "default": "./dist/esm/animation.js"
+      },
+      "require": {
+        "types": "./dist/cjs/animation.d.cts",
+        "default": "./dist/cjs/animation.cjs"
+      }
+    },
+    "./states": {
+      "import": {
+        "types": "./dist/esm/states.d.ts",
+        "default": "./dist/esm/states.js"
+      },
+      "require": {
+        "types": "./dist/cjs/states.d.cts",
+        "default": "./dist/cjs/states.cjs"
+      }
+    },
+    "./motion-schema": {
+      "import": {
+        "types": "./dist/esm/motion-schema.d.ts",
+        "default": "./dist/esm/motion-schema.js"
+      },
+      "require": {
+        "types": "./dist/cjs/motion-schema.d.cts",
+        "default": "./dist/cjs/motion-schema.cjs"
+      }
+    },
+    "./motion-diagnostics": {
+      "import": {
+        "types": "./dist/esm/motion-diagnostics.d.ts",
+        "default": "./dist/esm/motion-diagnostics.js"
+      },
+      "require": {
+        "types": "./dist/cjs/motion-diagnostics.d.cts",
+        "default": "./dist/cjs/motion-diagnostics.cjs"
+      }
+    },
+    "./timeline-editing": {
+      "import": {
+        "types": "./dist/esm/timeline-editing.d.ts",
+        "default": "./dist/esm/timeline-editing.js"
+      },
+      "require": {
+        "types": "./dist/cjs/timeline-editing.d.cts",
+        "default": "./dist/cjs/timeline-editing.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-data": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-styling": "0.8.0"
+  }
+}

@@ -1,0 +1,9 @@
+# @wieslawsoltes/xamora-runtime
+
+Standalone XAML browser applications with bindings, commands, resources, and motion.
+
+This package is built from the same canonical modules used by Xamora Studio. ESM and CommonJS consumers share modules across package boundaries; all public entry points include TypeScript declarations. Browser applications can use a bundler or the self-contained `./browser` entry.
+
+See [package architecture and installation](https://github.com/wieslawsoltes/XamoraStudio/blob/main/docs/PACKAGES.md), [runtime guide](https://github.com/wieslawsoltes/XamoraStudio/blob/main/docs/WEB-RUNTIME.md), and [source](https://github.com/wieslawsoltes/XamoraStudio).
+
+MIT licensed.

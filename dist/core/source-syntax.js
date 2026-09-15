@@ -98,6 +98,11 @@ export function buildSourceIndex(source,doc,syntax=scanSource(source,{html:doc.f
  * No unchanged text is lexed. Token identities and tree links are reused; numeric
  * offsets after the edit are adjusted in O(token count). Call only after commit.
  */
+/**
+ * @param {any} index
+ * @param {any} edit
+ * @param {{nodeId?: string, attributeName?: string}} [options]
+ */
 export function updateSourceIndex(index,edit,{nodeId,attributeName}={}){
  const token=index.tokenById.get(nodeId);if(!token)throw Error('The edited token is not indexed.');
  const delta=edit.text.length-(edit.end-edit.start),ancestors=new Set();for(let n=token;n;n=n.parent)ancestors.add(n);

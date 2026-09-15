@@ -9,32 +9,26 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - run: npm ci
       - run: npm run check
       - run: npm test
-      - name: Install browser test tools
-        run: npm install --no-save --package-lock=false playwright@1.62.1
+      - name: Build and validate publishable packages
+        run: npm run test:package
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: chromium-${{ runner.os }}-playwright-1.62.1
       - name: Install Chromium
         run: npx playwright install --with-deps --only-shell chromium
-      - name: Browser synchronization checks
-        run: node tests/browser-sync.mjs
-      - name: Browser incremental parsing checks
-        run: node tests/browser-incremental.mjs
-      - name: Browser semantic editor checks
-        run: node tests/browser-language.mjs
-      - name: Browser HTML animation checks
-        run: node tests/browser-html-motion.mjs
-      - name: Browser HTML state checks
-        run: node tests/browser-html-states.mjs
+      - name: Browser designer, runtime, and compiler checks
+        run: npm run test:browser
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

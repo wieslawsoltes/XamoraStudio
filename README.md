@@ -1,12 +1,30 @@
 # Xamora Studio
 
-[Open the designer](https://wieslawsoltes.github.io/XamoraStudio/) · [Standalone docking demo](https://wieslawsoltes.github.io/XamoraStudio/examples/DockingDemo.html)
+[Open the designer](https://wieslawsoltes.github.io/XamoraStudio/) · [Standalone XAML app](https://wieslawsoltes.github.io/XamoraStudio/examples/StandaloneApp/) · [Standalone docking demo](https://wieslawsoltes.github.io/XamoraStudio/examples/DockingDemo.html)
 
 [![Validate and publish Xamora](https://github.com/wieslawsoltes/XamoraStudio/actions/workflows/ci.yml/badge.svg)](https://github.com/wieslawsoltes/XamoraStudio/actions/workflows/ci.yml)
 
 An extensible visual UI authoring application written in plain JavaScript, HTML, and CSS. It opens directly into a design workspace with a sample desktop application, layer tree, control toolkit, property inspector, XAML editor, and design canvas.
 
 The canvas uses WebGPU for its infinite dot-grid surface when available. Accessible controls, text, and preview layout use the browser DOM and CSS. The source model remains independent of the preview.
+
+## Standalone web framework and npm packages
+
+The same document model, XAML parser, browser renderer, resources, bindings and animation engine can now run an application without loading the designer. The application host adds observable state, typed runtime properties, two-way input bindings, explicitly registered commands/events, resource and theme updates, storyboard/state playback, custom control lifecycles and a custom-element adapter.
+
+Try the [standalone XAML application](https://wieslawsoltes.github.io/XamoraStudio/examples/StandaloneApp/) and read the [runtime API and support boundaries](docs/WEB-RUNTIME.md). This is a browser implementation of supported XAML semantics; native .NET controls and platform-specific behavior require adapters.
+
+Granular packages under `@wieslawsoltes/xamora-*` are generated from the canonical `dist/` modules, preserving shared class identity across package boundaries. They include ESM, CommonJS, TypeScript declarations, exported assets and standalone browser bundles. The private repository root continues to run the designer directly. See [package architecture, local installation and release setup](docs/PACKAGES.md).
+
+```sh
+npm ci
+npm run check
+npm test
+npm run test:package
+npm run test:browser
+```
+
+The npm release workflow is manual and defaults to validation. No npm publication is triggered by merging a PR or deploying GitHub Pages. Packages must be built and validated locally until a separately authorized npm release is performed.
 
 ## HTML states and transitions
 

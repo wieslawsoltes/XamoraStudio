@@ -1,0 +1,66 @@
+{
+  "name": "@wieslawsoltes/xamora",
+  "version": "0.8.0",
+  "description": "Xamora universal UI framework and reusable designer SDK",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/xamora"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./browser": {
+      "types": "./dist/esm/index.d.ts",
+      "default": "./dist/browser/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-animation": "0.8.0",
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-controls": "0.8.0",
+    "@wieslawsoltes/xamora-data": "0.8.0",
+    "@wieslawsoltes/xamora-designer": "0.8.0",
+    "@wieslawsoltes/xamora-markup": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-properties": "0.8.0",
+    "@wieslawsoltes/xamora-renderer": "0.8.0",
+    "@wieslawsoltes/xamora-runtime": "0.8.0",
+    "@wieslawsoltes/xamora-styling": "0.8.0"
+  }
+}

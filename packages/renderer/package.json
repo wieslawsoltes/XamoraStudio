@@ -1,0 +1,97 @@
+{
+  "name": "@wieslawsoltes/xamora-renderer",
+  "version": "0.8.0",
+  "description": "Shared browser rendering for XAML and HTML documents",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/renderer"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./render": {
+      "import": {
+        "types": "./dist/esm/render.d.ts",
+        "default": "./dist/esm/render.js"
+      },
+      "require": {
+        "types": "./dist/cjs/render.d.cts",
+        "default": "./dist/cjs/render.cjs"
+      }
+    },
+    "./html-render": {
+      "import": {
+        "types": "./dist/esm/html-render.d.ts",
+        "default": "./dist/esm/html-render.js"
+      },
+      "require": {
+        "types": "./dist/cjs/html-render.d.cts",
+        "default": "./dist/cjs/html-render.cjs"
+      }
+    },
+    "./motion-render": {
+      "import": {
+        "types": "./dist/esm/motion-render.d.ts",
+        "default": "./dist/esm/motion-render.js"
+      },
+      "require": {
+        "types": "./dist/cjs/motion-render.d.cts",
+        "default": "./dist/cjs/motion-render.cjs"
+      }
+    },
+    "./gpu": {
+      "import": {
+        "types": "./dist/esm/gpu.d.ts",
+        "default": "./dist/esm/gpu.js"
+      },
+      "require": {
+        "types": "./dist/cjs/gpu.d.cts",
+        "default": "./dist/cjs/gpu.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-animation": "0.8.0",
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-data": "0.8.0",
+    "@wieslawsoltes/xamora-markup": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-styling": "0.8.0"
+  }
+}

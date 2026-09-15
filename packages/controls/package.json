@@ -1,0 +1,105 @@
+{
+  "name": "@wieslawsoltes/xamora-controls",
+  "version": "0.8.0",
+  "description": "Reusable IDE docking, menus, scroll buttons, and density controls",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/controls"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./docking": {
+      "import": {
+        "types": "./dist/esm/docking.d.ts",
+        "default": "./dist/esm/docking.js"
+      },
+      "require": {
+        "types": "./dist/cjs/docking.d.cts",
+        "default": "./dist/cjs/docking.cjs"
+      }
+    },
+    "./dock-workspace": {
+      "import": {
+        "types": "./dist/esm/dock-workspace.d.ts",
+        "default": "./dist/esm/dock-workspace.js"
+      },
+      "require": {
+        "types": "./dist/cjs/dock-workspace.d.cts",
+        "default": "./dist/cjs/dock-workspace.cjs"
+      }
+    },
+    "./menu-bar": {
+      "import": {
+        "types": "./dist/esm/menu-bar.d.ts",
+        "default": "./dist/esm/menu-bar.js"
+      },
+      "require": {
+        "types": "./dist/cjs/menu-bar.d.cts",
+        "default": "./dist/cjs/menu-bar.cjs"
+      }
+    },
+    "./scroll-buttons": {
+      "import": {
+        "types": "./dist/esm/scroll-buttons.d.ts",
+        "default": "./dist/esm/scroll-buttons.js"
+      },
+      "require": {
+        "types": "./dist/cjs/scroll-buttons.d.cts",
+        "default": "./dist/cjs/scroll-buttons.cjs"
+      }
+    },
+    "./workspace-density": {
+      "import": {
+        "types": "./dist/esm/workspace-density.d.ts",
+        "default": "./dist/esm/workspace-density.js"
+      },
+      "require": {
+        "types": "./dist/cjs/workspace-density.d.cts",
+        "default": "./dist/cjs/workspace-density.cjs"
+      }
+    },
+    "./scroll-buttons.css": "./dist/assets/scroll-buttons.css",
+    "./docking.css": "./dist/assets/docking.css",
+    "./density.css": "./dist/assets/density.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-contracts": "0.8.0"
+  }
+}

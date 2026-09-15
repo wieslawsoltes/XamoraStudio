@@ -1,0 +1,82 @@
+{
+  "name": "@wieslawsoltes/xamora-model",
+  "version": "0.8.0",
+  "description": "Universal document AST, transaction history, and control metadata",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/model"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./model": {
+      "import": {
+        "types": "./dist/esm/model.d.ts",
+        "default": "./dist/esm/model.js"
+      },
+      "require": {
+        "types": "./dist/cjs/model.d.cts",
+        "default": "./dist/cjs/model.cjs"
+      }
+    },
+    "./history": {
+      "import": {
+        "types": "./dist/esm/history.d.ts",
+        "default": "./dist/esm/history.js"
+      },
+      "require": {
+        "types": "./dist/cjs/history.d.cts",
+        "default": "./dist/cjs/history.cjs"
+      }
+    },
+    "./registry": {
+      "import": {
+        "types": "./dist/esm/registry.d.ts",
+        "default": "./dist/esm/registry.js"
+      },
+      "require": {
+        "types": "./dist/cjs/registry.d.cts",
+        "default": "./dist/cjs/registry.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-contracts": "0.8.0"
+  }
+}

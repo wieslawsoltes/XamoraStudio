@@ -1,0 +1,146 @@
+{
+  "name": "@wieslawsoltes/xamora-markup",
+  "version": "0.8.0",
+  "description": "XAML and HTML parsing, source synchronization, language services, and CSS motion",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/markup"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./xaml": {
+      "import": {
+        "types": "./dist/esm/xaml.d.ts",
+        "default": "./dist/esm/xaml.js"
+      },
+      "require": {
+        "types": "./dist/cjs/xaml.d.cts",
+        "default": "./dist/cjs/xaml.cjs"
+      }
+    },
+    "./html": {
+      "import": {
+        "types": "./dist/esm/html.d.ts",
+        "default": "./dist/esm/html.js"
+      },
+      "require": {
+        "types": "./dist/cjs/html.d.cts",
+        "default": "./dist/cjs/html.cjs"
+      }
+    },
+    "./source-syntax": {
+      "import": {
+        "types": "./dist/esm/source-syntax.d.ts",
+        "default": "./dist/esm/source-syntax.js"
+      },
+      "require": {
+        "types": "./dist/cjs/source-syntax.d.cts",
+        "default": "./dist/cjs/source-syntax.cjs"
+      }
+    },
+    "./source-text-buffer": {
+      "import": {
+        "types": "./dist/esm/source-text-buffer.d.ts",
+        "default": "./dist/esm/source-text-buffer.js"
+      },
+      "require": {
+        "types": "./dist/cjs/source-text-buffer.d.cts",
+        "default": "./dist/cjs/source-text-buffer.cjs"
+      }
+    },
+    "./document-session": {
+      "import": {
+        "types": "./dist/esm/document-session.d.ts",
+        "default": "./dist/esm/document-session.js"
+      },
+      "require": {
+        "types": "./dist/cjs/document-session.d.cts",
+        "default": "./dist/cjs/document-session.cjs"
+      }
+    },
+    "./xaml-language": {
+      "import": {
+        "types": "./dist/esm/xaml-language.d.ts",
+        "default": "./dist/esm/xaml-language.js"
+      },
+      "require": {
+        "types": "./dist/cjs/xaml-language.d.cts",
+        "default": "./dist/cjs/xaml-language.cjs"
+      }
+    },
+    "./language-service": {
+      "import": {
+        "types": "./dist/esm/language-service.d.ts",
+        "default": "./dist/esm/language-service.js"
+      },
+      "require": {
+        "types": "./dist/cjs/language-service.d.cts",
+        "default": "./dist/cjs/language-service.cjs"
+      }
+    },
+    "./html-animation": {
+      "import": {
+        "types": "./dist/esm/html-animation.d.ts",
+        "default": "./dist/esm/html-animation.js"
+      },
+      "require": {
+        "types": "./dist/cjs/html-animation.d.cts",
+        "default": "./dist/cjs/html-animation.cjs"
+      }
+    },
+    "./html-states": {
+      "import": {
+        "types": "./dist/esm/html-states.d.ts",
+        "default": "./dist/esm/html-states.js"
+      },
+      "require": {
+        "types": "./dist/cjs/html-states.d.cts",
+        "default": "./dist/cjs/html-states.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-animation": "0.8.0",
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-data": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-styling": "0.8.0"
+  }
+}

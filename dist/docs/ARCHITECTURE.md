@@ -381,3 +381,12 @@ The core does not retain DOM objects in its document/history representations. Pu
 `HtmlStatePreview` temporarily translates supported pseudo-selector tokens at their original positions in the design iframe's style sheets, then restores CSS, attributes, control state and the transition-freeze marker. Native CSS supplies transition interpolation. Preview samples never enter document history. Recorded state declarations use explicit priority when required to override retained ordinary inline base values; inline-important conflicts are rejected.
 
 See [HTML states and transitions](HTML-STATES.md) for source/API contracts, interaction runtime ownership and supported selector boundaries.
+
+
+## 26. Standalone application runtime and package boundaries
+
+`core/web-runtime.js` assembles the existing document model, XAML parser, browser renderer, binding/resource services, animation clocks and visual states into a disposable browser application. `core/runtime-properties.js` supplies observable application data and typed property metadata/precedence; `core/runtime-element.js` connects the same lifetime to custom elements. The runtime does not import studio controllers or studio styles.
+
+The package build assigns every exported source module to one owner and rewrites cross-package imports to explicit package subpaths. This preserves shared constructor identities while keeping the original buildless studio imports intact. ESM/CommonJS, declarations, browser bundles, styles and actual installed-tarball consumer checks form the distributable contract. The repository root is private; npm publication is separately gated by a manual release workflow and remains disabled by default.
+
+See [web framework architecture](WEB-FRAMEWORK-ARCHITECTURE.md), [runtime APIs](WEB-RUNTIME.md), and [package/release setup](PACKAGES.md). Browser layout remains an implementation of the supported web control subset; native framework services and arbitrary code-behind require adapters.
