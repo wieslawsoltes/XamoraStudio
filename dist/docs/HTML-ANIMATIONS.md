@@ -69,7 +69,7 @@ Run `npm test` and `npm run check`. The Chromium integration test is `node tests
 
 - External stylesheet effects can play and seek in the native preview; import their CSS into a local style element to edit their keyframe definitions in the timeline.
 - Named scroll/view-timeline keyframe ranges are preserved in source. The millisecond timeline does not author or drive scroll-linked timelines.
-- Arbitrary JavaScript-generated Web Animations effects, transition/state authoring, and dynamic animation-name expressions remain source-driven. The timeline edits CSS keyframe animations.
+- CSS transitions and interaction states have a separate [States & transitions editor](HTML-STATES.md). The timeline edits CSS keyframe animations. Arbitrary JavaScript-generated Web Animations effects and dynamic animation-name expressions remain source-driven.
 - CSS variables, cascade layers, selector matching, registered custom properties, interpolation and layout are evaluated by the browser. Unsupported browser features retain their source and do not receive emulated semantics.
 - This is a source-range editor with full stylesheet scans, not an incremental CSS compiler or a full CSS semantic language server.
 

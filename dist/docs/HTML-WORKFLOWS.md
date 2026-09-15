@@ -41,3 +41,7 @@ Source and model limits remain two megabytes of imported HTML, 15,000 nodes, and
 ## Live source and CSS animation editing
 
 Code and visual edits now synchronize automatically through [DocumentSession](DOCUMENT-SYNC.md). HTML animations have a docked CSS keyframe timeline, browser-native scrubbing/playback and property/canvas recording; see [HTML animation workflows](HTML-ANIMATIONS.md). The old CSS-source-only animation guidance is superseded by that workflow.
+
+## Interaction states and transitions
+
+Use the **States** toolbar or **Animation → Visual states** to open the docked HTML state editor. Edit native pseudo states, named/class/data states, state CSS values and base/state transition lists; Record captures Properties/canvas changes while preserving base CSS. Preview and reset operate on the design iframe without changing source or history. Named-state bindings support eight event types and export an explicit readable runtime. **Animation → Open HTML interaction example** provides an interactive sample. See [HTML states](HTML-STATES.md) for the full workflow and priority/selector limits.
