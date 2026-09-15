@@ -26,3 +26,5 @@ export * from './timeline-editing.js';
 export * from './html.js';
 export * from './html-render.js';
 export * from './overlay-layout.js';
+
+export * from './document-session.js';

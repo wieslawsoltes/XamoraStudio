@@ -15,8 +15,9 @@ The implementation is a usable, modular foundation with explicit compatibility b
 ```mermaid
 flowchart TD
     UI["Studio workspace"] --> Store["DocumentStore"]
-    Editor["XAML editor"] --> Parser["Parser and serializer"]
-    Parser <--> Store
+    Editor["XAML / HTML editor"] <--> Session["DocumentSession"]
+    Session <--> Parser["Source adapters and syntax ranges"]
+    Session <--> Store
     Store --> Registry["Toolkit registry"]
     Store --> Preview["DOM preview renderer"]
     Registry --> Preview
@@ -27,6 +28,7 @@ flowchart TD
 | Module | Responsibility | Host requirements |
 | --- | --- | --- |
 | `model.js` | Tree identity, traversal, validation, selection, transactions, history | ECMAScript, EventTarget, structuredClone |
+| `document-session.js` | Live source/model synchronization, source spans, draft recovery, identity reconciliation, adapter registration | No DOM for XAML; HTML adapter requires DOMParser |
 | `xaml.js` | Safe XML-subset parsing, canonical serialization, common-framework mapping, diagnostics | No DOM |
 | `registry.js` | Control descriptors, construction, toolkit metadata, export adapters | No DOM for metadata |
 | `render.js` | Layout and visual mappings, resources, bindings, templates, standalone HTML | Browser DOM |
@@ -96,7 +98,7 @@ Canonical serialization retains ordered elements and properties; resource declar
 
 Mixed inline text is emitted without inserting structural indentation into the content. `xml:space` inheritance is retained by the parser. Comments, CDATA, and processing instructions are checked before serialization. Explicit empty attribute values are distinct from resetting/removing a property.
 
-The serializer is not byte-for-byte source preservation: quote style, structural whitespace, empty-tag spacing, and attribute presentation can change. Source positions describe the last parse; programmatic structural edits do not provide a full incrementally maintained source map.
+The standalone canonical serializers may change quote style, structural whitespace, empty-tag spacing and attribute presentation. Interactive editing goes through `DocumentSession`, which retains exact authored source and applies targeted edits where the source structure can be mapped safely. It rebuilds syntax ranges after accepted source or model changes. See [document synchronization](DOCUMENT-SYNC.md) for structural fallback and draft handling.
 
 ### Framework conversion
 
