@@ -1,0 +1,30 @@
+{
+  "name": "Acme Controls",
+  "version": "1.0.0",
+  "controls": [
+    {
+      "type": "acme:StatusCard",
+      "category": "Acme toolkit",
+      "namespace": "clr-namespace:Acme.Controls;assembly=Acme.Controls",
+      "container": true,
+      "singleChild": true,
+      "defaults": {
+        "Width": "260",
+        "Height": "120",
+        "Background": "#F3EDFF",
+        "Status": "Active"
+      },
+      "properties": [
+        {
+          "name": "Status",
+          "type": "enum",
+          "values": [
+            "Active",
+            "Paused",
+            "Done"
+          ]
+        }
+      ]
+    }
+  ]
+}

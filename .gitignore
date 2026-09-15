@@ -1,0 +1,8 @@
+node_modules/
+.sites-runtime/
+.env
+*.zip
+
+deliverables/
+
+upload/
