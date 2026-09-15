@@ -1,7 +1,7 @@
 /** Real Chromium smoke/integration tests. Run: node tests/browser-sync.mjs. */
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
-import {readFile,stat,mkdir} from 'node:fs/promises';
+import {readFile,stat,mkdir,writeFile} from 'node:fs/promises';
 import {resolve,extname,sep,dirname} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 let playwright;
@@ -19,12 +19,27 @@ const server=createServer(async(req,res)=>{try{
 }catch{res.writeHead(404).end();}});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const base=`http://127.0.0.1:${server.address().port}`;
-let browser,page;const runtimeErrors=[];
+let browser,page;const runtimeErrors=[],consoleErrors=[],consoleCapture=[];
 try{
   browser=await playwright.chromium.launch({headless:true,args:['--disable-dev-shm-usage']});
   page=await browser.newPage({viewport:{width:1600,height:1100}});
-  page.on('pageerror',error=>runtimeErrors.push(error.message));
-  await page.goto(base);await page.waitForFunction(()=>!!window.xamora?.studio?.sync,{timeout:30000});
+  page.on('pageerror',error=>runtimeErrors.push(error.stack||error.message));
+  page.on('console',message=>{
+    if(message.type()!=='error')return;
+    const record={text:message.text(),location:message.location(),arguments:[]};consoleErrors.push(record);
+    const capture=Promise.all(message.args().map(argument=>argument.evaluate(value=>{
+      if(value instanceof Error)return value.stack||value.message;
+      if(typeof value==='string')return value;
+      try{return JSON.stringify(value);}catch{return String(value);}
+    }).catch(error=>'Unable to inspect console argument: '+error.message))).then(values=>{record.arguments=values;console.error('Browser console.error:',values.join('\n')||record.text);});
+    consoleCapture.push(capture);
+  });
+  await page.goto(base);
+  await page.waitForFunction(()=>!!window.xamora?.studio?.sync||!!document.querySelector('#recover-workspace'),null,{timeout:30000});
+  const startup=await page.evaluate(()=>({recovery:!!document.querySelector('#recover-workspace'),ready:!!window.xamora?.studio?.sync,body:document.body.innerText.slice(0,12000)}));
+  await Promise.allSettled(consoleCapture);
+  assert.equal(startup.recovery,false,'App startup entered recovery: '+startup.body+'\n'+consoleErrors.map(error=>error.arguments.join('\n')||error.text).join('\n'));
+  assert.equal(startup.ready,true,'App did not initialize synchronization: '+startup.body);
   const input=page.locator('.code-input');
   const replaceToken=async(before,after)=>{await input.focus();await input.evaluate((el,token)=>{const start=el.value.indexOf(token);if(start<0)throw Error('Missing source token: '+token);el.setSelectionRange(start,start+token.length);},before);await page.keyboard.insertText(after);};
   const xml=`<Canvas xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width='640' Height='420'>\n  <!-- keep authored formatting -->\n  <Button x:Name='Primary' Width='120' Height='40' Canvas.Left='20' Canvas.Top='20' Content='Before' />\n  <TextBlock x:Name='Caption' Text='Stable' Canvas.Top='100' />\n</Canvas>`;
@@ -107,6 +122,15 @@ try{
   assert.deepEqual(runtimeErrors,[],'no uncaught browser errors');
   console.log('Browser synchronization integration passed.');
 }catch(error){
-  if(page){await mkdir('test-results',{recursive:true});await page.screenshot({path:'test-results/browser-sync-failure.png',fullPage:true}).catch(()=>{});console.error('Browser errors:',runtimeErrors);console.error('Editor status:',await page.locator('.code-message').textContent().catch(()=>''));}
+  if(page){
+    await Promise.allSettled(consoleCapture);
+    const state=await page.evaluate(()=>({url:location.href,body:document.body?.innerText.slice(0,12000)||'',editorStatus:document.querySelector('.code-message')?.textContent||'',recovery:!!document.querySelector('#recover-workspace')})).catch(error=>({diagnosticError:error.message}));
+    const diagnostics={error:error.stack||error.message,runtimeErrors,consoleErrors,state};
+    await mkdir('test-results',{recursive:true});
+    await writeFile('test-results/browser-sync-failure.json',JSON.stringify(diagnostics,null,2));
+    await page.screenshot({path:'test-results/browser-sync-failure.png',fullPage:true}).catch(()=>{});
+    console.error('Browser errors:',runtimeErrors);console.error('Browser console errors:',consoleErrors);
+    console.error('Editor status:',state.editorStatus);console.error('App body:',state.body);
+  }
   throw error;
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
