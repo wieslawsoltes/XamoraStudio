@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTML Interaction Lab</title>
+<style>
+  :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+  body { margin: 0; padding: 36px; background: #11121b; color: #eeeeff; }
+  header { margin-bottom: 26px; }
+  h1 { font-size: 30px; margin: 0 0 8px; }
+  p { color: #aaacc1; line-height: 1.6; }
+  main { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 18px; }
+  article { padding: 22px; border: 1px solid #35374d; background: #1c1e2c; border-radius: 14px; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  button, input { font: inherit; }
+  button { border: 0; padding: 12px 18px; color: white; background: #7852e8; border-radius: 9px; cursor: pointer; }
+  #hover-card { transition: transform 350ms cubic-bezier(.2,.8,.2,1), background-color 350ms ease; }
+  #hover-card:hover { background-color: #343059; transform: translateY(-7px); }
+  #focus-input { width: 100%; box-sizing: border-box; padding: 12px; border: 2px solid #555872; border-radius: 8px; outline: 0; background: #12141e; color: white; transition: border-color 250ms ease, box-shadow 250ms ease; }
+  #focus-input:focus { border-color: #ac91ff; box-shadow: 0 0 0 4px #7852e844; }
+  #press-button { transition: scale 120ms ease, background-color 180ms ease; }
+  #press-button:active { scale: .92; background-color: #52369d; }
+  #disabled-button:disabled { opacity: .38; cursor: default; }
+  #agree { width: 24px; height: 24px; accent-color: #16b69a; transition: filter 300ms ease; }
+  #agree:checked { filter: drop-shadow(0 0 6px #16b69a); }
+  #expand-card { transition: background-color 400ms ease, transform 400ms ease, border-color 400ms ease; }
+  [data-xamora-target~="expand-card"][data-xamora-state~="expanded"] { background-color: #193a39; transform: scale(1.04); border-color: #30d8b7; }
+  #expand-card .detail { padding-top: 12px; max-height: 0; opacity: 0; overflow: hidden; transition: max-height 400ms ease, opacity 300ms ease; }
+  [data-xamora-target~="expand-card"][data-xamora-state~="expanded"] .detail { max-height: 100px; opacity: 1; }
+  .is-highlighted { outline: 3px solid #eabb6c; outline-offset: 3px; }
+  @media (max-width: 750px) { main { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+<header><h1>HTML Interaction Lab</h1><p>CSS pseudo states, transitions and named event-driven states. Open the States panel to author or preview each interaction.</p></header>
+<main>
+  <article id="hover-card"><h2>Hover</h2><p>Move the pointer onto this card. Two properties transition together.</p><button>Explore</button></article>
+  <article><h2>Focus</h2><p>Focus the field to see its border and shadow.</p><input id="focus-input" placeholder="Focus me" aria-label="Focus demonstration"></article>
+  <article><h2>Active</h2><p>Press and hold the button to preview its active state.</p><button id="press-button">Press and hold</button></article>
+  <article><h2>Disabled</h2><p>A semantic native state with authored opacity.</p><button id="disabled-button" disabled>Disabled button</button></article>
+  <article><h2>Checked</h2><p>A native checkbox state with a CSS filter.</p><label><input id="agree" type="checkbox"> Enable glow</label></article>
+  <article id="expand-card" data-xamora-target="expand-card"><h2>Named state</h2><p>Click the button to toggle an exported named state.</p><button id="expand-trigger" data-xamora-state-actions='[{"id":"expand-interaction","event":"click","action":"toggle","name":"expanded","target":"expand-card"}]'>Toggle expanded</button><div class="detail">Named states remain ordinary HTML, CSS and JavaScript in export.</div></article>
+</main>
+<script data-xamora-state-runtime>
+for (const type of ['click', 'dblclick', 'pointerenter', 'pointerleave', 'focusin', 'focusout', 'change', 'input']) {
+  document.addEventListener(type, event => {
+    const control = event.target.closest?.('[data-xamora-state-actions]');
+    if (!control || (type === 'pointerenter' || type === 'pointerleave') && event.target !== control) return;
+    let actions;
+    try { actions = JSON.parse(control.getAttribute('data-xamora-state-actions')); } catch { return; }
+    if (!Array.isArray(actions)) return;
+    for (const action of actions) {
+      if (action.event !== type) continue;
+      for (const target of document.querySelectorAll('[data-xamora-target]')) {
+        if (!(target.getAttribute('data-xamora-target') || '').split(/\s+/).includes(action.target)) continue;
+        const states = new Set((target.getAttribute('data-xamora-state') || '').split(/\s+/).filter(Boolean));
+        if (action.action === 'clear' || action.action === 'toggle' && states.has(action.name)) states.delete(action.name); else states.add(action.name);
+        if (states.size) target.setAttribute('data-xamora-state', [...states].join(' ')); else target.removeAttribute('data-xamora-state');
+      }
+    }
+  }, type === 'pointerenter' || type === 'pointerleave');
+}
+</script>
+</body>
+</html>

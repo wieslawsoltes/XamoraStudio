@@ -373,3 +373,11 @@ DockWorkspace preserves per-group scroll offsets across synchronous tree reconst
 `source-text-buffer.js` owns versioned UTF-16 edits and the incremental line index. `DocumentSession` selects local attribute/text parsing or the conservative full parser, then updates semantic values and cached concrete ranges atomically. `history.js` stores reversible object, array and text deltas with explicit retention limits. `language-service.js` resolves literal declarations and references from the shared semantic/source snapshot; `studio/language-workspace.js` supplies navigation, rename, warning and completion commands.
 
 The core does not retain DOM objects in its document/history representations. Public processing counters and [the reproducible benchmark](EDITOR-ENGINE.md) separate reduced parsing and history retention from full-document validation, immutable-string copies and rendering costs.
+
+## 25. HTML interaction states and CSS transitions
+
+`core/html-states.js` discovers local state selectors and transition lists, patches authored CSS ranges, manages explicit named-state interaction bindings and exports their readable event runtime. `studio/html-states-workspace.js` supplies the dockable state, transition and recording controls alongside the keyframe timeline. All authored changes use the shared document session and reversible history.
+
+`HtmlStatePreview` temporarily translates supported pseudo-selector tokens at their original positions in the design iframe's style sheets, then restores CSS, attributes, control state and the transition-freeze marker. Native CSS supplies transition interpolation. Preview samples never enter document history. Recorded state declarations use explicit priority when required to override retained ordinary inline base values; inline-important conflicts are rejected.
+
+See [HTML states and transitions](HTML-STATES.md) for source/API contracts, interaction runtime ownership and supported selector boundaries.

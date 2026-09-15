@@ -8,6 +8,12 @@ An extensible visual UI authoring application written in plain JavaScript, HTML,
 
 The canvas uses WebGPU for its infinite dot-grid surface when available. Accessible controls, text, and preview layout use the browser DOM and CSS. The source model remains independent of the preview.
 
+## HTML states and transitions
+
+The docked **States & transitions** editor authors pseudo, named, class and data-attribute states, CSS values and transition lists. Record property/canvas changes into a state, preview native transitions, and bind named states to exported interactions. The source contains ordinary CSS and an explicit readable event runtime only when a named interaction is authored. Base styles, shared undo and the keyframe timeline are preserved.
+
+Open **Animation → Open HTML interaction example** or read the [HTML state authoring guide](docs/HTML-STATES.md).
+
 ## Incremental editing and semantic navigation
 
 Eligible XAML/HTML attribute and text edits now parse local fragments and update cached source ranges. A versioned source buffer maintains line mappings, and document undo/redo retains reversible deltas with compact text edits. The code editor adds AST-backed definitions, references, scoped literal rename, semantic warnings and contextual completions.

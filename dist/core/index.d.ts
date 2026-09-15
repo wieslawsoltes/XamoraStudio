@@ -265,3 +265,5 @@ export * from './source-text-buffer.js';
 export * from './history.js';
 
 export * from './language-service.js';
+
+export * from './html-states.js';
