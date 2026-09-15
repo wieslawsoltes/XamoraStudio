@@ -130,3 +130,12 @@ The standalone browser bundle test mounts the application with exactly two reque
 Focused runtime checks include invalid-source/render-failure retention, async source/dictionary races, focus and caret restoration, typed property defaults/inheritance/coercion, forward ElementName binding, remount lifecycle and restoration after animation disposal. Existing source/canvas/property synchronization, HTML motion/states and semantic-navigation tests remain passing.
 
 No npm release was performed. Packaging, consumer installation and artifact integrity are validated separately from future publication authorization. The browser implementation retains the support and scaling boundaries documented in WEB-RUNTIME.md and WEB-FRAMEWORK-ARCHITECTURE.md.
+
+
+## 0.8 semantic compiler, CLI and IDE qualification
+
+The combined runtime/compiler change passes 504 Node tests, including 22 semantic compiler cases, 22 CLI/filesystem cases and 16 project-planner/IDE cases. The compiler browser suites exercise actual menu conversion and shared history, plus rendered geometry compared against PreviewRenderer for representative Grid, Stack, Wrap, Canvas and Dock layouts. They also verify visible input captions, CSS cascade and automatic placement, source ranges, mapped reverse edits and inert restored active content.
+
+Thirteen installed npm tarballs pass dependency-closure and module-subpath checks; the installed compiler binary performs XAML/HTML round trips and copies referenced binary assets from another working directory. Reports and strict mode distinguish preserved source information from unsupported target behavior. The CLI tests cover UTF-8 rejection, deterministic output paths, report/output collisions, symlinks, asset containment, dry-run no-write behavior and rollback.
+
+These are targeted automated checks of implemented mappings and workflows. They do not establish equivalence for arbitrary native XAML controls, responsive/dynamic CSS, code-behind, JavaScript or all animation timing structures. SEMANTIC-COMPILER.md lists the supported conversion contract and explicit loss diagnostics. No npm publication was performed.

@@ -26,6 +26,21 @@ npm run test:browser
 
 The npm release workflow is manual and defaults to validation. No npm publication is triggered by merging a PR or deploying GitHub Pages. Packages must be built and validated locally until a separately authorized npm release is performed.
 
+## Semantic XAML and HTML conversion
+
+Use **Project → Convert** to convert the selected document, a folder, or an entire solution between XAML and HTML. The preview shows generated source, output paths, diagnostics and semantic losses before creating files. Originals stay editable, output collisions receive unique names by default, and one solution undo reverses the batch. Generated files immediately use the existing code/design/property synchronization.
+
+The compiler shares the designer AST and parser/serializer services. It maps supported layouts, controls, properties, styles and animation semantics; portable metadata preserves constructs that need adapters on the target platform. Strict conversion rejects semantic losses. Ordinary JavaScript and native .NET code-behind are not mechanically interchangeable.
+
+The separately packaged `xamora-convert` CLI handles files, folders and solution manifests, with dry runs, reports, output collision checks and local asset copying. During development:
+
+```sh
+node dist/compiler-cli/index.js examples/MainView.xaml --to html --out-dir generated --dry-run
+node dist/compiler-cli/index.js pages --to xaml --framework Avalonia --out-dir generated
+```
+
+Read the [semantic compiler contract and supported mappings](docs/SEMANTIC-COMPILER.md) and [CLI guide](docs/COMPILER-CLI.md) before converting a production solution.
+
 ## HTML states and transitions
 
 The docked **States & transitions** editor authors pseudo, named, class and data-attribute states, CSS values and transition lists. Record property/canvas changes into a state, preview native transitions, and bind named states to exported interactions. The source contains ordinary CSS and an explicit readable event runtime only when a named interaction is authored. Base styles, shared undo and the keyframe timeline are preserved.

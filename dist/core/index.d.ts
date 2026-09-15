@@ -2,6 +2,8 @@ export type Framework = 'WPF' | 'Avalonia' | 'WinUI' | 'MAUI' | 'HTML' | (string
 export * from './runtime-properties.js';
 export * from './web-runtime.js';
 export * from './runtime-element.js';
+export * from './semantic-compiler.js';
+export * from './conversion-project.js';
 export type PropertyValue = string | number | boolean;
 export interface ElementNode {
   id: string;
