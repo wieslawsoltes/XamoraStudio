@@ -242,7 +242,7 @@ Session state is not written back to the authored design database. Reset reconst
 
 See `DESIGNER-WORKFLOWS.md` for every new panel and gesture, `EXTENDING.md` for embedding examples, and `VALIDATION.md` for executed checks and limits. The core APIs are re-exported from `dist/core/index.js` with declarations in `index.d.ts`.
 
-The new tests exercise actual model/data/runtime operations and deterministic DOM control logic. They do not establish browser hit geometry, mobile visual fidelity, GPU behavior, or native framework compilation. A production release should add those end-to-end qualification layers and measure the costs of full snapshot history and DOM regeneration on larger projects.
+The Node tests exercise model/data/runtime operations and deterministic DOM control logic. Real Chromium suites additionally verify the complete application's source/canvas/property synchronization, HTML animation interpolation and keyframe dragging, and isolated preview workflows. Targeted compact-layout checks include browser hit testing for the key editor. These checks do not qualify every pointer path, mobile visual fidelity, physical GPU behavior, accessibility, or native framework compilation. Production qualification still requires broader device coverage and measurements of snapshot history and DOM regeneration on larger projects.
 
 
 ## Motion and Blend authoring architecture (0.3)
@@ -308,9 +308,11 @@ Current and named layouts use separate device-local storage keys, with bounded J
 | `studio/view-board.js` | Retained cards, filtering, pagination, tiling and connections | Layout operations or interaction store transaction |
 | `studio/ide-menu.js` | Command registry, dynamic menus, focus-aware Edit routing | Delegates to owning editor/controller |
 
-### Four distinct histories
+### History ownership
 
-Document stores retain authored document edits. The source editor retains its own text-buffer undo history, capped at 60 snapshots with an 8-million-character aggregate pruning threshold except for its final single snapshot. DockLayout owns window-arrangement history. SolutionWorkspace owns up to 30 whole-solution operations and rejects undo that would overwrite later document edits. Applying a solution snapshot clears per-document history and increments store revisions, establishing an explicit history boundary. These histories are intentionally independent; this release does not implement a globally ordered multi-document undo service.
+Each document's `DocumentStore` and `DocumentSession` provide one shared history for valid source edits, invalid source drafts, canvas changes, and panel transactions. The IDE routes source-editor and visual Undo/Redo to that history. A standalone `XamlEditor` without session-bound undo callbacks falls back to its own text-buffer history, capped at 60 snapshots with an 8-million-character aggregate pruning threshold except for its final single snapshot.
+
+`DockLayout` separately owns window-arrangement history. `SolutionWorkspace` owns up to 30 whole-solution operations and rejects undo that would overwrite later document edits. Applying a solution snapshot clears per-document history and increments store revisions, establishing an explicit history boundary. Dock, solution, and individual document histories remain independent; there is no globally ordered multi-document undo service.
 
 ### Mode state and layout batches
 
@@ -326,13 +328,13 @@ The preview resolver determines the owner of a Source expression from node ident
 
 ### Gesture and buffer lifecycle
 
-New direct gestures retain store identity/revision, document, Storyboard and recording state. DOM-only movement is canceled on Escape, pointer cancellation, blur or invalidated context; release commits one edit. Brush/gradient and animation editing preserve native property-element structure where applicable. Scope, source and document transitions go through the existing pending-source guard.
+New direct gestures retain store identity/revision, document, Storyboard and recording state. DOM-only movement is canceled on Escape, pointer cancellation, blur or invalidated context; release commits one edit. Brush/gradient and animation editing preserve native property-element structure where applicable. Visual mutations synchronize the source session first and are blocked while its draft is invalid. Document switching retains invalid drafts; active IME composition blocks switching until composition completes.
 
-All source mutations use `XamlEditor.changed()`, including native input, completion and formatting. Recovery stores file identity, text and a serialized baseline, debounces writes and flushes on page exit. Recovery only restores a matching baseline. Storage is optional and failures do not invalidate an applied document.
+Editor-originated input, completion and formatting use `XamlEditor.changed()` and publish through `DocumentSession`; external source edits can use the session API directly. Saved document metadata retains the current draft, last valid source, and diagnostics. Composition recovery separately retains file identity, text and its valid-source baseline and restores only a matching baseline. Storage is optional and failures do not invalidate a committed in-memory document.
 
 ### Scaling and qualification
 
-View cards are keyed and refreshed by document/data/resource signatures, rendered in batches of 40, and retained when unchanged. This reduces unnecessary DOM reconstruction but is not a full virtualized scene engine. Solution snapshots and full-tree XAML/preview updates remain scaling constraints. The automated coverage validates deterministic behavior; native measure/arrange, physical pointer geometry, browser accessibility and device rendering are not qualified by these tests. See [editor workflows](EDITOR-WORKFLOWS.md) for user-visible boundaries.
+View cards are keyed and refreshed by document/data/resource signatures, rendered in batches of 40, and retained when unchanged. This reduces unnecessary DOM reconstruction but is not a full virtualized scene engine. Solution snapshots and full-tree XAML/preview updates remain scaling constraints. Deterministic tests are complemented by real Chromium source/property/preview workflows, HTML keyframe pointer dragging, and compact key-editor hit testing. This targeted coverage does not qualify native measure/arrange, all physical pointer geometry, browser accessibility, or rendering across devices. See [editor workflows](EDITOR-WORKFLOWS.md) for user-visible boundaries.
 
 
 ## 20. Presentation density in 0.6

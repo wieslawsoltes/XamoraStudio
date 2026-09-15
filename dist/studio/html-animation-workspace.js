@@ -34,13 +34,13 @@ export class HtmlAnimationWorkspace {
   const show=this.s.docking.showTimeline.bind(this.s.docking);this.s.docking.showTimeline=()=>{if(!isHtml(this.s.doc))return show();this.s.docking.control.show('timeline');this.refresh();};
   const setProps=this.s.setProps.bind(this.s);this.s.setProps=(ids,key,value)=>{if(isHtml(this.s.doc)&&this.recording&&key==='style'){this.html.perform('Record inline CSS',doc=>ids.forEach(id=>{const n=find(doc.root,id);if(n){if(value===null)delete n.props.style;else n.props.style=value;}}));return;}return setProps(ids,key,value);};
   const menu=(id,run,enabled=()=>true,checked)=>{const item=this.s.menus?.commands.get(id);if(!item)return;const originalRun=item.run,originalEnabled=item.enabled,originalChecked=item.checked;item.run=(...args)=>isHtml(this.s.doc)?run(...args):originalRun(...args);item.enabled=()=>isHtml(this.s.doc)?enabled():typeof originalEnabled==='function'?originalEnabled():originalEnabled!==false;if(checked)item.checked=()=>isHtml(this.s.doc)?checked():typeof originalChecked==='function'?originalChecked():!!originalChecked;};
-  menu('new-storyboard',()=>{this.show();this.create();},()=>!!this.target);menu('animation-play',()=>{this.show();this.playing?this.pause():this.play();},()=>!!this.catalog.bindings.length);menu('animation-stop',()=>this.stop());menu('animation-record',()=>this.toggleRecord(),()=>!!this.target,()=>this.recording);menu('animation-key',()=>{this.show();this.addKey();},()=>!!this.target&&!!this.definition);menu('key-copy',()=>{const frame=this.definition?.frames.find(f=>f.offset===this.keyOffset);if(frame)this.clipboard={...frame.values};},()=>this.keyOffset!==null);menu('key-paste',()=>this.addKey({...this.clipboard}),()=>!!this.clipboard&&!!this.definition);menu('key-delete',()=>this.host.querySelector('[data-hm-remove-key]')?.click(),()=>this.keyOffset!==null);for(const direction of ['previous','next'])menu('key-'+direction,()=>{const frames=(this.definition?.frames||[]).map(f=>number(this.binding?.timing.delay)+f.offset*durationOf(this.binding));this.pause();this.seek(direction==='previous'?Math.max(0,...frames.filter(t=>t<this.time-.01)):Math.min(this.end,...frames.filter(t=>t>this.time+.01)));},()=>!!this.definition);
+  menu('motion-example',()=>this.openExample());menu('new-storyboard',()=>{this.show();this.create();},()=>!!this.target);menu('animation-play',()=>{this.show();this.playing?this.pause():this.play();},()=>!!this.catalog.bindings.length);menu('animation-stop',()=>this.stop());menu('animation-record',()=>this.toggleRecord(),()=>!!this.target,()=>this.recording);menu('animation-key',()=>{this.show();this.addKey();},()=>!!this.target&&!!this.definition);menu('key-copy',()=>{const frame=this.definition?.frames.find(f=>f.offset===this.keyOffset);if(frame)this.clipboard={...frame.values};},()=>this.keyOffset!==null);menu('key-paste',()=>this.addKey({...this.clipboard}),()=>!!this.clipboard&&!!this.definition);menu('key-delete',()=>this.host.querySelector('[data-hm-remove-key]')?.click(),()=>this.keyOffset!==null);for(const direction of ['previous','next'])menu('key-'+direction,()=>{const frames=(this.definition?.frames||[]).map(f=>number(this.binding?.timing.delay)+f.offset*durationOf(this.binding));this.pause();this.seek(direction==='previous'?Math.max(0,...frames.filter(t=>t<this.time-.01)):Math.min(this.end,...frames.filter(t=>t>this.time+.01)));},()=>!!this.definition);
   window.xamora.html.animations={list:()=>this.read(),seek:ms=>this.seek(ms),play:()=>this.play(),pause:()=>this.pause(),stop:()=>this.stop(),create:config=>this.create(config),get currentTime(){return html.motion.time;}};
  }
  get definition(){return this.catalog.definitions.find(d=>d.id===this.definitionId)||null;}
  get binding(){return this.catalog.bindings.find(b=>b.name===this.definition?.name&&b.nodeId===this.nodeId)||(!this.nodeId?this.catalog.bindings.find(b=>b.name===this.definition?.name):null)||null;}
  get target(){return find(this.s.doc.root,this.nodeId||this.s.store.selection[0]);}
- get end(){return Math.max(1000,...this.catalog.bindings.map(b=>Math.max(0,number(b.timing.delay))+durationOf(b)*(b.timing.iterations==='infinite'||b.timing.iterations===Infinity?1:Math.min(1000,Math.max(1,number(b.timing.iterations,1))))));}
+ get end(){return Math.max(1000,...this.catalog.bindings.map(b=>Math.max(0,number(b.timing.delay))+durationOf(b)*(b.timing.iterations==='infinite'||b.timing.iterations===Infinity?2:Math.min(1000,Math.max(1,number(b.timing.iterations,1))))));}
  read(){return listHtmlAnimations(this.s.doc,{elements:this.s.renderer.htmlRenderer?.elements});}
  refresh() {
   const active=isHtml(this.s.doc);this.host.hidden=!active;const legacy=document.getElementById('animation-panel');if(legacy)legacy.hidden=active;
@@ -60,6 +60,7 @@ export class HtmlAnimationWorkspace {
  }
  mutate(title,action) {if(!this.s.prepareEdit())return false;this.pause();try{this.s.store.transaction(title,action);this.catalog=this.read();this.render();return true;}catch(error){notify(error.message);this.render();return false;}}
  command(action) {
+  if(action==='motion-example'){this.openExample();return true;}
   if(['motion','motion-timeline'].includes(action)){this.s.docking.toggleTimeline();return true;}
   if(['animation-add','new-storyboard','motion-new'].includes(action)){this.show();this.create();return true;}
   if(['motion-play','animation-play'].includes(action)){this.playing?this.pause():this.play();return true;}
@@ -67,6 +68,7 @@ export class HtmlAnimationWorkspace {
   if(['motion-record','animation-record'].includes(action)){this.toggleRecord();return true;}
   return false;
  }
+ async openExample(){if(!this.s.prepareEdit())return;try{const response=await fetch(new URL('../examples/HtmlMotionLab.html',import.meta.url));if(!response.ok)throw Error('Could not load the HTML motion example.');const source=await response.text();this.s.importText(source,'HtmlMotionLab.html');this.s.setView('split');this.show();}catch(error){notify(error.message);}}
  show(){this.s.docking.showTimeline();}
  create(config) {
   const node=this.target;if(!node||['html','head','style','script','title','meta','link'].includes(node.type)){notify('Select a visual HTML element to animate.');return;}

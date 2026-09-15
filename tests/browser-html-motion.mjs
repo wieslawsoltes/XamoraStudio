@@ -52,9 +52,17 @@ try{
   await page.evaluate(()=>window.xamora.studio.command('undo'));await ready();
   assert.equal(await page.evaluate(()=>window.xamora.studio.html.motion.catalog.definitions.find(d=>d.name==='fadeProof').frames.some(f=>f.offset===.5)),false,'recorded property and frame undo atomically');
   await page.evaluate(()=>window.xamora.studio.command('redo'));await ready();
+  await page.evaluate(()=>window.xamora.studio.docking.control.show('xaml'));
   const input=page.locator('.code-input'),changed=(await input.inputValue()).replace('opacity: 0.25','opacity: 0.75');await input.fill(changed);await ready();
   await page.waitForFunction(()=>window.xamora.studio.html.motion.catalog.definitions.find(d=>d.name==='fadeProof')?.frames.some(f=>f.offset===.5&&f.values.opacity==='0.75'));
   await page.evaluate(()=>window.xamora.studio.html.motion.seek(1000));assert.ok(Math.abs((await measure()).opacity-.75)<.02,'source keyframe edits update native preview');
+  await page.evaluate(id=>{const s=window.xamora.studio;s.store.select([id]);s.docking.control.show('properties');s.html.motion.seek(1000);s.html.motion.toggleRecord();},targetId);
+  await ready();const beforeRemoval=await measure();await opacity.fill('');await opacity.dispatchEvent('change');await ready();
+  await page.waitForFunction(()=>window.xamora.studio.html.motion.catalog.definitions.find(d=>d.name==='fadeProof')?.frames.some(f=>f.offset===.5&&f.values.opacity==='1'));
+  assert.equal((await measure()).style,beforeRemoval.style,'recording removal preserves exact authored base styles');
+  await page.evaluate(()=>window.xamora.studio.html.motion.toggleRecord());await page.evaluate(()=>window.xamora.studio.command('undo'));await ready();
+  assert.equal(await page.evaluate(()=>window.xamora.studio.html.motion.catalog.definitions.find(d=>d.name==='fadeProof').frames.find(f=>f.offset===.5).values.opacity),'0.75','removed property recording undoes as one edit');
+  await page.evaluate(()=>window.xamora.studio.docking.showTimeline());
   const key=page.locator('[data-hm-key][aria-label="Keyframe 50.0 percent"]').first();await key.scrollIntoViewIfNeeded();
   const keyBox=await key.boundingBox(),laneBox=await key.locator('..').boundingBox();
   await page.mouse.move(keyBox.x+keyBox.width/2,keyBox.y+keyBox.height/2);await page.mouse.down();await page.mouse.move(keyBox.x+keyBox.width/2+laneBox.width*.1,keyBox.y+keyBox.height/2,{steps:6});await page.mouse.up();await ready();
@@ -68,7 +76,7 @@ try{
   assert.equal(await frame.evaluate(()=>document.getAnimations().find(a=>a.animationName==='fadeProof').playState==='paused'),false,'export preview retains authored running state');
   assert.ok((await input.inputValue()).includes('/* Keep this rule. */'),'unrelated CSS is preserved through all edits');
   assert.deepEqual(runtimeErrors,[],'no uncaught browser errors');
-  console.log('Browser HTML animation integration passed: CSS creation, native interpolation, timing, record, undo/redo, source edits, keyframe drag, playback and isolated export preview.');
+  console.log('Browser HTML animation integration passed: CSS creation, native interpolation, timing, record, undo/redo, source edits, removed-property recording, keyframe drag, playback and isolated export preview.');
 }catch(error){
   if(page){await mkdir('test-results',{recursive:true});await page.screenshot({path:'test-results/browser-html-motion-failure.png',fullPage:true}).catch(()=>{});console.error('Browser errors:',runtimeErrors);console.error('HTML motion status:',await page.locator('#html-animation-panel footer').textContent().catch(()=>''));}
   throw error;

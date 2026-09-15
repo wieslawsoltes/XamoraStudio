@@ -1,5 +1,5 @@
 /* Native HTML animation authoring shares the dock, compact-density and theme tokens. */
-.html-motion-panel{display:flex;flex-direction:column;min-width:0;min-height:180px;height:100%;overflow:hidden;background:var(--panel);color:var(--text);font-size:11px;position:relative}
+.html-motion-panel{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;background:var(--panel);color:var(--text);font-size:11px;position:relative}
 .html-motion-panel[hidden],.html-document-active #animation-panel{display:none!important}
 .html-motion-panel.recording{box-shadow:inset 0 2px #d94968}
 .html-motion-panel .scroll-button-strip{flex:none;min-height:31px;border-bottom:1px solid var(--border)}

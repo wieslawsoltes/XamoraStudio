@@ -12,7 +12,7 @@ const EASINGS = ['linear','ease','ease-in','ease-out','ease-in-out','step-start'
 const GROUPS = /^@(media|supports|container|layer|scope|document|starting-style)\b/i;
 function stripComments(source){let result='',quote='';for(let i=0;i<source.length;i++){const c=source[i];if(quote){result+=c;if(c==='\\'&&i+1<source.length){result+=source[++i];continue;}if(c===quote)quote='';continue;}if(c==='\"'||c==="'"){quote=c;result+=c;continue;}if(c==='/'&&source[i+1]==='*'){const end=source.indexOf('*/',i+2);result+=' ';if(end<0)break;i=end+1;continue;}result+=c;}return result;}
 const styleText = n => n.children.filter(c=>c.kind==='text').map(c=>c.text).join('');
-const setStyleText = (n,source) => {n.children=[textNode(source)];};
+const setStyleText = (n,source) => {if(styleText(n)===source)return;const existing=n.children.find(child=>child.kind==='text');n.children=[existing?{...existing,text:source}:textNode(source)];};
 const number = n => Number(Number(n).toFixed(6));
 function requireHtml(doc){if(doc?.framework!=='HTML')throw Error('CSS animation editing requires an HTML document.');}
 
