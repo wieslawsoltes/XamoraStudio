@@ -64,12 +64,17 @@ export declare class ToolkitRegistry extends EventTarget {
   create(type: string): ElementNode;
 }
 export declare class DocumentStore extends EventTarget {
-  constructor(document: DesignDocument);
+  constructor(document: DesignDocument, options?: import('./history.js').HistoryOptions);
   document: DesignDocument;
   selection: string[];
   revision: number;
-  history: Array<{label: string; document: DesignDocument}>;
-  future: Array<{label: string; document: DesignDocument}>;
+  history: Array<import('./history.js').DocumentHistoryItem<DesignDocument>>;
+  future: Array<import('./history.js').DocumentHistoryItem<DesignDocument>>;
+  historyLimit: number;
+  historyByteLimit: number;
+  historyDropped: number;
+  readonly historyBytes: number;
+  historyStats(): import('./history.js').HistoryStatistics;
   select(ids: string[]): void;
   transaction(label: string, action: (document: DesignDocument) => void): void;
   addCommitHook(hook: (change: {store: DocumentStore; label: string; before: DesignDocument; document: DesignDocument}) => void): () => void;
@@ -254,3 +259,9 @@ export * from './html-render.js';
 export * from './document-session.js';
 
 export * from './html-animation.js';
+
+export * from './source-text-buffer.js';
+
+export * from './history.js';
+
+export * from './language-service.js';

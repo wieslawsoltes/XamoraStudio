@@ -30,3 +30,9 @@ export * from './overlay-layout.js';
 export * from './document-session.js';
 
 export * from './html-animation.js';
+
+export * from './source-text-buffer.js';
+
+export * from './history.js';
+
+export * from './language-service.js';

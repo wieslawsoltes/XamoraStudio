@@ -8,6 +8,12 @@ An extensible visual UI authoring application written in plain JavaScript, HTML,
 
 The canvas uses WebGPU for its infinite dot-grid surface when available. Accessible controls, text, and preview layout use the browser DOM and CSS. The source model remains independent of the preview.
 
+## Incremental editing and semantic navigation
+
+Eligible XAML/HTML attribute and text edits now parse local fragments and update cached source ranges. A versioned source buffer maintains line mappings, and document undo/redo retains reversible deltas with compact text edits. The code editor adds AST-backed definitions, references, scoped literal rename, semantic warnings and contextual completions.
+
+Read the [editing-engine architecture and reproducible benchmark](docs/EDITOR-ENGINE.md) for API contracts, measured parser work and remaining scaling limits. Full parsing remains the fallback for structural and contextual edits.
+
 ## HTML animation timeline
 
 HTML pages now have an editable CSS animation timeline with presets, target bindings, animation rename, keyframe dragging and value editors, recording from properties and canvas gestures, playback/scrubbing, easing, delay, repeats, direction and fill controls. Animation edits flow through the shared source session and undo history. The browser samples native CSS animations without changing authored base styles, and exported HTML runs its own CSS animations.
@@ -108,7 +114,7 @@ To deploy on a static host, upload the contents of `dist/`. There are no runtime
 - Designer property inspector with named and attached properties, color controls, enum metadata, bindings, reset-to-unset, custom properties, and resource references.
 - Template editing in a separate visual scope, template preview properties, reusable UserControl extraction, brush resources, style setters, and basic keyed/implicit style preview.
 - Code highlighting, line numbers, XML validation, formatting, tag/property completion, find/replace, indentation, comment toggling, document symbols, selected-element navigation, and automatic bidirectional synchronization.
-- Per-page undo/redo with 100 snapshots, device-local saving, project export/import, and canvas annotations.
+- Per-page undo/redo with up to 100 reversible entries and a bounded retained-history budget, device-local saving, project export/import, and canvas annotations.
 - WPF/Avalonia namespace and common-property conversion with the original page retained; source preservation modes for WinUI and MAUI.
 - XAML, standalone HTML, project JSON, and browser-compatible SVG `foreignObject` export. Registered export adapters appear in the export dialog.
 - Registry APIs for toolkit controls, custom property metadata, nested scaffolds, browser renderers, and export adapters.

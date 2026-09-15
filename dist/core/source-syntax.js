@@ -1,5 +1,6 @@
 /** Concrete markup syntax: every source byte stays owned by its original range. */
 import {HTML_RAW,HTML_VOID} from './html.js';
+import {SourceTextBuffer} from './source-text-buffer.js';
 
 export class SourceSyntaxError extends Error {
   constructor(message,source,start){super(message);this.name='SourceSyntaxError';this.start=start;this.line=source.slice(0,start).split('\n').length;this.column=start-source.lastIndexOf('\n',start-1);}
@@ -64,15 +65,15 @@ export function scanSource(source,{html=false}={}){
 const sameType=(n,t)=>n.kind===t.kind&&(n.kind!=='element'||n.type.toLowerCase()===t.type.toLowerCase());
 /** Maps semantic IDs onto concrete tokens, allowing browser-inserted HTML wrappers. */
 export function buildSourceIndex(source,doc,syntax=scanSource(source,{html:doc.framework==='HTML'})){
- const byId=new Map(),claimed=new Set(),elementQueues=new Map();
+ const byId=new Map(),tokenById=new Map(),parentIds=new Map(),claimed=new Set(),elementQueues=new Map();
  for(const t of syntax.tokens)if(t.kind==='element'){const k=t.type.toLowerCase();if(!elementQueues.has(k))elementQueues.set(k,[]);elementQueues.get(k).push(t);}
- const all=[];const visit=n=>{all.push(n);for(const c of n.children||[])visit(c);};for(const n of doc.preamble||[])visit(n);visit(doc.root);for(const n of doc.postamble||[])visit(n);
- // XML parser offsets are authoritative; HTML's normalized tree is matched in source order.
- const byStart=new Map(syntax.tokens.map(t=>[t.start,t]));
+ const all=[];const visit=(n,parent)=>{all.push(n);if(parent)parentIds.set(n.id,parent.id);for(const c of n.children||[])visit(c,n);};for(const n of doc.preamble||[])visit(n);visit(doc.root);for(const n of doc.postamble||[])visit(n);
+ // XML semantic order matches lexical order. Never trust legacy node.source hints:
+ // canonical session ranges can move while those import-time hints stay unchanged.
+ // HTML's normalized tree is paired in source order and contextual edits are guarded.
  for(const n of all)if(n.kind==='element'){
-  let t=doc.framework!=='HTML'&&n.source?.start!==undefined?byStart.get(n.source.start):null;
-  if(!t||claimed.has(t)||!sameType(n,t)){const q=elementQueues.get(n.type.toLowerCase())||[];while(q.length&&claimed.has(q[0]))q.shift();t=q.shift();}
-  if(t){claimed.add(t);byId.set(n.id,{...t,nodeId:n.id});}
+  const q=elementQueues.get(n.type.toLowerCase())||[];while(q.length&&claimed.has(q[0]))q.shift();const t=q.shift();
+  if(t){claimed.add(t);byId.set(n.id,{...t,nodeId:n.id});tokenById.set(n.id,t);}
  }
  const mapChildren=(n,parentToken)=>{
   const token=byId.get(n.id),container=token||parentToken||syntax.root;
@@ -81,17 +82,36 @@ export function buildSourceIndex(source,doc,syntax=scanSource(source,{html:doc.f
    if(!candidates.length)candidates=syntax.tokens.filter(t=>!claimed.has(t)&&sameType(n,t));
    const exact=candidates.find(t=>tokenText(source,t,syntax.html)===n.text);
    const chosen=exact||candidates.find(t=>!(n.kind==='text'&&source.slice(t.start,t.end).trim()===''&&n.text.trim()!==''));
-   if(chosen){claimed.add(chosen);byId.set(n.id,{...chosen,nodeId:n.id});}
+   if(chosen){claimed.add(chosen);byId.set(n.id,{...chosen,nodeId:n.id});tokenById.set(n.id,chosen);}
   }
   for(const child of n.children||[])mapChildren(child,container);
   if(n.kind==='element'&&!token){const spans=(n.children||[]).map(c=>byId.get(c.id)).filter(Boolean);const start=spans.length?Math.min(...spans.map(t=>t.start)):0,end=spans.length?Math.max(...spans.map(t=>t.end)):start;byId.set(n.id,{kind:'element',type:n.type,nodeId:n.id,start,end,openEnd:start,closeStart:end,attrs:[],children:[],synthetic:true});}
  };
  for(const n of doc.preamble||[])mapChildren(n,syntax.root);mapChildren(doc.root,syntax.root);for(const n of doc.postamble||[])mapChildren(n,syntax.root);
  const spans=[...byId.values()].sort((a,b)=>a.start-b.start||b.end-a.end);
- const lines=[0];for(let i=0;i<source.length;i++)if(source[i]==='\n')lines.push(i+1);
- const position=offset=>{let lo=0,hi=lines.length;while(lo<hi){const m=(lo+hi)>>1;if(lines[m]<=offset)lo=m+1;else hi=m;}return {line:lo,column:offset-lines[Math.max(0,lo-1)]+1};};
+ const textBuffer=new SourceTextBuffer(source),position=offset=>textBuffer.positionAt(offset);
  for(const span of spans){Object.assign(span,position(span.start));delete span.parent;}
- return {source,byId,spans,syntax,position};
+ return {source,byId,tokenById,parentIds,nodeById:new Map(all.map(n=>[n.id,n])),spans,syntax,position,textBuffer};
+}
+
+/** Shift cached token ranges after a validated edit wholly inside one lexical token.
+ * No unchanged text is lexed. Token identities and tree links are reused; numeric
+ * offsets after the edit are adjusted in O(token count). Call only after commit.
+ */
+export function updateSourceIndex(index,edit,{nodeId,attributeName}={}){
+ const token=index.tokenById.get(nodeId);if(!token)throw Error('The edited token is not indexed.');
+ const delta=edit.text.length-(edit.end-edit.start),ancestors=new Set();for(let n=token;n;n=n.parent)ancestors.add(n);
+ const point=(value,left=false)=>{if(value===undefined)return value;if(value<edit.start)return value;if(value>edit.end||value===edit.end&&edit.end>edit.start)return value+delta;if(value===edit.start&&left)return value;return edit.start+(left?0:edit.text.length);};
+ for(const t of index.syntax.tokens){const contained=ancestors.has(t);t.start=point(t.start,contained);t.end=point(t.end);for(const key of ['nameStart','nameEnd','openEnd'])if(t[key]!==undefined)t[key]=point(t[key],true);for(const key of ['closeStart','closeNameStart','closeNameEnd'])if(t[key]!==undefined)t[key]=point(t[key]);
+  for(const a of t.attrs||[]){const active=t===token&&a.name===attributeName;for(const key of ['fullStart','start','nameEnd','end','valueStart','valueEnd'])if(a[key]!==undefined)a[key]=point(a[key],active&&key==='valueStart');}
+ }
+ index.syntax.root.end+=delta;
+ const result=index.textBuffer.applyEdits([edit]);if(!result.accepted)throw Error(result.reason||'Invalid indexed source edit.');index.source=index.textBuffer.text;index.syntax.source=index.source;
+ for(const [id,span] of index.byId){const raw=index.tokenById.get(id);if(raw){Object.assign(span,raw);delete span.parent;}}
+ // Browser-inserted wrappers have no lexical token; derive their extent from children.
+ for(const node of [...index.nodeById.values()].reverse()){const span=index.byId.get(node.id);if(!span?.synthetic)continue;const children=(node.children||[]).map(c=>index.byId.get(c.id)).filter(Boolean);if(children.length){span.start=Math.min(...children.map(c=>c.start));span.end=Math.max(...children.map(c=>c.end));span.openEnd=span.start;span.closeStart=span.end;}}
+ for(const span of index.spans)Object.assign(span,index.position(span.start));
+ return index;
 }
 function tokenText(source,t,html){const raw=source.slice(t.start,t.end);if(t.kind==='comment')return raw.slice(4,-3);if(t.kind==='cdata')return raw.slice(9,-3);if(t.kind==='pi')return raw.slice(2,-2);if(t.raw)return raw;if(t.kind!=='text')return '';
  return raw.replace(/\r\n?/g,'\n').replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi,(raw,key)=>{if(key[0]==='#'){const cp=parseInt(key.slice(key[1].toLowerCase()==='x'?2:1),key[1].toLowerCase()==='x'?16:10);return cp>0&&cp<=0x10ffff?String.fromCodePoint(cp):raw;}return {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:'\u00a0'}[key]||raw;});

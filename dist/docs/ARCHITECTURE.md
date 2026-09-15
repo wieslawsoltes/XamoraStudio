@@ -116,13 +116,13 @@ store.transaction('Change button label', document => {
 });
 ```
 
-A transaction clones the pre-edit document, executes the mutation, validates the result, and commits a history entry only if the state changed. Validation failure restores the previous document. A successful edit clears redo history. History retains the latest 100 snapshots. Selection IDs are filtered after structural changes.
+A transaction clones the pre-edit document, executes the mutation, validates the result, and commits a history entry only if the state changed. Validation failure restores the previous document. A successful edit clears redo history. History retains up to 100 reversible deltas within an estimated 32 MiB payload budget by default. String differences retain only changed ranges; compatibility snapshots materialize on explicit access. Selection IDs are filtered after structural changes.
 
 `insert()` clones the supplied subtree to avoid a later external mutation changing stored state. `move()` rejects cycles and removes descendants from a multi-node selection when an ancestor is already moving. The studio enforces basic container and single-child constraints for visual insertion/reparenting; semantic diagnostics also flag invalid imported single-child content.
 
 Move gestures compute a pure destination plan and display separate ghosts/cues without changing the document until pointer-up. The commit performs reparenting, attached-property changes, and sibling ordering as one history entry. Resize and grid-divider gestures retain an initial snapshot, update the transient preview, and commit once on pointer-up. Escape/cancel restores that snapshot. Their DOM preview is regenerated during the gesture.
 
-Snapshot history favors simple, reliable rollback over large-session efficiency. Each committed operation is O(document size) in cloning/comparison; very large projects need an incremental patch command log, immutable structural sharing, and an incremental renderer.
+Retained history uses nested reversible deltas and structural sharing during undo/redo. Transactions still clone transiently for rollback and compare/validate the document. Very large projects still need reduced transaction walks and incremental rendering; see [the editing engine](EDITOR-ENGINE.md).
 
 ## 6. Layout preview
 
@@ -169,7 +169,7 @@ The Raw inspector adds an authored attribute table, multi-selection mixed values
 
 The XAML editor is a textarea with a synchronized syntax-highlight mirror and line-number gutter. Code input remains unapplied until **Apply** or Ctrl/Command+Enter; validation runs after a short debounce. Visual document mutations first try to apply any pending valid code. Invalid code blocks the dependent visual mutation and remains available for correction.
 
-Supported editor operations include indentation, multi-line indentation, comments, contextual completion for registered control names/properties, enum values, resources, named elements, binding options, and data paths, find/replace, formatting, symbol navigation, and selection-to-source navigation. This is not Monaco or a full IDE engine: there is no semantic XAML language server, project-wide reference graph, debugger, code folding, arbitrary language service, or full accessibility audit of the code-editing surface.
+Supported editor operations include indentation, multi-line indentation, comments, contextual completion for registered control names/properties, enum values, resources, named elements, binding options, and data paths, find/replace, formatting, symbol navigation, and selection-to-source navigation. This is not Monaco or a full IDE engine: the local semantic service supports literal names, resources and HTML IDs, but does not implement a native XAML language server, project-wide reference graph, debugger, code folding, arbitrary language service, or full accessibility audit of the code-editing surface.
 
 ## 10. Export pipeline
 
@@ -199,7 +199,7 @@ The automated suite covers source preservation, parser rejection cases, registry
 
 No browser-driven end-to-end testing, visual screenshot review, physical GPU testing, native WPF/Avalonia compilation, mobile device qualification, accessibility audit, or production-scale performance qualification was performed. The source is structured to add those suites without coupling the model to a browser or native runtime.
 
-Production evolution should prioritize a real native preview bridge and framework metadata importer; normalized QName identity and namescope-aware refactoring; full content models; incremental measure/arrange and rendering; virtualized tree/property lists; a semantic language server/editor integration; and platform-specific export validation. These are substantial engineering boundaries, not hidden completed features.
+Production evolution should prioritize a real native preview bridge and framework metadata importer; normalized QName identity and cross-document runtime-aware refactoring; full content models; incremental measure/arrange and rendering; virtualized tree/property lists; a semantic language server/editor integration; and platform-specific export validation. These are substantial engineering boundaries, not hidden completed features.
 
 
 ## 14. Hit testing and manipulation pipeline
@@ -242,7 +242,7 @@ Session state is not written back to the authored design database. Reset reconst
 
 See `DESIGNER-WORKFLOWS.md` for every new panel and gesture, `EXTENDING.md` for embedding examples, and `VALIDATION.md` for executed checks and limits. The core APIs are re-exported from `dist/core/index.js` with declarations in `index.d.ts`.
 
-The Node tests exercise model/data/runtime operations and deterministic DOM control logic. Real Chromium suites additionally verify the complete application's source/canvas/property synchronization, HTML animation interpolation and keyframe dragging, and isolated preview workflows. Targeted compact-layout checks include browser hit testing for the key editor. These checks do not qualify every pointer path, mobile visual fidelity, physical GPU behavior, accessibility, or native framework compilation. Production qualification still requires broader device coverage and measurements of snapshot history and DOM regeneration on larger projects.
+The Node tests exercise model/data/runtime operations and deterministic DOM control logic. Real Chromium suites additionally verify the complete application's source/canvas/property synchronization, HTML animation interpolation and keyframe dragging, and isolated preview workflows. Targeted compact-layout checks include browser hit testing for the key editor. These checks do not qualify every pointer path, mobile visual fidelity, physical GPU behavior, accessibility, or native framework compilation. Production qualification still requires broader device coverage and measurements of retained history, transient transaction clones and DOM regeneration on larger projects.
 
 
 ## Motion and Blend authoring architecture (0.3)
@@ -367,3 +367,9 @@ DockWorkspace preserves per-group scroll offsets across synchronous tree reconst
 `studio/html-animation-workspace.js` integrates animation controls with the existing docked timeline and IDE menus. Recording intercepts property/canvas edits inside the document transaction, captures keyframe values, and restores base CSS before committing. It never stores preview samples as authored layout.
 
 `HtmlAnimationPreview` operates on native browser CSS animation objects and restores their captured state on disposal. The design renderer pauses effects through the Web Animations API, preserving authored `animation-play-state` for the separate interactive preview. See [HTML animation architecture and workflows](HTML-ANIMATIONS.md) for API contracts, CSS source preservation, timing and authoring limits.
+
+## 24. Localized source processing and semantic services
+
+`source-text-buffer.js` owns versioned UTF-16 edits and the incremental line index. `DocumentSession` selects local attribute/text parsing or the conservative full parser, then updates semantic values and cached concrete ranges atomically. `history.js` stores reversible object, array and text deltas with explicit retention limits. `language-service.js` resolves literal declarations and references from the shared semantic/source snapshot; `studio/language-workspace.js` supplies navigation, rename, warning and completion commands.
+
+The core does not retain DOM objects in its document/history representations. Public processing counters and [the reproducible benchmark](EDITOR-ENGINE.md) separate reduced parsing and history retention from full-document validation, immutable-string copies and rendering costs.
