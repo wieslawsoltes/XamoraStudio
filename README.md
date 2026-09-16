@@ -267,3 +267,22 @@ Canvas, XAML motion/states, HTML motion/states, resources/brushes, solution and 
 Nested object control example: [NestedPropertiesLab](https://wieslawsoltes.github.io/XamoraStudio/examples/NestedPropertiesLab/).
 
 Standalone large-document editor example: [VirtualEditorLab](https://wieslawsoltes.github.io/XamoraStudio/examples/VirtualEditorLab/).
+
+### Conditional CSS and measured native capture
+
+The semantic compiler supports explicit media/supports/container contexts,
+logical/structural/form pseudo-selectors, supplied external stylesheet/import
+graphs and cascade layers. `nativeOutput` enables native panel and gap adapters;
+`compileResponsiveVariants` compiles named viewport contexts. The CLI accepts
+`--load-css --viewport 900x700 --native` with project-confined, write-safe asset
+resolution.
+
+Run **[Compiler Fidelity Lab](dist/examples/CompilerFidelityLab/)** from the local server
+(or the matching GitHub Pages path after deployment) to capture real responsive/intrinsic browser geometry as editable native XAML and
+review its diagnostics. `compileRenderedDocument` and `observeRenderedDocument`
+are reusable package APIs. Studio's conversion dialog exposes explicit CSS
+context under its advanced settings. WPF/.NET 10 and Avalonia 12.1.2 native CI
+jobs are configured to load, lay out, state-check and render compiler-generated fixtures; Pages
+publication depends on those gates. Measured snapshots do not claim arbitrary
+live CSS/JavaScript or pixel-identical typography. See the
+[compiler guide](docs/SEMANTIC-COMPILER.md) for supported semantics and boundaries.

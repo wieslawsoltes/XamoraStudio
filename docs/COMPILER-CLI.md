@@ -69,3 +69,25 @@ Reports contain per-document source and target paths, readiness status, compiler
 | `2`       | Invalid arguments, unreadable inputs, malformed manifests, destination conflicts, or filesystem failures. |
 
 The shared AST, compiler, and batch planner remain browser-compatible. Filesystem access and the Node HTML parser are isolated in the compiler package's CLI entrypoint.
+
+## Local external CSS, environments and native output
+
+```sh
+xamora-convert ./views --to xaml --out-dir ./converted --native --load-css \
+  --viewport 900x700 --media-type screen --color-scheme light
+```
+
+`--load-css` is explicit opt-in. It reads linked sheets and recursive imports only
+inside the collected project root, including safely encoded local filenames and
+query-qualified references. Network URLs, absolute paths, root traversal,
+symlinks, invalid UTF-8, missing files and oversized graphs are rejected before
+output writes. Import cycles terminate and remain compiler diagnostics. A single
+file uses its containing directory as the project root; convert the encompassing
+folder when sheets live beside a sibling views directory.
+
+`--viewport` sets media-query width/height in CSS pixels. `--media-type` supports
+screen or print; `--color-scheme` supports light or dark. Unknown capabilities
+still report conditional losses; CLI conversion does not pretend to render an
+intrinsic browser layout. `--native` enables native property/layout adapters and
+omits round-trip metadata. Existing `--strict`, `--dry-run`, JSON reports and
+new-files-only atomic batch semantics continue to apply.
