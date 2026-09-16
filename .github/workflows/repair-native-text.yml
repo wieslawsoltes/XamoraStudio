@@ -1,0 +1,52 @@
+name: Validate native compiler text adaptation
+on:
+  push:
+    branches: [feat/responsive-compiler]
+    paths: [.github/workflows/repair-native-text.yml]
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply reviewed native text correction
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/feat/responsive-compiler
+          gh api "repos/$GITHUB_REPOSITORY/git/blobs/48446353c0cbf8c409899649a4df81979000ce5f" --jq .content | base64 --decode | gzip -dc > "$RUNNER_TEMP/native.patch"
+          echo "99be91da955c86bd33c4bf29f2d092081cf59207abd84cec0de38dc1608254e0  $RUNNER_TEMP/native.patch" | sha256sum --check
+          git apply --check "$RUNNER_TEMP/native.patch"
+          git apply "$RUNNER_TEMP/native.patch"
+          rm .github/workflows/repair-native-text.yml
+      - run: npm ci
+      - name: Validate exact source tree
+        run: |
+          npm run format:check
+          npm run check
+          npm test
+          npm run build
+          npm run release:check
+          git add --all
+          test "$(git write-tree)" = a758ce0c6f582577a00c64c89450fbeee0a5f526
+      - name: Commit validated source only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD --staged --worktree .github/workflows
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'fix: emit native text hosts and canonical enum values for responsive XAML'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/feat/responsive-compiler
