@@ -85,12 +85,17 @@ export function parseResolvedTracks(value, fallbackLength, total) {
       );
 }
 export class HitTestService {
-  constructor(studio) {
+  constructor(studio, { document: ownerDocument } = {}) {
     this.studio = studio;
+    this.document = ownerDocument;
     this.cycle = null;
   }
   stack(clientX, clientY, { includeLocked = false, exclude = [] } = {}) {
     const s = this.studio,
+      document = this.document || globalThis.document,
+      getComputedStyle =
+        document.defaultView?.getComputedStyle.bind(document.defaultView) ||
+        globalThis.getComputedStyle,
       root = s.doc.root,
       scope = s.scopeId || s.features?.isolationId,
       seen = new Set(),

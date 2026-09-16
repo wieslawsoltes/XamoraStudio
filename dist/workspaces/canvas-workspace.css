@@ -1,0 +1,185 @@
+@import './workspace-base.css';
+:where(.xamora-workspace) #selection-path {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  max-width: 500px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+:where(.xamora-workspace) #selection-path button {
+  font-size: 11px;
+  padding: 3px 4px;
+  border-radius: 3px;
+  max-width: 125px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(.xamora-workspace) #selection-path button:last-of-type {
+  color: var(--accent);
+  font-weight: 600;
+}
+:where(.xamora-workspace) #selection-path span {
+  color: var(--muted);
+}
+:where(.xamora-workspace) #hover-outline {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid #9e7bea;
+  z-index: 4;
+}
+:where(.xamora-workspace) .selection-overlay {
+  z-index: 6;
+}
+:where(.xamora-workspace) #drop-cue {
+  position: absolute;
+  pointer-events: none;
+  border: 2px solid #9263f2;
+  background: #9263f21c;
+  z-index: 10;
+}
+:where(.xamora-workspace) #drop-cue.invalid {
+  border-color: #e45465;
+  background: #e454651a;
+}
+:where(.xamora-workspace) #drop-cue.insertion {
+  background: #9263f2;
+  border: 0;
+  box-shadow: 0 0 0 1px white;
+}
+:where(.xamora-workspace) #drop-cue span {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 7px);
+  padding: 5px 8px;
+  background: #8056e8;
+  color: white;
+  font-size: 11px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+:where(.xamora-workspace) #drop-cue.invalid span {
+  bottom: auto;
+  top: 3px;
+  background: #c74b5b;
+}
+:where(.xamora-workspace) #drag-ghosts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;
+}
+:where(.xamora-workspace) #drag-ghosts div {
+  position: absolute;
+  background: #9064e91f;
+  border: 1px dashed #9464ee;
+  border-radius: 2px;
+}
+:where(.xamora-workspace) .tree-drop-before {
+  box-shadow: inset 0 2px 0 #976bf1;
+}
+:where(.xamora-workspace) .tree-drop-after {
+  box-shadow: inset 0 -2px 0 #976bf1;
+}
+:where(.xamora-workspace) .tree-drop-before:before,
+:where(.xamora-workspace) .tree-drop-after:after {
+  content: '●';
+  position: absolute;
+  left: 4px;
+  color: var(--accent);
+  font-size: 6px;
+}
+:where(.xamora-workspace) .tree-drop-before:before {
+  top: -2px;
+}
+:where(.xamora-workspace) .tree-drop-after:after {
+  bottom: -2px;
+}
+:where(.xamora-workspace) #grid-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 7;
+  border: 1px dashed #9c79e8;
+}
+:where(.xamora-workspace) .grid-track-label {
+  position: absolute;
+  pointer-events: auto;
+  color: #7953bd;
+  background: #eee5ff;
+  font:
+    10px ui-monospace,
+    monospace;
+  overflow: hidden;
+  border: 1px solid #c8b2ef;
+  border-radius: 3px;
+  z-index: 2;
+}
+:where(.xamora-workspace) .grid-track-label.column {
+  height: 21px;
+  top: -24px;
+}
+:where(.xamora-workspace) .grid-track-label.row {
+  width: 28px;
+  left: -31px;
+}
+:where(.xamora-workspace) .grid-track-handle {
+  position: absolute;
+  pointer-events: auto;
+  background: #9d75ea44;
+}
+:where(.xamora-workspace) .grid-track-handle.column {
+  width: 7px;
+  margin-left: -3px;
+  top: 0;
+  bottom: 0;
+  cursor: col-resize;
+  border-left: 1px dashed #8b60d9;
+}
+:where(.xamora-workspace) .grid-track-handle.row {
+  height: 7px;
+  margin-top: -3px;
+  left: 0;
+  right: 0;
+  cursor: row-resize;
+  border-top: 1px dashed #8b60d9;
+}
+:where(.xamora-workspace) .grid-track-handle:hover {
+  background: #9061e979;
+}
+:where(.xamora-workspace) .smart-guide {
+  position: absolute;
+  pointer-events: none;
+  background: #e063bd;
+  z-index: 11;
+  box-shadow: 0 0 0 0.5px #fff8;
+}
+:where(.xamora-workspace) .solution-actions,
+:where(.xamora-workspace) .solution-selection > div {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 6px;
+}
+:where(.xamora-workspace) .solution-actions button,
+:where(.xamora-workspace) .solution-selection button {
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--text);
+}
+:where(.xamora-workspace) .solution-selection {
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+:where(.xamora-workspace) .solution-selection input {
+  width: 100%;
+  padding: 6px;
+}
+:where(.xamora-workspace) .solution-selection small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 11px;
+}

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { controlDOM } from './control-fixture.mjs';
 import assert from 'node:assert/strict';
 import { installDockDOM } from './docking-dom.mjs';
 import { MenuBar } from '../dist/controls/menu-bar.js';
@@ -177,6 +178,7 @@ test('folder selection prevents file-only solution actions from changing an unre
   installDockDOM();
   let mutations = 0;
   const sol = Object.assign(Object.create(SolutionWorkspace.prototype), {
+    environment: { notify() {} },
     folder: 'Views',
     selectedId: null,
     mutate() {
@@ -256,14 +258,15 @@ test('minimum-size hints compose through nested splits with a compact fallback',
   assert.deepEqual(dockRatioLimits(root, panels, 400), [0.08, 0.92]);
 });
 
-test('solution resolver is ready when docking synchronously renders during panel registration', () => {
-  installDockDOM();
+test('solution resolver is ready when docking synchronously renders during panel registration', (t) => {
+  const dom = controlDOM(t);
   const documents = [
     parseXaml('<Grid/>', { name: 'MainView.xaml' }),
     parseXaml('<ResourceDictionary/>', { name: 'Resources.xaml' }),
   ];
   let resolvedDuringRegistration;
   const studio = {
+    workspaceOptions: { root: dom.document },
     stores: documents.map((doc) => new DocumentStore(doc)),
     active: 0,
     get doc() {
@@ -282,13 +285,15 @@ test('solution resolver is ready when docking synchronously renders during panel
           'Resources.xaml',
           studio.doc.root,
         );
+        return { dispose() {} };
       },
     },
   };
   class MinimalSolution extends SolutionWorkspace {
     render() {}
   }
-  new MinimalSolution(studio);
+  const component = new MinimalSolution(studio);
+  t.after(() => component.dispose());
   assert.equal(resolvedDuringRegistration, studio.stores[1].document.root);
   assert.equal(
     studio.renderer.resourceResolver('Resources.xaml', studio.doc.root),

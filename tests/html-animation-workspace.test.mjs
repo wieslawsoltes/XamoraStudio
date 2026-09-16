@@ -109,6 +109,7 @@ test('recording a removed inline property preserves base CSS and commits resolve
     const store = new DocumentStore(doc),
       before = find(store.document.root, box.id).props.style;
     const workspace = {
+      environment: { document: globalThis.document },
       recording: true,
       time: 500,
       definition: { id: animation.id, name: animation.name },
@@ -152,7 +153,12 @@ test('an unresolved removed CSS value aborts recording without mutating base sty
     });
     const store = new DocumentStore(doc),
       before = JSON.stringify(store.document);
-    const workspace = { recording: true, time: 500, resolveRemovedValue: () => '' };
+    const workspace = {
+      environment: { document: globalThis.document },
+      recording: true,
+      time: 500,
+      resolveRemovedValue: () => '',
+    };
     assert.throws(
       () =>
         store.transaction('Record removed value', (d) =>

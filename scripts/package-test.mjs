@@ -243,7 +243,19 @@ try {
       ),
     );
   }
-  const typeConsumer = `import { DialogHost, type DialogOptions } from '@wieslawsoltes/xamora-dialogs';
+  const typeConsumer = `import { type CanvasWorkspaceHost } from '@wieslawsoltes/xamora-workspace-context';
+import { CanvasController } from '@wieslawsoltes/xamora-canvas-workspace';
+import { BlendFeatures, TimelineWorkspace } from '@wieslawsoltes/xamora-motion-workspace';
+import { SolutionWorkspace } from '@wieslawsoltes/xamora-solution-workspace';
+import { RichProperties, ResourceWorkspace } from '@wieslawsoltes/xamora-resource-workspace';
+import { DataEditor } from '@wieslawsoltes/xamora-data-workspace';
+import { HtmlWorkspace } from '@wieslawsoltes/xamora-html-workspace';
+declare const workspaceHost: CanvasWorkspaceHost;
+new CanvasController(workspaceHost, {root: document.body}).dispose();
+// @ts-expect-error A document-aware host is required.
+new CanvasController({});
+void [BlendFeatures, TimelineWorkspace, SolutionWorkspace, RichProperties, ResourceWorkspace, DataEditor, HtmlWorkspace];
+import { DialogHost, type DialogOptions } from '@wieslawsoltes/xamora-dialogs';
 import { DialogHost as CompatibleDialog } from '@wieslawsoltes/xamora-controls';
 const dialogOptions: DialogOptions = { title: 'Review', actions: [{ label: 'Save', async run(context) { const signal: AbortSignal = context.signal; void signal; } }] };
 const dialogHost: CompatibleDialog = new DialogHost(globalThis.document.createElement('div')); dialogHost.open(dialogOptions); dialogHost.setActionDisabled(0, true); dialogHost.dispose();

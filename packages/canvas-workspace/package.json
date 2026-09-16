@@ -1,0 +1,71 @@
+{
+  "name": "@wieslawsoltes/xamora-canvas-workspace",
+  "version": "0.8.0",
+  "description": "Document-aware canvas selection, layout, hit testing and drag authoring",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/canvas-workspace"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./canvas-controller": {
+      "import": {
+        "types": "./dist/esm/canvas-controller.d.ts",
+        "default": "./dist/esm/canvas-controller.js"
+      },
+      "require": {
+        "types": "./dist/cjs/canvas-controller.d.cts",
+        "default": "./dist/cjs/canvas-controller.cjs"
+      }
+    },
+    "./workspace-base.css": "./dist/assets/workspace-base.css",
+    "./canvas-workspace.css": "./dist/assets/canvas-workspace.css",
+    "./browser": {
+      "types": "./dist/esm/index.d.ts",
+      "default": "./dist/browser/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-designer": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-workspace-context": "0.8.0"
+  }
+}

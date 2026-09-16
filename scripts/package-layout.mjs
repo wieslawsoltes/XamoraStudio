@@ -2,6 +2,61 @@
 export const scope = '@wieslawsoltes/';
 export const packageLayout = [
   {
+    modules: [],
+    standalone: true,
+    id: 'workspace-context',
+    description: 'Scoped DOM services and reversible lifecycle integration for document workspaces',
+    workspaces: ['workspace-context'],
+  },
+  {
+    modules: [],
+    standalone: true,
+    id: 'canvas-workspace',
+    description: 'Document-aware canvas selection, layout, hit testing and drag authoring',
+    workspaces: ['canvas-controller'],
+    assets: ['dist/workspaces/workspace-base.css', 'dist/workspaces/canvas-workspace.css'],
+  },
+  {
+    modules: [],
+    standalone: true,
+    id: 'motion-workspace',
+    description: 'XAML storyboard, timeline, visual-state, trigger and preview authoring',
+    workspaces: ['animation-editor', 'timeline-workspace', 'motion-runtime', 'blend-features'],
+    assets: ['dist/workspaces/workspace-base.css', 'dist/workspaces/motion-workspace.css'],
+  },
+  {
+    modules: [],
+    standalone: true,
+    id: 'html-workspace',
+    description: 'HTML editing with CSS animation, state and transition workspaces',
+    workspaces: ['html-workspace', 'html-animation-workspace', 'html-states-workspace'],
+    assets: ['dist/workspaces/workspace-base.css', 'dist/workspaces/html-workspace.css'],
+  },
+  {
+    modules: [],
+    standalone: true,
+    id: 'resource-workspace',
+    description: 'XAML resource, brush, transform, effect and rich-property authoring',
+    workspaces: ['resource-workspace', 'rich-properties'],
+    assets: ['dist/workspaces/workspace-base.css', 'dist/workspaces/resource-workspace.css'],
+  },
+  {
+    modules: [],
+    standalone: true,
+    id: 'solution-workspace',
+    description: 'Document solution explorer, file organization, references and solution history',
+    workspaces: ['solution-workspace'],
+    assets: ['dist/workspaces/workspace-base.css', 'dist/workspaces/solution-workspace.css'],
+  },
+  {
+    modules: [],
+    standalone: true,
+    id: 'data-workspace',
+    description: 'Document-aware database, schema, relationships, queries and binding editor',
+    workspaces: ['data-editor'],
+    assets: ['dist/workspaces/workspace-base.css', 'dist/workspaces/data-workspace.css'],
+  },
+  {
     id: 'contracts',
     description:
       'Shared type-only contracts for the universal Xamora object model and rendering APIs',
@@ -154,6 +209,7 @@ export function packageName(id) {
 }
 export function sourceModules(entry) {
   return [
+    ...(entry.workspaces || []).map((name) => ({ source: `dist/workspaces/${name}.js`, name })),
     ...entry.modules.map((name) => ({ source: `dist/core/${name}.js`, name })),
     ...(entry.controls || []).map((name) => ({ source: `dist/controls/${name}.js`, name })),
     ...(entry.cli

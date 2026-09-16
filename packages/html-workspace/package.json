@@ -1,0 +1,94 @@
+{
+  "name": "@wieslawsoltes/xamora-html-workspace",
+  "version": "0.8.0",
+  "description": "HTML editing with CSS animation, state and transition workspaces",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/html-workspace"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./html-workspace": {
+      "import": {
+        "types": "./dist/esm/html-workspace.d.ts",
+        "default": "./dist/esm/html-workspace.js"
+      },
+      "require": {
+        "types": "./dist/cjs/html-workspace.d.cts",
+        "default": "./dist/cjs/html-workspace.cjs"
+      }
+    },
+    "./html-animation-workspace": {
+      "import": {
+        "types": "./dist/esm/html-animation-workspace.d.ts",
+        "default": "./dist/esm/html-animation-workspace.js"
+      },
+      "require": {
+        "types": "./dist/cjs/html-animation-workspace.d.cts",
+        "default": "./dist/cjs/html-animation-workspace.cjs"
+      }
+    },
+    "./html-states-workspace": {
+      "import": {
+        "types": "./dist/esm/html-states-workspace.d.ts",
+        "default": "./dist/esm/html-states-workspace.js"
+      },
+      "require": {
+        "types": "./dist/cjs/html-states-workspace.d.cts",
+        "default": "./dist/cjs/html-states-workspace.cjs"
+      }
+    },
+    "./workspace-base.css": "./dist/assets/workspace-base.css",
+    "./html-workspace.css": "./dist/assets/html-workspace.css",
+    "./browser": {
+      "types": "./dist/esm/index.d.ts",
+      "default": "./dist/browser/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-control-primitives": "0.8.0",
+    "@wieslawsoltes/xamora-designer": "0.8.0",
+    "@wieslawsoltes/xamora-markup": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-renderer": "0.8.0",
+    "@wieslawsoltes/xamora-workspace-context": "0.8.0"
+  }
+}
