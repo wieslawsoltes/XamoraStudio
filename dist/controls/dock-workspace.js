@@ -31,9 +31,17 @@ export class DockWorkspace extends EventTarget {
   constructor(
     host,
     model,
-    { beforeActivate = () => true, onChange = () => {}, onVisibility = () => {} } = {},
+    {
+      beforeActivate = () => true,
+      onChange = () => {},
+      onVisibility = () => {},
+      keyboardScope = 'workspace',
+    } = {},
   ) {
     super();
+    if (!['workspace', 'document'].includes(keyboardScope))
+      throw Error('Invalid docking keyboard scope.');
+    this.keyboardScope = keyboardScope;
     this.host = host;
     this.model = model;
     this.beforeActivate = beforeActivate;
@@ -95,12 +103,27 @@ export class DockWorkspace extends EventTarget {
   }
   mount(id, node) {
     if (!this.model.panels.has(id)) throw Error('Register the docking panel before mounting it.');
+    if (this.disposed) throw Error('DockWorkspace is disposed.');
+    for (const [other, content] of this.contents)
+      if (other !== id && content === node)
+        throw Error('A content node can only belong to one panel.');
+    if (this.contents.get(id) !== node) this.unmount(id);
     this.contents.set(id, node);
     node.dataset.dockContent = id;
     this.parking.append(node);
     return node;
   }
+  /** Detach content without destroying it or changing the caller-owned layout model. */
+  unmount(id) {
+    const node = this.contents.get(id);
+    if (!node) return null;
+    this.contents.delete(id);
+    delete node.dataset.dockContent;
+    node.remove();
+    return node;
+  }
   activate(id, { focus = false } = {}) {
+    if (this.disposed) return false;
     if (this.beforeActivate(id) === false) return false;
     const place = locatePanel(this.model.state, id);
     if (this.model.state.zoomedGroup && place?.group?.id !== this.model.state.zoomedGroup)
@@ -111,6 +134,7 @@ export class DockWorkspace extends EventTarget {
       this.render();
     } else this.model.activate(id);
     requestAnimationFrame(() => {
+      if (this.disposed) return;
       this.revealTab(id);
       if (focus) this.focus(id);
     });
@@ -1025,6 +1049,16 @@ export class DockWorkspace extends EventTarget {
     menu.querySelector('button:not(:disabled)')?.focus();
   }
   key(e) {
+    if (this.disposed) return;
+    const workspace = e.target.closest?.('.dock-workspace');
+    if (workspace && workspace !== this.host) return;
+    if (
+      this.keyboardScope !== 'document' &&
+      !this.host.contains(e.target) &&
+      !this.menu?.contains(e.target) &&
+      !this.cancelGesture
+    )
+      return;
     if (this.menu) {
       const items = [...this.menu.querySelectorAll('button:not(:disabled)')],
         at = items.indexOf(document.activeElement);
@@ -1055,7 +1089,8 @@ export class DockWorkspace extends EventTarget {
       this.closeFlyout();
       return;
     }
-    if (e.target.closest('#modal-root')) return;
+    if (e.target.closest('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]'))
+      return;
     const mod = e.ctrlKey || e.metaKey;
     if (e.key === 'F6') {
       e.preventDefault();
@@ -1140,6 +1175,7 @@ export class DockWorkspace extends EventTarget {
       e.stopImmediatePropagation();
   }
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
     this.cancelGesture?.();
     for (const strip of this.strips.values()) strip.dispose();
@@ -1154,7 +1190,13 @@ export class DockWorkspace extends EventTarget {
     document.removeEventListener('pointerdown', this.outside);
     document.removeEventListener('focusin', this.contentFocus);
     this.host.removeEventListener('pointerdown', this.contentFocus);
-    for (const node of this.contents.values()) this.host.append(node);
+    for (const node of this.contents.values()) {
+      delete node.dataset.dockContent;
+      this.host.append(node);
+    }
+    this.contents.clear();
+    this.visible.clear();
+    this.host.classList.remove('dock-workspace');
     this.shell.remove();
     this.parking.remove();
     this.live.remove();

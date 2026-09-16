@@ -203,6 +203,26 @@ try {
     );
     assert.match(await readFile(join(consumer, 'roundtrip/view.xaml'), 'utf8'), /Packed CLI/);
   }
+  for (const mode of ['esm', 'cjs']) {
+    const script =
+      mode === 'esm'
+        ? `import * as old from '@wieslawsoltes/xamora-controls'; import * as dock from '@wieslawsoltes/xamora-docking'; import * as primitives from '@wieslawsoltes/xamora-control-primitives';`
+        : `const old = require('@wieslawsoltes/xamora-controls'), dock = require('@wieslawsoltes/xamora-docking'), primitives = require('@wieslawsoltes/xamora-control-primitives');`;
+    run(
+      process.execPath,
+      [
+        ...(mode === 'esm' ? ['--input-type=module'] : []),
+        '-e',
+        script +
+          `
+      if (old.DockLayout !== dock.DockLayout || old.DockWorkspace !== dock.DockWorkspace || old.ScrollButtons !== primitives.ScrollButtons) throw Error('Compatibility facade duplicated a constructor');
+      const layout = new dock.DockLayout(['first', 'second']); layout.float('first'); layout.undo();
+    `,
+      ],
+      consumer,
+      `${mode} control facade identity`,
+    );
+  }
   const names = current.entries.map((entry) => entry.name);
   for (const mode of ['esm', 'cjs']) {
     const imports = names

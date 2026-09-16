@@ -244,3 +244,11 @@ MIT. See [LICENSE](LICENSE).
 ## GitHub Pages deployment
 
 Pushes to `main` run validation and publish the contents of `dist/`. The workflow verifies the deployed HTML, JavaScript, CSS and docking example against the source commit. See [GitHub Pages hosting](docs/GITHUB-PAGES.md).
+
+## Reusable controls
+
+Standalone component boundaries, compatibility imports and integration examples are documented in
+[Reusable controls](docs/REUSABLE-CONTROLS.md). Try the application-independent
+[Controls Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/ControlsLab/).
+Docking and small UI primitives use the exact same canonical modules as Studio, with separate
+ESM/CommonJS packages, declarations, CSS and opt-in browser bundles. Extraction does not publish npm packages.

@@ -97,7 +97,8 @@
         "default": "./dist/cjs/overlay-layout.cjs"
       }
     },
-    "./editor.css": "./dist/assets/editor.css"
+    "./editor.css": "./dist/assets/editor.css",
+    "./menu-bar.css": "./dist/assets/menu-bar.css"
   },
   "files": [
     "dist",

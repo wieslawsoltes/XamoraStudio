@@ -1,7 +1,7 @@
 /** Emit unbundled ESM sources and matching ESM/CommonJS declarations. */
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
-import { rewrite } from '../package-graph.mjs';
+import { rewrite, specifierFor } from '../package-graph.mjs';
 import { entrypointSource } from './metadata.mjs';
 
 export async function emitPackageModules(entry, current, typed) {
@@ -26,6 +26,21 @@ export async function emitPackageModules(entry, current, typed) {
       rewrite(typed.sources.get(source.source), source.source, current.owners, { cjs: true }),
     );
     if (!source.name.startsWith('cli/')) entries.push(target);
+  }
+  for (const alias of entry.reexports || []) {
+    const owner = current.owners.get(alias.source);
+    if (!owner) throw Error(`Missing compatibility owner: ${alias.source}`);
+    const source = `export * from '${specifierFor(owner)}';\n`;
+    for (const [directory, extension] of [
+      ['esm', '.js'],
+      ['esm', '.d.ts'],
+      ['cjs', '.d.cts'],
+    ]) {
+      const target = resolve(output, directory, alias.name + extension);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, source);
+      if (extension === '.js') entries.push(target);
+    }
   }
   const index = entrypointSource(entry, current.entries);
   const indexFile = resolve(output, 'esm/index.js');

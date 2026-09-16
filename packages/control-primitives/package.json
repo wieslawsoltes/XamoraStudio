@@ -1,14 +1,14 @@
 {
-  "name": "@wieslawsoltes/xamora-controls",
+  "name": "@wieslawsoltes/xamora-control-primitives",
   "version": "0.8.0",
-  "description": "Reusable IDE docking, menus, scroll buttons, and density controls",
+  "description": "Standalone menus, scroll strips and UI density preferences",
   "type": "module",
   "license": "MIT",
   "author": "Xamora contributors",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
-    "directory": "packages/controls"
+    "directory": "packages/control-primitives"
   },
   "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
   "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
@@ -27,26 +27,6 @@
       }
     },
     "./package.json": "./package.json",
-    "./docking": {
-      "import": {
-        "types": "./dist/esm/docking.d.ts",
-        "default": "./dist/esm/docking.js"
-      },
-      "require": {
-        "types": "./dist/cjs/docking.d.cts",
-        "default": "./dist/cjs/docking.cjs"
-      }
-    },
-    "./dock-workspace": {
-      "import": {
-        "types": "./dist/esm/dock-workspace.d.ts",
-        "default": "./dist/esm/dock-workspace.js"
-      },
-      "require": {
-        "types": "./dist/cjs/dock-workspace.d.cts",
-        "default": "./dist/cjs/dock-workspace.cjs"
-      }
-    },
     "./menu-bar": {
       "import": {
         "types": "./dist/esm/menu-bar.d.ts",
@@ -78,8 +58,11 @@
       }
     },
     "./scroll-buttons.css": "./dist/assets/scroll-buttons.css",
-    "./docking.css": "./dist/assets/docking.css",
-    "./density.css": "./dist/assets/density.css"
+    "./menu-bar.css": "./dist/assets/menu-bar.css",
+    "./browser": {
+      "types": "./dist/esm/index.d.ts",
+      "default": "./dist/browser/index.js"
+    }
   },
   "files": [
     "dist",
@@ -98,10 +81,5 @@
   },
   "scripts": {
     "prepack": "node ../../scripts/build-packages.mjs"
-  },
-  "dependencies": {
-    "@wieslawsoltes/xamora-contracts": "0.8.0",
-    "@wieslawsoltes/xamora-control-primitives": "0.8.0",
-    "@wieslawsoltes/xamora-docking": "0.8.0"
   }
 }
