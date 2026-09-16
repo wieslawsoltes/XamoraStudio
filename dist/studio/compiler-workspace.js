@@ -199,6 +199,10 @@ export class CompilerWorkspace {
       settings[input.dataset.convertOption] =
         input.type === 'checkbox' ? input.checked : input.value;
     const { viewportWidth: width, viewportHeight: height, mediaType, colorScheme } = settings;
+    // A cleared field means unspecified, not the value from the previous preview.
+    // Retain host-supplied environment features without mutating the caller's object.
+    const environment = { ...(settings.environment || {}) };
+    for (const key of ['width', 'height', 'type', 'prefers-color-scheme']) delete environment[key];
     if (width || height) {
       if (
         ![width, height].every(
@@ -208,24 +212,14 @@ export class CompilerWorkspace {
         throw Error(
           'Set both viewport dimensions to positive CSS pixel values, no greater than 100000.',
         );
-      settings.environment = {
-        ...(settings.environment || {}),
-        width: Number(width),
-        height: Number(height),
-        type: mediaType || 'screen',
-      };
-    } else {
-      if (settings.environment) {
-        settings.environment = { ...settings.environment };
-        delete settings.environment.width;
-        delete settings.environment.height;
-      }
+      environment.width = Number(width);
+      environment.height = Number(height);
+      environment.type = mediaType || 'screen';
     }
-    if (mediaType || colorScheme) {
-      settings.environment = { ...(settings.environment || {}) };
-      if (mediaType) settings.environment.type = mediaType;
-      if (colorScheme) settings.environment['prefers-color-scheme'] = colorScheme;
-    }
+    if (mediaType) environment.type = mediaType;
+    if (colorScheme) environment['prefers-color-scheme'] = colorScheme;
+    if (Object.keys(environment).length) settings.environment = environment;
+    else delete settings.environment;
     if (settings.environment && globalThis.CSS?.supports)
       settings.environment.supports = (query) => CSS.supports(query);
     const target = $('[data-convert-target]').value;

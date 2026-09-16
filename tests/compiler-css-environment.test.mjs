@@ -358,3 +358,61 @@ test('root font declarations supply rem values while media em uses the initial f
   assert.equal(prop(r).Width, '40');
   assert.equal(prop(r).Height, '11');
 });
+
+test('native text layout canonicalizes enum casing and logical alignment and wraps button text', () => {
+  for (const framework of ['WPF', 'Avalonia']) {
+    const r = fixture(
+      'button{font-style:italic;text-align:start;white-space:nowrap}',
+      { framework },
+      '<button id="target" dir="rtl">Caption</button>',
+    );
+    const target = r.document.root;
+    assert.equal(prop(r).FontStyle, 'Italic');
+    assert.equal(prop(r).FlowDirection, 'RightToLeft');
+    assert.equal(prop(r).TextAlignment, undefined);
+    assert.equal(prop(r).TextWrapping, undefined);
+    let host;
+    walk(target, (n) => {
+      if (n.type === 'TextBlock') host = n;
+    });
+    assert.equal(host.props.TextAlignment, 'Right');
+    assert.equal(host.props.TextWrapping, 'NoWrap');
+    assert.equal(host.props.Text, 'Caption');
+    const back = compileDocument(r.source, { Parser });
+    assert.equal(back.success, true);
+    assert.match(back.source, /Caption/);
+    assert.match(back.source, /dir="rtl"/);
+    assert.equal(
+      prop(
+        fixture(
+          'p{text-align:end;font-style:oblique}',
+          { framework },
+          '<p id="target" dir="rtl">T</p>',
+        ),
+      ).TextAlignment,
+      'Left',
+    );
+    assert.equal(
+      prop(fixture('p{text-align:end;font-style:normal}', { framework }, '<p id="target">T</p>'))
+        .FontStyle,
+      'Normal',
+    );
+  }
+});
+
+test('layout-only whitespace never becomes a native panel collection item', () => {
+  for (const display of ['grid', 'flex', 'block']) {
+    const r = fixture(
+      `#target{display:${display}}`,
+      {},
+      '<div id="target">\n  <button>A</button>\n  <button>B</button>\n</div>',
+    );
+    assert.equal(r.success, true);
+    assert.equal(
+      r.document.root.children.some((n) => n.kind === 'text'),
+      false,
+    );
+    const rich = fixture('', {}, '<p id="target">A <b>B</b> C</p>');
+    assert.match(rich.source, />A <Bold/);
+  }
+});

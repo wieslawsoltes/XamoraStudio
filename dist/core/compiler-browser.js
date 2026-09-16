@@ -18,6 +18,7 @@ const cssNames = [
   'font-style',
   'opacity',
   'text-align',
+  'direction',
   'white-space',
 ];
 function box(css, group, suffix = '') {

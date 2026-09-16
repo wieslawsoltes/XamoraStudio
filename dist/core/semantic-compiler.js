@@ -132,6 +132,7 @@ const cssProperties = {
   RowSpacing: 'row-gap',
   ColumnSpacing: 'column-gap',
   TextAlignment: 'text-align',
+  FlowDirection: 'direction',
   HorizontalContentAlignment: 'justify-content',
   VerticalContentAlignment: 'align-items',
   HorizontalAlignment: 'justify-self',
@@ -295,7 +296,7 @@ function styleObject(source = '') {
   return result;
 }
 const inheritedCss = new Set(
-  'color font-family font-size font-weight font-style line-height text-align white-space visibility cursor'.split(
+  'color font-family font-size font-weight font-style line-height text-align white-space visibility cursor direction'.split(
     ' ',
   ),
 );
@@ -304,6 +305,7 @@ const initialCss = {
   'font-weight': 'normal',
   'font-style': 'normal',
   'text-align': 'start',
+  direction: 'ltr',
   'white-space': 'normal',
   visibility: 'visible',
   opacity: '1',
@@ -639,7 +641,8 @@ function cssValue(key, value, ctx, node) {
       .map(unit)
       .join(' ');
   if (/Alignment$/.test(key) && key !== 'TextAlignment') return align[value] || value.toLowerCase();
-  if (key === 'TextAlignment') return value.toLowerCase();
+  if (key === 'TextAlignment' || key === 'FontStyle') return value.toLowerCase();
+  if (key === 'FlowDirection') return value === 'RightToLeft' ? 'rtl' : 'ltr';
   if (key === 'TextWrapping') return value === 'NoWrap' ? 'nowrap' : 'normal';
   if (key === 'TextDecorations')
     return (
@@ -650,7 +653,7 @@ function cssValue(key, value, ctx, node) {
   if (key === 'ClipToBounds') return /^true$/i.test(value) ? 'hidden' : 'visible';
   return value;
 }
-function xamlValue(key, value) {
+function xamlValue(key, value, css = {}) {
   value = String(value).replace(/\s*!important\s*$/i, '');
   if (lengths.has(key)) return number(value);
   if (thickness.has(key)) return cssThickness(value);
@@ -672,7 +675,23 @@ function xamlValue(key, value) {
         stretch: 'Stretch',
       }[value] || null
     );
-  if (key === 'TextAlignment') return value.charAt(0).toUpperCase() + value.slice(1);
+  if (key === 'FontStyle')
+    return { normal: 'Normal', italic: 'Italic', oblique: 'Oblique' }[value.toLowerCase()] ?? null;
+  if (key === 'FlowDirection')
+    return { ltr: 'LeftToRight', rtl: 'RightToLeft' }[value.toLowerCase()] ?? null;
+  if (key === 'TextAlignment') {
+    const rtl = css.direction === 'rtl';
+    return (
+      {
+        left: 'Left',
+        right: 'Right',
+        center: 'Center',
+        justify: 'Justify',
+        start: rtl ? 'Right' : 'Left',
+        end: rtl ? 'Left' : 'Right',
+      }[value.toLowerCase()] ?? null
+    );
+  }
   if (key === 'TextWrapping')
     return ['nowrap', 'pre'].includes(value)
       ? 'NoWrap'
@@ -1392,6 +1411,9 @@ function resolvedCss(node, ctx) {
       else assign(key);
     }
   };
+  // HTML direction is a presentational hint and loses to author CSS.
+  if (/^(ltr|rtl)$/i.test(node.props.dir || ''))
+    add([['direction', node.props.dir.toLowerCase()]], [0, 0, 0, 0], { rank: -1 });
   // These semantic inline defaults precede all author declarations, including '*'.
   if (['strong', 'b'].includes(node.type))
     add([['font-weight', 'bolder']], [0, 0, 0, 0], { rank: -1 });
@@ -1749,7 +1771,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
       css[cssKey] === parentCss[cssKey]
     )
       continue;
-    const value = xamlValue(key, css[cssKey]);
+    const value = xamlValue(key, css[cssKey], css);
     if (value !== null) props[key] = value;
     else
       ctx.report(
@@ -1942,7 +1964,18 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   for (const child of node.children) {
     if (
       child === header ||
-      (captured?.container && child.kind === 'text' && !child.text.trim()) ||
+      (child.kind === 'text' &&
+        !child.text.trim() &&
+        (captured?.container ||
+          [
+            'Grid',
+            'StackPanel',
+            'WrapPanel',
+            'Canvas',
+            'DockPanel',
+            'ListBox',
+            'ComboBox',
+          ].includes(local))) ||
       (scalarContent && ['text', 'cdata'].includes(child.kind)) ||
       (child.kind === 'text' && !child.text.trim() && !textHost && !mixed && node.type !== 'pre')
     )
@@ -1997,6 +2030,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   if (local === 'Grid') placeHtmlGrid(node, n, css, ctx);
   if (meta) restoreXamlMetadata(n, node, meta, css, ctx);
   if (captured) applyCapturedLayout(n, node, captured, ctx);
+  adaptNativeTextLayout(n, node, ctx);
   diagnoseNativeProperties(n, ctx, node);
   for (const [key] of Object.entries(node.props))
     if (!usedAttrs.has(key) && !key.startsWith('data-xamora-') && !['open', 'alt'].includes(key))
@@ -2105,6 +2139,63 @@ function applyCapturedLayout(target, source, record, ctx) {
       );
     delete props.BorderThickness;
     delete props.BorderBrush;
+  }
+}
+function adaptNativeTextLayout(target, source, ctx) {
+  const type = localName(target.type);
+  if (
+    ![
+      'Button',
+      'RepeatButton',
+      'ToggleButton',
+      'Label',
+      'CheckBox',
+      'RadioButton',
+      'ComboBoxItem',
+      'ListBoxItem',
+    ].includes(type)
+  )
+    return;
+  const keys = ['TextAlignment', 'TextWrapping', 'TextDecorations'].filter((key) =>
+    has(target.props, key),
+  );
+  if (!keys.length) return;
+  // Content controls do not declare TextBlock layout properties. Use one actual
+  // text host rather than invalid Button.TextWrapping / Button.TextAlignment.
+  let host =
+    target.children.length === 1 && localName(target.children[0].type) === 'TextBlock'
+      ? target.children[0]
+      : null;
+  if (!host && !target.children.some((child) => child.kind === 'element')) {
+    host = element('TextBlock', {}, target.children);
+    if (has(target.props, 'Content')) {
+      host.props.Text = target.props.Content;
+      delete target.props.Content;
+    }
+    target.children = [host];
+    if (ctx.options.preserveMetadata !== false)
+      host.props[META_XAML] = encodeMeta({
+        type: 'span',
+        props: {},
+        children: [],
+        generated: {
+          ...host.props,
+          ...Object.fromEntries(keys.map((key) => [key, target.props[key]])),
+        },
+        syntheticInlineHost: true,
+      });
+  }
+  for (const key of keys) {
+    if (host) host.props[key] = target.props[key];
+    else
+      ctx.report(
+        'warning',
+        'NATIVE_TEXT_LAYOUT',
+        `${type}.${key} requires a text-content template adapter.`,
+        source,
+        true,
+      );
+    delete target.props[key];
   }
 }
 function diagnoseNativeProperties(node, ctx, source) {
