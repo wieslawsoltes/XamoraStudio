@@ -1,0 +1,26 @@
+name: Prepare reusable-library review workspace
+on:
+  push:
+    branches: [refactor/reusable-docking]
+permissions:
+  contents: read
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Archive source and locked development tools
+        run: tar -czf "$RUNNER_TEMP/xamora-library-review.tar.gz" --exclude='./.git' .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xamora-library-review
+          path: ${{ runner.temp }}/xamora-library-review.tar.gz
+          retention-days: 1
