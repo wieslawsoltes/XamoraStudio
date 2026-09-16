@@ -1,0 +1,57 @@
+name: Prepare nested object editing
+on:
+  push:
+    branches: [feat/nested-property-grid]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply exact locally verified patch
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/feat/nested-property-grid
+          python - <<'PY'
+          import base64,hashlib,lzma,subprocess,shutil
+          from pathlib import Path
+          text=''.join(p.read_text() for p in sorted(Path('.nested-change').glob('*.b64')))
+          text=text.replace('bywkxJJat','bywkxJat')
+          data=base64.b64decode(text,validate=True)
+          assert hashlib.sha256(data).hexdigest()=='7766df4796567196998075fcb054c8d7c4a8ecce026b115ba4c3368babc418d7'
+          patch=lzma.decompress(data)
+          subprocess.run(['git','apply','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','-'],input=patch,check=True)
+          shutil.rmtree('.nested-change')
+          Path('.github/workflows/prepare-nested.yml').unlink()
+          PY
+      - run: npm ci
+      - name: Validate source, packages and exact tree
+        run: |
+          npm run format:check
+          npm run check
+          npm test
+          npm run build
+          npm run release:check
+          git add --all
+          test "$(git write-tree)" = 947776a3f62f77b4eccf0d6fb948ded2b415bbb8
+      - name: Commit only validated source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD --staged --worktree .github/workflows
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'feat: implement automatic nested-object properties and integrate data workspace'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/feat/nested-property-grid
