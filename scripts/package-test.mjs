@@ -243,7 +243,13 @@ try {
       ),
     );
   }
-  const typeConsumer = `import { type CanvasWorkspaceHost } from '@wieslawsoltes/xamora-workspace-context';
+  const typeConsumer = `import { ObjectPropertyGrid, type ObjectPropertyChange, editObjectProperty } from '@wieslawsoltes/xamora-property-grid';
+const nestedGrid = new ObjectPropertyGrid(globalThis.document.createElement('div'), {value:{items:[1]},onChange(change:ObjectPropertyChange){void change.path;return true;}});
+nestedGrid.setProperty(['items',0],2); nestedGrid.addProperty([], 'nested', {value:true}); nestedGrid.dispose();
+editObjectProperty({a:1},['a'],2);
+// @ts-expect-error Property paths are segments, not a dotted string.
+editObjectProperty({}, 'a.b', 1);
+import { type CanvasWorkspaceHost } from '@wieslawsoltes/xamora-workspace-context';
 import { CanvasController } from '@wieslawsoltes/xamora-canvas-workspace';
 import { BlendFeatures, TimelineWorkspace } from '@wieslawsoltes/xamora-motion-workspace';
 import { SolutionWorkspace } from '@wieslawsoltes/xamora-solution-workspace';

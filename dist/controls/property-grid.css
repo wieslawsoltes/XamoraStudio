@@ -89,3 +89,56 @@
   outline: 2px solid var(--accent, #007acc);
   outline-offset: 1px;
 }
+
+/* Automatic data-object composition; independent of Studio layout. */
+.xamora-object-property-grid {
+  color: var(--text, #20232b);
+  font:
+    13px system-ui,
+    sans-serif;
+  min-width: 0;
+}
+.xamora-object-property-grid [hidden] {
+  display: none !important;
+}
+.xamora-object-property-grid > input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 7px;
+}
+.xamora-object-property-grid .object-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  min-height: 32px;
+  flex-wrap: wrap;
+}
+.xamora-object-property-grid .object-row > .prop-field {
+  flex: 1;
+  min-width: 180px;
+}
+.xamora-object-property-grid .object-row > button:first-child {
+  text-align: left;
+  flex: 1;
+}
+.xamora-object-property-grid button,
+.xamora-object-property-grid select {
+  color: inherit;
+  background: var(--input, #f4f5f8);
+  border: 1px solid var(--line, #bfc3cc);
+  border-radius: 3px;
+  min-height: 27px;
+}
+.xamora-object-property-grid .object-children {
+  margin-left: 14px;
+  padding-left: 6px;
+  border-left: 1px solid var(--line, #bfc3cc);
+}
+.xamora-object-property-grid .object-row form {
+  display: flex;
+  gap: 4px;
+}
+.xamora-object-property-grid button:focus-visible {
+  outline: 2px solid var(--accent, #386bd6);
+}

@@ -42,3 +42,32 @@ The application owns persistence and transactions. `onChange` runs synchronously
 Studio's existing All Properties inspector uses this control in external mode. The same extracted field renderer serves its standard inspector fields. Studio retains its existing XAML/HTML value semantics, specialized property editors, edit guards and shared document undo/redo instead of creating a second model. The generic library does not implement Studio's brush/resource editors, object reflection, automatic nested-object expansion or a virtualized row surface.
 
 Legacy `@wieslawsoltes/xamora-controls` exports forward to the same constructor. Package preparation and tests do not publish npm releases. MIT licensed.
+
+## Automatic nested-object editing
+
+```js
+import { ObjectPropertyGrid } from '@wieslawsoltes/xamora-property-grid';
+import '@wieslawsoltes/xamora-property-grid/property-grid.css';
+let model = { user: { name: 'Ada' }, items: [1, 2] };
+const control = new ObjectPropertyGrid(host, {
+  value: model,
+  onChange({ previous, next, path, operation, reset }) {
+    // Validate and commit to your application's transaction/history system.
+    model = next;
+    return true; // false, a message, or a thrown Error rejects the proposal.
+  },
+});
+control.setProperty(['user', 'name'], 'Grace');
+control.addProperty(['items'], '2', 3);
+control.removeProperty(['items', 0]);
+// Application undo: control.setValue(previousSnapshot).
+// control.dispose();
+```
+
+Own enumerable properties of plain data objects and arrays are discovered automatically. The UI provides expansion, filtering, scalar editing, type selectors, add/remove and reset. String path segments are literal: a key containing dots or `__proto__` is not evaluated or assigned through a prototype. Accessors, unsupported instances, circular references and depth-limited nodes appear as read-only markers. Getters are never called by inspection/cloning. JavaScript proxies are application code and are not a security boundary.
+
+Edits produce a cloned proposal without mutating the original, preserving cycles and shared references among supported data objects. Non-data instances remain references and are not edited. Read-only/non-configurable descriptors are respected. Array removal rejects affected accessor/read-only items rather than invoking them. Synchronous callbacks retain transaction ownership; asynchronous callbacks are rejected. Scalar commits retain field identity and text selection. Schema replacement/add/remove rebuilds the nested tree; this is not tree virtualization.
+
+`maxDepth` (default 16), `maxEntries` (5000), `maxNodes` (100000 for graph cloning), `expandedDepth`, `readOnly`, `allowStructureChanges`, `allowTypeChanges` and `defaultValue` configure the control. Search temporarily opens matching ancestors and restores expansion afterward. `setValue` applies external snapshots without a commit callback. `reset(path)` restores the construction-time default at that path. Added paths have no default and report an error on reset.
+
+The data workspace uses this control for its Objects view and commits through its existing owning-document history. That adapter requires JSON values; the generic control also represents null/undefined, aliases and cycles. See the standalone `examples/NestedPropertiesLab/`.

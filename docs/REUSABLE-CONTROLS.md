@@ -54,3 +54,7 @@ The editor is textarea-based with synchronous providers, not a Monaco-equivalent
 The named docking, primitive controls, code-editor and property-grid extractions are integrated into Studio. The property-grid integration gate also covers separate docked inspector hosts and disposal of replaced/shared hosts. Dialog presentation is a further reusable package, rather than an app-specific copy.
 
 The named canvas, animation/state, resource/brush, solution and data workspaces now have canonical implementations and packages under `dist/workspaces/`. They are document-aware authoring libraries with an explicit application host, not generic model-free controls. See [Workspace components](WORKSPACE-COMPONENTS.md) and the standalone WorkspaceLab for ownership, service contracts, package composition and lifecycle tests. Nested-object editing, editor viewport virtualization and desktop-window docking remain separate feature changes.
+
+## Nested object properties
+
+`ObjectPropertyGrid` and the pure object-path/inspection helpers now ship in `xamora-property-grid`. The data workspace Objects view uses the same control with document transactions. Automatic own-data-property discovery, arrays, expansion, filtering, immutable callbacks and reset are covered by unit and standalone-browser tests. Accessors/classes/proxies are not invoked as reflection providers; see the package README for graph and inspection limits. Scalar PropertyGrid remains compatible.

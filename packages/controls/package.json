@@ -67,6 +67,26 @@
         "default": "./dist/cjs/property-grid.cjs"
       }
     },
+    "./object-properties": {
+      "import": {
+        "types": "./dist/esm/object-properties.d.ts",
+        "default": "./dist/esm/object-properties.js"
+      },
+      "require": {
+        "types": "./dist/cjs/object-properties.d.cts",
+        "default": "./dist/cjs/object-properties.cjs"
+      }
+    },
+    "./object-property-grid": {
+      "import": {
+        "types": "./dist/esm/object-property-grid.d.ts",
+        "default": "./dist/esm/object-property-grid.js"
+      },
+      "require": {
+        "types": "./dist/cjs/object-property-grid.d.cts",
+        "default": "./dist/cjs/object-property-grid.cjs"
+      }
+    },
     "./dock-workspace": {
       "import": {
         "types": "./dist/esm/dock-workspace.d.ts",

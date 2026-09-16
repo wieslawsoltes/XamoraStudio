@@ -59,6 +59,7 @@ export declare class PropertyGrid {
   getValue(name: string): PropertyGridValue;
   setProperties(properties: readonly PropertyGridField[]): boolean;
   setValue(name: string, value: PropertyGridValue): boolean;
+  updateValues(values: ReadonlyMap<string, PropertyGridValue>): boolean;
   setFilter(filter: string): void;
   reset(name: string): boolean;
   dispose(): void;
