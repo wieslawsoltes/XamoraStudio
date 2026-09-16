@@ -243,7 +243,15 @@ try {
       ),
     );
   }
-  const typeConsumer = `import {DocumentStore,createDocument,element,type DesignDocument} from '@wieslawsoltes/xamora-model';\nimport {DocumentSession} from '@wieslawsoltes/xamora-markup';\nimport {ToolkitRegistry} from '@wieslawsoltes/xamora';\nimport {mountXaml} from '@wieslawsoltes/xamora-runtime';\nimport {mountXaml as browserMount} from '@wieslawsoltes/xamora-runtime/browser';\nimport type {DocumentStore as StoreContract} from '@wieslawsoltes/xamora-contracts';\n// @ts-expect-error Contracts are type-only, not runtime constructors.\nnew StoreContract();\nvoid browserMount;\nconst document:DesignDocument=createDocument(element('Grid'));const store=new DocumentStore(document);store.setProperty([document.root.id],'Width',120);\n// @ts-expect-error Objects cannot be assigned as scalar properties.\nstore.setProperty([document.root.id],'Width',{});\nconst registry:ToolkitRegistry=new ToolkitRegistry();registry.registerControl({type:'CustomCard',category:'Custom',mount({application,element}){application.setData('Mounted',true);const handler=()=>application.invalidate();element.addEventListener('click',handler);return()=>element.removeEventListener('click',handler);}});void[store,registry,DocumentSession,mountXaml];\n`;
+  const typeConsumer = `import { CodeEditor, type CodeLanguageProvider } from '@wieslawsoltes/xamora-code-editor';
+import { XamlEditor } from '@wieslawsoltes/xamora-designer/editor';
+const languageProvider: CodeLanguageProvider = { validate(source) { JSON.parse(source); }, format: source => JSON.stringify(JSON.parse(source), null, 2) };
+const editorHost = globalThis.document.createElement('div');
+const editor = new CodeEditor(editorHost, { language: 'JSON', languageProvider, onChange(source, options) { void [source, options.composing]; } });
+const markupEditor: CodeEditor = new XamlEditor(editorHost); void [editor, markupEditor];
+// @ts-expect-error provider formatter must return text
+const invalidProvider: CodeLanguageProvider = { format: () => 42 };
+import {DocumentStore,createDocument,element,type DesignDocument} from '@wieslawsoltes/xamora-model';\nimport {DocumentSession} from '@wieslawsoltes/xamora-markup';\nimport {ToolkitRegistry} from '@wieslawsoltes/xamora';\nimport {mountXaml} from '@wieslawsoltes/xamora-runtime';\nimport {mountXaml as browserMount} from '@wieslawsoltes/xamora-runtime/browser';\nimport type {DocumentStore as StoreContract} from '@wieslawsoltes/xamora-contracts';\n// @ts-expect-error Contracts are type-only, not runtime constructors.\nnew StoreContract();\nvoid browserMount;\nconst document:DesignDocument=createDocument(element('Grid'));const store=new DocumentStore(document);store.setProperty([document.root.id],'Width',120);\n// @ts-expect-error Objects cannot be assigned as scalar properties.\nstore.setProperty([document.root.id],'Width',{});\nconst registry:ToolkitRegistry=new ToolkitRegistry();registry.registerControl({type:'CustomCard',category:'Custom',mount({application,element}){application.setData('Mounted',true);const handler=()=>application.invalidate();element.addEventListener('click',handler);return()=>element.removeEventListener('click',handler);}});void[store,registry,DocumentSession,mountXaml];\n`;
   await writeFile(join(consumer, 'consumer.ts'), typeConsumer);
   await writeFile(
     join(consumer, 'consumer.cts'),

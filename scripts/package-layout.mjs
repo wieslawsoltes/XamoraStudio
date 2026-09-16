@@ -67,11 +67,21 @@ export const packageLayout = [
     standalone: true,
   },
   {
+    id: 'code-editor',
+    description: 'Standalone source editor with injectable language services and buffer history',
+    modules: [],
+    controls: ['code-editor'],
+    assets: ['dist/controls/code-editor.css'],
+    typeContracts: false,
+    standalone: true,
+  },
+  {
     id: 'controls',
     description: 'Reusable IDE docking, menus, scroll buttons, and density controls',
     modules: [],
     reexports: [
       { name: 'docking', source: 'dist/core/docking.js' },
+      { name: 'code-editor', source: 'dist/controls/code-editor.js' },
       ...['dock-workspace', 'menu-bar', 'scroll-buttons', 'workspace-density'].map((name) => ({
         name,
         source: `dist/controls/${name}.js`,
