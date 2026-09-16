@@ -27,6 +27,16 @@
       }
     },
     "./package.json": "./package.json",
+    "./dialog-host": {
+      "import": {
+        "types": "./dist/esm/dialog-host.d.ts",
+        "default": "./dist/esm/dialog-host.js"
+      },
+      "require": {
+        "types": "./dist/cjs/dialog-host.d.cts",
+        "default": "./dist/cjs/dialog-host.cjs"
+      }
+    },
     "./docking": {
       "import": {
         "types": "./dist/esm/docking.d.ts",
@@ -123,6 +133,7 @@
     "@wieslawsoltes/xamora-code-editor": "0.8.0",
     "@wieslawsoltes/xamora-contracts": "0.8.0",
     "@wieslawsoltes/xamora-control-primitives": "0.8.0",
+    "@wieslawsoltes/xamora-dialogs": "0.8.0",
     "@wieslawsoltes/xamora-docking": "0.8.0",
     "@wieslawsoltes/xamora-property-grid": "0.8.0"
   }

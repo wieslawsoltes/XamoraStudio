@@ -1,0 +1,88 @@
+/* Standalone defaults; all rules are scoped to the owned dialog host. */
+.xamora-dialog-host .modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.42);
+  box-sizing: border-box;
+}
+.xamora-dialog-host .modal {
+  width: min(520px, 100%);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line, #ccd1dc);
+  border-radius: 10px;
+  background: var(--panel, #fff);
+  color: var(--text, #172033);
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.25);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+.xamora-dialog-host .modal.wide {
+  width: min(900px, 100%);
+}
+.xamora-dialog-host .modal-header,
+.xamora-dialog-host .modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+}
+.xamora-dialog-host .modal-header {
+  border-bottom: 1px solid var(--line, #ccd1dc);
+}
+.xamora-dialog-host .modal-header h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 17px;
+}
+.xamora-dialog-host .modal-body {
+  padding: 18px;
+  overflow: auto;
+  min-height: 0;
+}
+.xamora-dialog-host .modal-footer {
+  border-top: 1px solid var(--line, #ccd1dc);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.xamora-dialog-host .modal-error {
+  color: var(--danger, #a31515);
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+.xamora-dialog-host .modal-footer:has(> .modal-error:only-child:empty) {
+  display: none;
+}
+.xamora-dialog-host .button,
+.xamora-dialog-host .icon-button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid var(--line, #ccd1dc);
+  border-radius: 5px;
+  background: var(--input, #f4f6fa);
+  color: inherit;
+  cursor: pointer;
+}
+.xamora-dialog-host .button.primary {
+  background: var(--accent, #3865d6);
+  color: #fff;
+  border-color: transparent;
+}
+.xamora-dialog-host :disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.xamora-dialog-host :focus-visible {
+  outline: 2px solid var(--accent, #3865d6);
+  outline-offset: 2px;
+}
+.xamora-dialog-host [hidden] {
+  display: none !important;
+}

@@ -250,11 +250,12 @@ Pushes to `main` run validation and publish the contents of `dist/`. The workflo
 Standalone component boundaries, compatibility imports and integration examples are documented in
 [Reusable controls](docs/REUSABLE-CONTROLS.md). Try the application-independent
 [Docking Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/ControlsLab/),
-[Code Editor Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/EditorLab/) and
-[Property Grid Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/PropertyGridLab/).
+[Code Editor Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/EditorLab/),
+[Property Grid Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/PropertyGridLab/) and
+[Dialog Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/DialogLab/).
 
 `@wieslawsoltes/xamora-docking`, `xamora-control-primitives`, `xamora-code-editor` and
-`xamora-property-grid` use the same canonical modules as Studio, with separate ESM/CommonJS
+`xamora-property-grid` / `xamora-dialogs` use the same canonical modules as Studio, with separate ESM/CommonJS
 packages, declarations, CSS and opt-in browser bundles. Studio-specific language services and
 property transactions remain adapters. The legacy controls package forwards to the canonical
 constructors. Extraction does not publish npm packages.

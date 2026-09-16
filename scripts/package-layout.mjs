@@ -85,10 +85,20 @@ export const packageLayout = [
     standalone: true,
   },
   {
+    id: 'dialogs',
+    description: 'Standalone modal dialogs with focus ownership and asynchronous action lifecycle',
+    modules: [],
+    controls: ['dialog-host'],
+    assets: ['dist/controls/dialog-host.css'],
+    typeContracts: false,
+    standalone: true,
+  },
+  {
     id: 'controls',
     description: 'Reusable IDE docking, menus, scroll buttons, and density controls',
     modules: [],
     reexports: [
+      { name: 'dialog-host', source: 'dist/controls/dialog-host.js' },
       { name: 'docking', source: 'dist/core/docking.js' },
       { name: 'code-editor', source: 'dist/controls/code-editor.js' },
       { name: 'property-grid', source: 'dist/controls/property-grid.js' },

@@ -1,0 +1,5 @@
+body { margin: 0; font: 16px/1.6 system-ui, sans-serif; background: #f4f6fa; color: #172033; }
+main { max-width: 740px; margin: 48px auto; padding: 24px; }
+input, button { font: inherit; padding: 6px 10px; }
+#profile { padding: 16px; border: 1px solid #ccd1dc; border-radius: 6px; background: white; }
+nav { margin-top: 28px; }
