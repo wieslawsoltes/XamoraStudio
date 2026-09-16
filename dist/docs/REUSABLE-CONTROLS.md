@@ -47,3 +47,7 @@ The document-aware workspace implementations are now independently packaged; see
 ## Nested object properties
 
 `ObjectPropertyGrid` and the pure object-path/inspection helpers now ship in `xamora-property-grid`. The data workspace Objects view uses the same control with document transactions. Automatic own-data-property discovery, arrays, expansion, filtering, immutable callbacks and reset are covered by unit and standalone-browser tests. Accessors/classes/proxies are not invoked as reflection providers; see the package README for graph and inspection limits. Scalar PropertyGrid remains compatible.
+
+## Editor viewport rendering
+
+The CodeEditor syntax and line-number overlays now paint only the visible logical-line range for large buffers. A native textarea still owns input, selection and IME. Line/token indexes are cached per text revision, scroll paints are frame-coalesced, and resizing refreshes the window. See the code-editor package README for threshold/overscan options, viewport diagnostics and the distinction between rendering virtualization and full-buffer memory/parser costs. `VirtualEditorLab` exercises a 100,000-line document.

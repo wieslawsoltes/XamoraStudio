@@ -37,6 +37,16 @@
         "default": "./dist/cjs/code-editor.cjs"
       }
     },
+    "./code-viewport": {
+      "import": {
+        "types": "./dist/esm/code-viewport.d.ts",
+        "default": "./dist/esm/code-viewport.js"
+      },
+      "require": {
+        "types": "./dist/cjs/code-viewport.d.cts",
+        "default": "./dist/cjs/code-viewport.cjs"
+      }
+    },
     "./code-editor.css": "./dist/assets/code-editor.css",
     "./browser": {
       "types": "./dist/esm/index.d.ts",

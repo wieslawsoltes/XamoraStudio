@@ -279,7 +279,8 @@ import { CodeEditor, type CodeLanguageProvider } from '@wieslawsoltes/xamora-cod
 import { XamlEditor } from '@wieslawsoltes/xamora-designer/editor';
 const languageProvider: CodeLanguageProvider = { validate(source) { JSON.parse(source); }, format: source => JSON.stringify(JSON.parse(source), null, 2) };
 const editorHost = globalThis.document.createElement('div');
-const editor = new CodeEditor(editorHost, { language: 'JSON', languageProvider, onChange(source, options) { void [source, options.composing]; } });
+const editor = new CodeEditor(editorHost, { virtualization: { threshold: 1000, overscan: 8 }, language: 'JSON', languageProvider, onChange(source, options) { void [source, options.composing]; } });
+editor.refreshLayout(); editor.setVirtualization(true); const rendered: number = editor.viewport.renderedLines; void rendered;
 const markupEditor: CodeEditor = new XamlEditor(editorHost); void [editor, markupEditor];
 // @ts-expect-error provider formatter must return text
 const invalidProvider: CodeLanguageProvider = { format: () => 42 };

@@ -4,6 +4,7 @@ import { WorkspaceDensity, DENSITY_KEY } from '../dist/controls/workspace-densit
 import { DensityWorkspace } from '../dist/studio/density-workspace.js';
 import { dockMinimum, dockGroup, dockSplit, dockRatioLimits } from '../dist/core/docking.js';
 import { XamlEditor } from '../dist/core/editor.js';
+import { controlDOM } from './control-fixture.mjs';
 import { installDockDOM } from './docking-dom.mjs';
 
 test('density defaults to Compact, validates preferences, and tolerates unavailable storage', () => {
@@ -111,22 +112,14 @@ test('dock minimum sizes use density chrome metrics recursively while splitters 
   assert.equal(dockMinimum(split, panels, { chromeHeight: 62 }).height, 329);
   assert.deepEqual(dockRatioLimits(split, panels, 405, { chromeHeight: 46 }), [0.365, 0.635]);
 });
-test('source reveal uses the displayed code line height', () => {
-  const input = { value: Array.from({ length: 20 }, () => '<Grid/>').join('\n'), scrollTop: 0 },
-    editor = Object.assign(Object.create(XamlEditor.prototype), {
-      input,
-      highlight: {},
-      lines: {},
-    }),
-    previous = globalThis.getComputedStyle;
-  try {
-    globalThis.getComputedStyle = () => ({ lineHeight: '18px' });
-    editor.reveal(input.value.length);
-    assert.equal(input.scrollTop, 288);
-    assert.equal(editor.highlight.scrollTop, input.scrollTop);
-    assert.equal(editor.lines.scrollTop, input.scrollTop);
-  } finally {
-    if (previous) globalThis.getComputedStyle = previous;
-    else delete globalThis.getComputedStyle;
-  }
+test('source reveal uses the displayed code line height', (t) => {
+  const dom = controlDOM(t);
+  const editor = new XamlEditor(dom.host(), { virtualization: false });
+  t.after(() => editor.dispose());
+  editor.input.style.lineHeight = '18px';
+  editor.setValue(Array.from({ length: 20 }, () => '<Grid/>').join('\n'));
+  editor.reveal(editor.input.value.length);
+  assert.equal(editor.input.scrollTop, 288);
+  assert.equal(editor.highlight.scrollTop, editor.input.scrollTop);
+  assert.equal(editor.lines.scrollTop, editor.input.scrollTop);
 });
