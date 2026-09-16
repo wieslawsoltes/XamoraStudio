@@ -25,24 +25,26 @@ flowchart TD
     GPU["WebGPU grid surface"] --> UI
 ```
 
-| Module                        | Responsibility                                                                                                    | Host requirements                                |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `model.js`                    | Tree identity, traversal, validation, selection, transactions, history                                            | ECMAScript, EventTarget, structuredClone         |
-| `document-session.js`         | Live source/model synchronization, source spans, draft recovery, identity reconciliation, adapter registration    | No DOM for XAML; HTML adapter requires DOMParser |
-| `xaml.js`                     | Safe XML-subset parsing, canonical serialization, common-framework mapping, diagnostics                           | No DOM                                           |
-| `registry.js`                 | Control descriptors, construction, toolkit metadata, export adapters                                              | No DOM for metadata                              |
-| `render.js`                   | Layout and visual mappings, resources, bindings, templates, standalone HTML                                       | Browser DOM                                      |
-| `gpu.js`                      | Dot-grid rendering, pixel-ratio handling, device-loss fallback                                                    | WebGPU when available                            |
-| `editor.js`                   | Code input, highlighted mirror, validation, completion, find/replace                                              | Browser DOM                                      |
-| `design-tools.js`             | Logical content parenting, paint/geometry hit testing, drop plans, track edits, identity reconciliation, snapping | Geometry supplied by host; hit service needs DOM |
-| `design-data.js`              | Typed tables, constraints, indexed queries, safe paths and binding evaluation                                     | No DOM                                           |
-| `prototype.js`                | Isolated preview state, action transactions, provenance-aware TwoWay writeback                                    | No DOM; EventTarget                              |
-| `xaml-language.js`            | Context scanner and source-range completion results                                                               | No DOM                                           |
-| `studio/canvas-controller.js` | Drag preview/cues, selection cycling, track handles and grid editor                                               | Browser DOM                                      |
-| `studio/data-editor.js`       | Records, schema, relationships, query builder, objects, import/export                                             | Browser DOM                                      |
-| `studio/prototype-editor.js`  | Multi-view board, connector editor, interactive session host                                                      | Browser DOM                                      |
-| `studio/features.js`          | Module integration, raw properties, editing helpers, connected example                                            | Browser DOM                                      |
-| `app.js`                      | Base panels, commands, dialogs, local files and persistence                                                       | Browser DOM and local storage                    |
+| Module                            | Responsibility                                                                                                    | Host requirements                                |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `model.js`                        | Tree identity, traversal, validation, selection, transactions, history                                            | ECMAScript, EventTarget, structuredClone         |
+| `document-session.js`             | Live source/model synchronization, source spans, draft recovery, identity reconciliation, adapter registration    | No DOM for XAML; HTML adapter requires DOMParser |
+| `xaml.js`                         | Safe XML-subset parsing, canonical serialization, common-framework mapping, diagnostics                           | No DOM                                           |
+| `registry.js`                     | Control descriptors, construction, toolkit metadata, export adapters                                              | No DOM for metadata                              |
+| `render.js`                       | Layout and visual mappings, resources, bindings, templates, standalone HTML                                       | Browser DOM                                      |
+| `gpu.js`                          | Dot-grid rendering, pixel-ratio handling, device-loss fallback                                                    | WebGPU when available                            |
+| `editor.js`                       | Code input, highlighted mirror, validation, completion, find/replace                                              | Browser DOM                                      |
+| `design-tools.js`                 | Logical content parenting, paint/geometry hit testing, drop plans, track edits, identity reconciliation, snapping | Geometry supplied by host; hit service needs DOM |
+| `design-data.js`                  | Typed tables, constraints, indexed queries, safe paths and binding evaluation                                     | No DOM                                           |
+| `prototype.js`                    | Isolated preview state, action transactions, provenance-aware TwoWay writeback                                    | No DOM; EventTarget                              |
+| `xaml-language.js`                | Context scanner and source-range completion results                                                               | No DOM                                           |
+| `studio/canvas-controller.js`     | Drag preview/cues, selection cycling, track handles and grid editor                                               | Browser DOM                                      |
+| `studio/data-editor.js`           | Records, schema, relationships, query builder, objects, import/export                                             | Browser DOM                                      |
+| `studio/prototype-editor.js`      | Multi-view board, connector editor, interactive session host                                                      | Browser DOM                                      |
+| `studio/features.js`              | Module integration, raw properties, editing helpers, connected example                                            | Browser DOM                                      |
+| `app.js`                          | Application startup and workspace recovery                                                                        | Studio feature constructors                      |
+| `studio/studio.js`                | Base workspace host, interaction and state coordination                                                           | Core modules and shared Studio UI                |
+| `studio/icons.js`, `studio/ui.js` | Icon markup and shared DOM, notification and download helpers                                                     | Browser DOM only when invoked                    |
 
 The source modules are native ES modules. No build step or application runtime dependency is required. The local server uses the Node standard library. A static deployment serves the same `dist/` files as local development.
 

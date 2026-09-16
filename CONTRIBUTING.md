@@ -7,7 +7,9 @@ The tracked `dist/` directory is the canonical, directly served browser source. 
 - `dist/core/`: shared document, parser, compiler, runtime and rendering modules.
 - `dist/controls/`: reusable browser controls.
 - `dist/studio/`: designer workspace features and host integration.
-- `dist/app.js`: application composition and base workspace.
+- `dist/app.js`: application composition and startup recovery.
+- `dist/studio/studio.js`: the base workspace host; importing this module does not start the app.
+- `dist/studio/ui.js` and `dist/studio/icons.js`: shared UI primitives; keep duplicate helpers out of feature modules.
 - `scripts/`: development, validation, packaging and release tooling.
 - `tests/`: regression tests and preservation fixtures.
 
