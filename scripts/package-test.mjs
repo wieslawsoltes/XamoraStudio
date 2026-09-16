@@ -251,7 +251,7 @@ import { RichProperties, ResourceWorkspace } from '@wieslawsoltes/xamora-resourc
 import { DataEditor } from '@wieslawsoltes/xamora-data-workspace';
 import { HtmlWorkspace } from '@wieslawsoltes/xamora-html-workspace';
 declare const workspaceHost: CanvasWorkspaceHost;
-new CanvasController(workspaceHost, {root: document.body}).dispose();
+new CanvasController(workspaceHost, {root: globalThis.document.body}).dispose();
 // @ts-expect-error A document-aware host is required.
 new CanvasController({});
 void [BlendFeatures, TimelineWorkspace, SolutionWorkspace, RichProperties, ResourceWorkspace, DataEditor, HtmlWorkspace];
