@@ -1,0 +1,27 @@
+name: Prepare compiler recovery review
+on:
+  push:
+    branches: [fix/compiler-capture-fidelity]
+    paths: [.github/workflows/review-capture.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Archive source and locked review tools
+        run: tar -czf "$RUNNER_TEMP/compiler-review.tar.gz" --exclude='./.git' .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compiler-review
+          path: ${{ runner.temp }}/compiler-review.tar.gz
+          retention-days: 1
