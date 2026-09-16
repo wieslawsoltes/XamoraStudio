@@ -155,6 +155,8 @@ export class DialogHost {
       busy: false,
       timer: null,
       initialFocus,
+      actions,
+      actionButtons: [],
     };
     if (typeof content !== 'string') {
       state.content = content;
@@ -213,6 +215,7 @@ export class DialogHost {
       state.buttons.push(button);
       return button;
     });
+    state.actionButtons = actionButtons;
     close.onclick = () => this.current === state && this.close();
     state.buttons.push(close);
     dialog.append(header, body, footer);
@@ -281,6 +284,15 @@ export class DialogHost {
       ? preferred
       : nodes.find((node) => state.body.contains(node)) || nodes[0] || state.dialog;
     target.focus();
+  }
+  setActionDisabled(index, disabled) {
+    const state = this.current;
+    if (!state) return false;
+    if (!Number.isInteger(index) || index < 0 || index >= state.actions.length)
+      throw new RangeError('Dialog action index is out of range.');
+    state.actions[index].disabled = !!disabled;
+    state.actionButtons[index].disabled = state.busy || !!disabled;
+    return true;
   }
   showError(message) {
     if (this.current) this.current.error.textContent = String(message ?? '');

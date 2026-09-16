@@ -36,6 +36,8 @@ export class DialogHost {
   readonly disposed: boolean;
   open(options?: DialogOptions): HTMLElement;
   focus(): void;
+  /** Updates application-owned availability without clearing an in-flight action lock. */
+  setActionDisabled(index: number, disabled: boolean): boolean;
   showError(message: unknown): void;
   close(restoreFocus?: boolean): boolean;
   dispose(): void;

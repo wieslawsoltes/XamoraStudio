@@ -293,3 +293,45 @@ test('synchronous abort reentry cannot orphan a replacement overlay or resurrect
   assert.equal(root.querySelectorAll('[role="dialog"]').length, 0);
   assert.equal(control.disposed, true);
 });
+
+test('application action availability survives pending work and rejected submissions', async (t) => {
+  const { control } = fixture(t);
+  let complete,
+    calls = 0;
+  const options = {
+    actions: [
+      {
+        label: 'Preview',
+        run: () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      },
+      {
+        label: 'Apply',
+        run() {
+          calls++;
+        },
+      },
+    ],
+  };
+  control.open(options);
+  const buttons = control.element.querySelectorAll('[data-modal-action]');
+  assert(control.setActionDisabled(1, true));
+  await buttons[1].onclick();
+  assert.equal(calls, 0);
+  const pending = buttons[0].onclick();
+  control.setActionDisabled(1, false);
+  assert(buttons[1].disabled, 'pending lock remains while the application enables an action');
+  control.setActionDisabled(1, true);
+  complete();
+  await pending;
+  assert(buttons[1].disabled, 'availability survives completion of another action');
+  assert.equal(options.actions[1].disabled, undefined, 'caller descriptors stay unmodified');
+  assert.throws(() => control.setActionDisabled(8, false), /out of range/);
+  control.setActionDisabled(1, false);
+  await buttons[1].onclick();
+  assert.equal(calls, 1);
+  control.close();
+  assert.equal(control.setActionDisabled(0, false), false);
+});

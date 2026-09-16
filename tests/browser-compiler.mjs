@@ -235,6 +235,13 @@ try {
   await page.waitForFunction(() => window.xamora.studio.compiler.plan?.summary.failed === 1);
   assert.equal(await page.locator('[data-modal-action="2"]').isDisabled(), true);
   assert.match(await page.locator('.compiler-status').textContent(), /1 ready.*1 failed/);
+  await page.locator('[data-modal-action="0"]').click();
+  await page.waitForFunction(() => !document.querySelector('.modal')?.hasAttribute('aria-busy'));
+  assert.equal(
+    await page.locator('[data-modal-action="2"]').isDisabled(),
+    true,
+    'Preview again must retain the explicit partial-conversion guard',
+  );
   await page.locator('[data-convert-partial]').check();
   assert.equal(await page.locator('[data-modal-action="2"]').isEnabled(), true);
   await page.locator('[data-modal-action="2"]').click();

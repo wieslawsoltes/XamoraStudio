@@ -246,7 +246,7 @@ try {
   const typeConsumer = `import { DialogHost, type DialogOptions } from '@wieslawsoltes/xamora-dialogs';
 import { DialogHost as CompatibleDialog } from '@wieslawsoltes/xamora-controls';
 const dialogOptions: DialogOptions = { title: 'Review', actions: [{ label: 'Save', async run(context) { const signal: AbortSignal = context.signal; void signal; } }] };
-const dialogHost: CompatibleDialog = new DialogHost(globalThis.document.createElement('div')); dialogHost.open(dialogOptions); dialogHost.dispose();
+const dialogHost: CompatibleDialog = new DialogHost(globalThis.document.createElement('div')); dialogHost.open(dialogOptions); dialogHost.setActionDisabled(0, true); dialogHost.dispose();
 // @ts-expect-error An action callback is required.
 const invalidDialog: DialogOptions = { actions: [{ label: 'Missing callback' }] };
 import { PropertyGrid, type PropertyGridField } from '@wieslawsoltes/xamora-property-grid';
