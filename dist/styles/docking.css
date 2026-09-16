@@ -340,12 +340,3 @@
     transition: none !important;
   }
 }
-.dock-flyout-resize {
-  position: absolute;
-  z-index: 5;
-  touch-action: none;
-  background: transparent;
-}
-.dock-flyout-resize:hover {
-  background: var(--dock-active);
-}

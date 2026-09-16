@@ -47,6 +47,16 @@
         "default": "./dist/cjs/code-editor.cjs"
       }
     },
+    "./property-grid": {
+      "import": {
+        "types": "./dist/esm/property-grid.d.ts",
+        "default": "./dist/esm/property-grid.js"
+      },
+      "require": {
+        "types": "./dist/cjs/property-grid.d.cts",
+        "default": "./dist/cjs/property-grid.cjs"
+      }
+    },
     "./dock-workspace": {
       "import": {
         "types": "./dist/esm/dock-workspace.d.ts",
@@ -113,6 +123,7 @@
     "@wieslawsoltes/xamora-code-editor": "0.8.0",
     "@wieslawsoltes/xamora-contracts": "0.8.0",
     "@wieslawsoltes/xamora-control-primitives": "0.8.0",
-    "@wieslawsoltes/xamora-docking": "0.8.0"
+    "@wieslawsoltes/xamora-docking": "0.8.0",
+    "@wieslawsoltes/xamora-property-grid": "0.8.0"
   }
 }

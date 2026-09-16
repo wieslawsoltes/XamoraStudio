@@ -4,7 +4,7 @@ Standalone editing surface extracted from Xamora Studio. No runtime dependencies
 
 ```js
 import { CodeEditor } from '@wieslawsoltes/xamora-code-editor';
-import '@wieslawsoltes/xamora-code-editor/assets/code-editor.css';
+import '@wieslawsoltes/xamora-code-editor/code-editor.css';
 
 const editor = new CodeEditor(document.querySelector('#editor'), {
   language: 'JSON',
