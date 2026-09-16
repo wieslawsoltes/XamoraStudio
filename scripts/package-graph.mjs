@@ -75,6 +75,10 @@ export async function graph({ allowMissing = false } = {}) {
   for (const name of await readdir(resolve(root, 'dist/core')))
     if (name.endsWith('.js') && !known.has('dist/core/' + name))
       throw Error(`Core module has no package owner: ${name}`);
+  if (await exists(resolve(root, 'dist/workspaces')))
+    for (const name of await readdir(resolve(root, 'dist/workspaces')))
+      if (name.endsWith('.js') && !known.has('dist/workspaces/' + name))
+        throw Error(`Workspace module has no package owner: ${name}`);
   return { entries, owners, contents };
 }
 export function specifierFor(owner) {

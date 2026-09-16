@@ -1,0 +1,105 @@
+{
+  "name": "@wieslawsoltes/xamora-motion-workspace",
+  "version": "0.8.0",
+  "description": "XAML storyboard, timeline, visual-state, trigger and preview authoring",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/motion-workspace"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./animation-editor": {
+      "import": {
+        "types": "./dist/esm/animation-editor.d.ts",
+        "default": "./dist/esm/animation-editor.js"
+      },
+      "require": {
+        "types": "./dist/cjs/animation-editor.d.cts",
+        "default": "./dist/cjs/animation-editor.cjs"
+      }
+    },
+    "./timeline-workspace": {
+      "import": {
+        "types": "./dist/esm/timeline-workspace.d.ts",
+        "default": "./dist/esm/timeline-workspace.js"
+      },
+      "require": {
+        "types": "./dist/cjs/timeline-workspace.d.cts",
+        "default": "./dist/cjs/timeline-workspace.cjs"
+      }
+    },
+    "./motion-runtime": {
+      "import": {
+        "types": "./dist/esm/motion-runtime.d.ts",
+        "default": "./dist/esm/motion-runtime.js"
+      },
+      "require": {
+        "types": "./dist/cjs/motion-runtime.d.cts",
+        "default": "./dist/cjs/motion-runtime.cjs"
+      }
+    },
+    "./blend-features": {
+      "import": {
+        "types": "./dist/esm/blend-features.d.ts",
+        "default": "./dist/esm/blend-features.js"
+      },
+      "require": {
+        "types": "./dist/cjs/blend-features.d.cts",
+        "default": "./dist/cjs/blend-features.cjs"
+      }
+    },
+    "./workspace-base.css": "./dist/assets/workspace-base.css",
+    "./motion-workspace.css": "./dist/assets/motion-workspace.css",
+    "./browser": {
+      "types": "./dist/esm/index.d.ts",
+      "default": "./dist/browser/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-animation": "0.8.0",
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-designer": "0.8.0",
+    "@wieslawsoltes/xamora-markup": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-renderer": "0.8.0",
+    "@wieslawsoltes/xamora-styling": "0.8.0",
+    "@wieslawsoltes/xamora-workspace-context": "0.8.0"
+  }
+}

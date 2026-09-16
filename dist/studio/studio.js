@@ -1,3 +1,4 @@
+import { studioComponentOptions } from './component-context.js';
 import { PropertyGrid, renderPropertyField } from '../controls/property-grid.js';
 import { modal, closeModal } from './dialog-host.js';
 import {
@@ -133,6 +134,7 @@ export class Studio {
         return () => this.store.removeEventListener('change', listener);
       },
     };
+    this.workspaceOptions = studioComponentOptions(this);
   }
   leftHost(tab = this.leftTab) {
     return (

@@ -1,0 +1,500 @@
+@import './workspace-base.css';
+:where(.xamora-workspace) .html-motion-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11px;
+  position: relative;
+}
+:where(.xamora-workspace) .html-motion-panel[hidden],
+:where(.xamora-workspace) .html-document-active #animation-panel {
+  display: none !important;
+}
+:where(.xamora-workspace) .html-motion-panel.recording {
+  box-shadow: inset 0 2px #d94968;
+}
+:where(.xamora-workspace) .html-motion-panel .scroll-button-strip {
+  flex: none;
+  min-height: 31px;
+  border-bottom: 1px solid var(--border);
+}
+:where(.xamora-workspace) .html-motion-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px;
+  min-height: 30px;
+  min-width: 0;
+  white-space: nowrap;
+}
+:where(.xamora-workspace) .html-motion-panel button {
+  padding: 4px 7px;
+  border-radius: 4px;
+  font: inherit;
+  white-space: nowrap;
+}
+:where(.xamora-workspace) .html-motion-panel button:focus-visible,
+:where(.xamora-workspace) .html-motion-panel input:focus-visible,
+:where(.xamora-workspace) .html-motion-panel select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+:where(.xamora-workspace) .html-motion-panel button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+:where(.xamora-workspace) .html-motion-panel button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+:where(.xamora-workspace) .html-motion-panel label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+:where(.xamora-workspace) .html-motion-panel input,
+:where(.xamora-workspace) .html-motion-panel select {
+  min-width: 0;
+  background: var(--input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 5px;
+  height: 24px;
+  font: inherit;
+}
+:where(.xamora-workspace) .html-motion-panel input:not([type='range']):not([type='checkbox']) {
+  width: 76px;
+}
+:where(.xamora-workspace) .html-motion-panel select {
+  max-width: 160px;
+}
+:where(.xamora-workspace) .html-motion-panel input[type='checkbox'] {
+  height: 12px;
+  width: 12px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+:where(.xamora-workspace) .html-motion-panel input[type='range'] {
+  height: 16px;
+  width: 70px;
+  padding: 0;
+  accent-color: var(--accent);
+}
+:where(.xamora-workspace) .html-motion-panel [data-hm-scrub] {
+  min-width: 100px;
+  flex: 1;
+}
+:where(.xamora-workspace) .html-motion-panel input[data-hm-timing='easing'] {
+  width: 150px;
+}
+:where(.xamora-workspace) .html-motion-panel input[data-hm-property] {
+  width: 114px;
+}
+:where(.xamora-workspace) .html-motion-panel [data-hm-record] {
+  color: #c64262;
+}
+:where(.xamora-workspace) .html-motion-panel [data-hm-record].active {
+  background: #fbe1e8;
+  color: #b32647;
+}
+:where(.xamora-workspace) .dark .html-motion-panel [data-hm-record].active {
+  background: #4b2634;
+  color: #ff9eb7;
+}
+:where(.xamora-workspace) .html-motion-track-area {
+  min-height: 65px;
+  flex: 1;
+  overflow: auto;
+  scrollbar-width: thin;
+  position: relative;
+}
+:where(.xamora-workspace) .html-motion-row {
+  display: grid;
+  grid-template-columns: 180px minmax(270px, 1fr);
+}
+:where(.xamora-workspace) .html-motion-ruler {
+  height: 28px;
+  background: var(--panel-alt);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  color: var(--muted);
+}
+:where(.xamora-workspace) .html-motion-ruler > span {
+  padding: 7px 8px;
+  border-right: 1px solid var(--border);
+  font-size: 10px;
+}
+:where(.xamora-workspace) .html-motion-lane {
+  position: relative;
+  margin: 0 14px;
+  touch-action: none;
+  background-image: linear-gradient(to right, var(--border) 1px, transparent 1px);
+  background-size: 10% 100%;
+  min-height: 28px;
+}
+:where(.xamora-workspace) .html-motion-ruler i {
+  height: 7px;
+  width: 1px;
+  background: var(--border);
+  position: absolute;
+  bottom: 0;
+  font-style: normal;
+}
+:where(.xamora-workspace) .html-motion-ruler b {
+  position: absolute;
+  bottom: 9px;
+  left: 0;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+:where(.xamora-workspace) .html-motion-ruler i:first-child b {
+  transform: none;
+}
+:where(.xamora-workspace) .html-motion-ruler i:nth-child(11) b {
+  transform: translateX(-100%);
+}
+:where(.xamora-workspace) .html-motion-track {
+  min-height: 36px;
+  border-bottom: 1px solid var(--border);
+}
+:where(.xamora-workspace) .html-motion-track.selected {
+  background: var(--accent-soft);
+}
+:where(.xamora-workspace) .html-motion-panel .html-motion-track-label {
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  text-align: left;
+  overflow: hidden;
+  padding: 5px 8px;
+}
+:where(.xamora-workspace) .html-motion-track-label strong,
+:where(.xamora-workspace) .html-motion-track-label small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+:where(.xamora-workspace) .html-motion-track-label small {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+:where(.xamora-workspace) .html-motion-span {
+  position: absolute;
+  top: 10px;
+  height: 13px;
+  background: var(--accent);
+  opacity: 0.12;
+  pointer-events: none;
+}
+:where(.xamora-workspace) .html-motion-panel .html-motion-key {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  padding: 3px;
+  color: var(--accent);
+  font-size: 14px;
+  cursor: ew-resize;
+  z-index: 2;
+  touch-action: none;
+}
+:where(.xamora-workspace) .html-motion-panel .html-motion-key.selected {
+  color: white;
+  background: var(--accent);
+}
+:where(.xamora-workspace) .html-motion-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #e2516d;
+  z-index: 1;
+  pointer-events: none;
+}
+:where(.xamora-workspace) .html-motion-ruler .html-motion-playhead:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 9px;
+  height: 8px;
+  background: #e2516d;
+  clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
+}
+:where(.xamora-workspace) .html-motion-key-editor {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 5px 8px;
+  border-top: 1px solid var(--border);
+  max-height: 90px;
+  overflow: auto;
+}
+:where(.xamora-workspace) .html-motion-key-editor label input[data-hm-key-value] {
+  width: 124px;
+}
+:where(.xamora-workspace) .html-motion-key-editor strong {
+  font-size: 10px;
+}
+:where(.xamora-workspace) .html-motion-panel footer {
+  flex: none;
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-top: 1px solid var(--border);
+}
+:where(.xamora-workspace) .html-motion-empty {
+  color: var(--muted);
+  max-width: 650px;
+  line-height: 1.6;
+  padding: 12px 18px;
+  margin: auto;
+  text-align: center;
+}
+@media (max-width: 800px) {
+  :where(.xamora-workspace) .html-motion-row {
+    grid-template-columns: 145px minmax(260px, 1fr);
+  }
+  :where(.xamora-workspace) .html-motion-bar {
+    gap: 4px;
+  }
+  :where(.xamora-workspace) .html-motion-bar strong {
+    display: none;
+  }
+}
+:where(.xamora-workspace) .html-states-panel {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+  box-sizing: border-box;
+  font-size: var(--ui-font-size, 12px);
+}
+:where(.xamora-workspace) .html-states-panel[hidden] {
+  display: none;
+}
+:where(.xamora-workspace) .html-states-panel header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+:where(.xamora-workspace) .html-states-panel header strong {
+  flex: 1;
+}
+:where(.xamora-workspace) .html-states-panel input,
+:where(.xamora-workspace) .html-states-panel select {
+  min-width: 0;
+  max-width: 100%;
+  height: 26px;
+  border: 1px solid var(--border, #dedce8);
+  border-radius: 4px;
+  background: var(--panel, #fff);
+  color: inherit;
+  padding: 3px 5px;
+  box-sizing: border-box;
+}
+:where(.xamora-workspace) .html-states-panel button {
+  min-height: 25px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border, #dedce8);
+  background: var(--panel, #fff);
+  color: inherit;
+  cursor: pointer;
+}
+:where(.xamora-workspace) .html-states-panel button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+:where(.xamora-workspace) .html-states-panel button.active {
+  color: var(--accent, #7953e8);
+  background: var(--accent-light, #eee8ff);
+  border-color: var(--accent, #7953e8);
+}
+:where(.xamora-workspace) .html-states-panel button.recording {
+  color: #b91c1c;
+  border-color: #ef4444;
+  background: #fff1f2;
+}
+:where(.xamora-workspace) .html-states-panel .hs-target {
+  width: 100%;
+  margin-bottom: 8px;
+}
+:where(.xamora-workspace) .html-states-panel .hs-states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+}
+:where(.xamora-workspace) .html-states-panel .hs-create {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) minmax(60px, 1fr) auto;
+  gap: 5px;
+}
+:where(.xamora-workspace) .html-states-panel .hs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+}
+:where(.xamora-workspace) .html-states-panel details {
+  border-top: 1px solid var(--border, #dedce8);
+  padding: 8px 0;
+}
+:where(.xamora-workspace) .html-states-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+:where(.xamora-workspace) .html-states-panel .hs-value {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) minmax(70px, 1.4fr) 26px;
+  align-items: center;
+  gap: 5px;
+  margin: 5px 0;
+}
+:where(.xamora-workspace) .html-states-panel .hs-value code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(.xamora-workspace) .html-states-panel .hs-transition {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) 1fr;
+  gap: 5px;
+  padding: 7px;
+  margin: 6px 0;
+  border: 1px solid var(--border, #dedce8);
+  border-radius: 5px;
+}
+:where(.xamora-workspace) .html-states-panel .hs-transition label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+:where(.xamora-workspace) .html-states-panel .hs-transition label:first-child {
+  grid-column: 1/-1;
+}
+:where(.xamora-workspace) .html-states-panel .hs-transition button {
+  justify-self: end;
+  align-self: end;
+}
+:where(.xamora-workspace) .html-states-panel .hs-interaction {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 5px 0;
+}
+:where(.xamora-workspace) .html-states-panel .hs-interaction select:first-child {
+  grid-column: 1/-1;
+}
+:where(.xamora-workspace) .html-states-panel .hs-binding {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 5px 0;
+}
+:where(.xamora-workspace) .html-states-panel .hs-hint,
+:where(.xamora-workspace) .html-states-panel footer {
+  color: var(--muted, #777789);
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 7px 0;
+}
+:where(.xamora-workspace) .html-states-panel footer {
+  position: static;
+  background: var(--panel, #fff);
+  padding: 6px 0;
+  border-top: 1px solid var(--border, #dedce8);
+}
+:where(.xamora-workspace) .html-states-panel .hs-selector {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 6px 0;
+}
+:where(.xamora-workspace) .html-states-panel {
+  color: var(--text);
+  background: var(--panel);
+  scrollbar-width: thin;
+}
+:where(.xamora-workspace) .html-states-panel input:focus-visible,
+:where(.xamora-workspace) .html-states-panel button:focus-visible,
+:where(.xamora-workspace) .html-states-panel select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+:where(.xamora-workspace) .html-states-panel .hs-rich-value {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+:where(.xamora-workspace) .html-states-panel .hs-rich-value input {
+  width: 100%;
+}
+:where(.xamora-workspace) .html-states-panel .hs-rich-value input[type='color'] {
+  flex: 0 0 26px;
+  width: 26px;
+  padding: 2px;
+}
+:where(.xamora-workspace) .html-states-panel .hs-scope {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+:where(.xamora-workspace) .html-states-panel small {
+  font-size: 9px;
+  color: var(--muted);
+}
+:where(.xamora-workspace) .html-states-panel [data-hs-document-state] {
+  width: 100%;
+}
+:where(.xamora-workspace) .html-state-recording-note {
+  padding: 6px 8px;
+  color: #c83c5d;
+  font-size: 11px;
+  background: var(--accent-soft);
+}
+:where(.xamora-workspace) .html-states-panel .hs-binding > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+:where(.xamora-workspace) .html-states-panel .hs-binding > button {
+  flex: none;
+}
+:where(.xamora-workspace) html[data-density='compact'] .html-states-panel {
+  padding: 6px;
+  font-size: 11px;
+}
+:where(.xamora-workspace) html[data-density='compact'] .html-states-panel input,
+:where(.xamora-workspace) html[data-density='compact'] .html-states-panel select,
+:where(.xamora-workspace) html[data-density='compact'] .html-states-panel button {
+  height: 23px;
+  min-height: 23px;
+  font-size: 11px;
+}

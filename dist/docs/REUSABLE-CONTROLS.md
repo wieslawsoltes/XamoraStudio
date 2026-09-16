@@ -41,3 +41,5 @@ Studio now uses `PropertyGrid` for All Properties and the shared `renderProperty
 All names above use the `@wieslawsoltes/` scope. For existing XAML/HTML code-editor behavior use `XamlEditor` from `xamora-designer/editor`. Source examples import canonical files directly; installed-package tests verify the package dependency closures and constructor identity through ESM and CommonJS reexports. Browser tests exercise each standalone bundle and its own CSS without Studio/core requests.
 
 The editor is textarea-based with synchronous providers, not a Monaco-equivalent editor or a line-virtualized renderer. The property grid handles explicitly supplied scalar descriptors, not automatic reflection of arbitrary object graphs. Docking floats within the browser page, not native OS windows. Existing richer Studio features remain in their application adapters; this extraction does not claim they all became standalone controls.
+
+The document-aware workspace implementations are now independently packaged; see [Workspace components](WORKSPACE-COMPONENTS.md).

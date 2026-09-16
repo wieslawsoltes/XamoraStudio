@@ -259,3 +259,7 @@ Standalone component boundaries, compatibility imports and integration examples 
 packages, declarations, CSS and opt-in browser bundles. Studio-specific language services and
 property transactions remain adapters. The legacy controls package forwards to the canonical
 constructors. Extraction does not publish npm packages.
+
+### Document-aware workspace libraries
+
+Canvas, XAML motion/states, HTML motion/states, resources/brushes, solution and data editor implementations are independently packaged. They share the existing document and renderer APIs through explicit host contracts; old Studio paths preserve constructor identity. See [Workspace components](docs/WORKSPACE-COMPONENTS.md) and the [standalone Workspace Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/WorkspaceLab/). No npm publication is triggered by extraction.

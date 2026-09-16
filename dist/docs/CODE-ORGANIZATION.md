@@ -31,3 +31,7 @@ Use the pinned formatter and the commands in the root `CONTRIBUTING.md`. Keep fo
 Before accepting a packaging refactor, compare generated file contents as well as running the consumer tests. The initial build-tool extraction reproduced all 297 generated files byte for byte. This is an equivalence check for that refactor, not a permanent file-count constraint.
 
 Large layout, rendering and framework-semantics modules still warrant focused domain-specific review. Do not split them mechanically across the standalone package boundaries or interpret this cleanup as new framework compatibility or production qualification.
+
+## Document-aware workspace libraries
+
+The canonical implementations for canvas, motion/state, HTML, resources/brushes, solution and data authoring live in `dist/workspaces/`. Original Studio paths are identity-preserving reexports. The Studio-only service binding lives in `studio/component-context.js`; reusable libraries never import it. See `WORKSPACE-COMPONENTS.md` for host and lifecycle contracts.
