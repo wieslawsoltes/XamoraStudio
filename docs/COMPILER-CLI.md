@@ -62,10 +62,10 @@ All documents are planned and compiled before any converted file is written. Exi
 
 Reports contain per-document source and target paths, readiness status, compiler diagnostics, semantic losses, source maps, copied asset paths and byte counts, and asset warnings. Exit codes are:
 
-| Exit code | Meaning |
-| --- | --- |
-| `0` | All selected conversions succeeded, or a dry run completed successfully. |
-| `1` | A conversion failed or strict mode rejected semantic losses / unresolved assets. |
-| `2` | Invalid arguments, unreadable inputs, malformed manifests, destination conflicts, or filesystem failures. |
+| Exit code | Meaning                                                                                                   |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| `0`       | All selected conversions succeeded, or a dry run completed successfully.                                  |
+| `1`       | A conversion failed or strict mode rejected semantic losses / unresolved assets.                          |
+| `2`       | Invalid arguments, unreadable inputs, malformed manifests, destination conflicts, or filesystem failures. |
 
 The shared AST, compiler, and batch planner remain browser-compatible. Filesystem access and the Node HTML parser are isolated in the compiler package's CLI entrypoint.

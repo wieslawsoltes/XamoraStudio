@@ -163,21 +163,21 @@ To deploy on a static host, upload the contents of `dist/`. There are no runtime
 
 This is version **0.7.0**, an implemented extensible designer foundation. It is **not a fully qualified replacement for Blend, Visual Studio, or native framework designers**. It does not provide complete WPF/Avalonia control, API, layout, or theme parity, and it does not execute arbitrary .NET assemblies in a browser.
 
-| Capability | Status |
-| --- | --- |
-| Authored XML elements, attributes, namespace declarations, expressions, comments | Preserved within the supported XML subset; canonical formatting changes source trivia |
-| Common WPF/Avalonia panels and controls | Editable and approximated by browser preview adapters |
-| WinUI / MAUI | Source preservation and namespace selection; native semantics not validated |
-| Unknown/custom controls | Preserved; accurate preview requires a registered renderer |
-| Native dependency-property engine, complete measure/arrange, text metrics | Not implemented |
-| Full converters, compiled bindings, arbitrary markup extensions, code-behind | Preserved in source; not executed |
-| Styles/themes | Scoped styles, setters, supported trigger conditions, templates and WPF state/storyboard playback; complete native property and theme semantics remain incomplete |
-| Native framework compilation/loading | Not performed; no native preview host is included |
-| Data editor | Typed in-project database with constraints and queries; no production SQL server or live database connector |
-| Prototype | Browser session actions and graph; native application code generation is not implemented |
-| Code IDE | In-app editing features above; no Roslyn/LSP, debugger, project system, semantic refactoring, or folding engine |
-| Collaboration | Device-local workspace and annotations; no shared server or simultaneous coauthoring |
-| WebGPU | Background grid implemented; control/text rasterization uses DOM/CSS |
+| Capability                                                                       | Status                                                                                                                                                            |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authored XML elements, attributes, namespace declarations, expressions, comments | Preserved within the supported XML subset; canonical formatting changes source trivia                                                                             |
+| Common WPF/Avalonia panels and controls                                          | Editable and approximated by browser preview adapters                                                                                                             |
+| WinUI / MAUI                                                                     | Source preservation and namespace selection; native semantics not validated                                                                                       |
+| Unknown/custom controls                                                          | Preserved; accurate preview requires a registered renderer                                                                                                        |
+| Native dependency-property engine, complete measure/arrange, text metrics        | Not implemented                                                                                                                                                   |
+| Full converters, compiled bindings, arbitrary markup extensions, code-behind     | Preserved in source; not executed                                                                                                                                 |
+| Styles/themes                                                                    | Scoped styles, setters, supported trigger conditions, templates and WPF state/storyboard playback; complete native property and theme semantics remain incomplete |
+| Native framework compilation/loading                                             | Not performed; no native preview host is included                                                                                                                 |
+| Data editor                                                                      | Typed in-project database with constraints and queries; no production SQL server or live database connector                                                       |
+| Prototype                                                                        | Browser session actions and graph; native application code generation is not implemented                                                                          |
+| Code IDE                                                                         | In-app editing features above; no Roslyn/LSP, debugger, project system, semantic refactoring, or folding engine                                                   |
+| Collaboration                                                                    | Device-local workspace and annotations; no shared server or simultaneous coauthoring                                                                              |
+| WebGPU                                                                           | Background grid implemented; control/text rasterization uses DOM/CSS                                                                                              |
 
 See [architecture](docs/ARCHITECTURE.md), [compatibility](docs/COMPATIBILITY.md), [extension guide](docs/EXTENDING.md), and [validation report](docs/VALIDATION.md) for exact contracts and limitations.
 

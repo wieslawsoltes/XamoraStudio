@@ -1,5 +1,5 @@
 /** Load with <script type="module" src="./extensions/example-toolkit.js"></script> after app.js. */
-import {element} from '../core/model.js';
+import { element } from '../core/model.js';
 
 export function installAcmeToolkit(registry) {
   registry.registerControl({
@@ -13,7 +13,8 @@ export function installAcmeToolkit(registry) {
     ],
     render({ properties }) {
       const card = document.createElement('div');
-      card.style.cssText = 'padding:20px;border:1px solid #ded9eb;border-radius:12px;background:#faf7ff';
+      card.style.cssText =
+        'padding:20px;border:1px solid #ded9eb;border-radius:12px;background:#faf7ff';
       const title = document.createElement('strong');
       title.textContent = properties.Title || 'Status card';
       const status = document.createElement('div');
@@ -30,7 +31,7 @@ export function installAcmeToolkit(registry) {
       function visit(node, depth = 0) {
         if (node.kind !== 'element') return;
         lines.push('  '.repeat(depth) + node.type);
-        node.children.forEach(child => visit(child, depth + 1));
+        node.children.forEach((child) => visit(child, depth + 1));
       }
       visit(document.root);
       return { content: lines.join('\n'), extension: 'txt', mimeType: 'text/plain' };

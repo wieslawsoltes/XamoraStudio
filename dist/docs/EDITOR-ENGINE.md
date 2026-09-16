@@ -59,14 +59,14 @@ The benchmark performs the same sequence with full and localized parsing, report
 
 The [recorded result](benchmarks/document-edits-1000.json) uses Node 24.19.0, 1,000 controls, 61,860 source code units and 40 attribute edits. Both paths used the same compact-history implementation.
 
-| Observation | Full parsing | Localized parsing |
-| --- | ---: | ---: |
-| Full document parses during edits | 40 | 0 |
-| Local fragment parses during edits | 0 | 40 |
-| Code units parsed/scanned | 2,474,440 | 4,680 |
-| Total edit time on this run | 7,435.50 ms | 2,000.69 ms |
-| Estimated retained history payload | 1,203,062 bytes | 267,314 bytes |
-| Exact undo and redo restoration | Passed | Passed |
+| Observation                        |    Full parsing | Localized parsing |
+| ---------------------------------- | --------------: | ----------------: |
+| Full document parses during edits  |              40 |                 0 |
+| Local fragment parses during edits |               0 |                40 |
+| Code units parsed/scanned          |       2,474,440 |             4,680 |
+| Total edit time on this run        |     7,435.50 ms |       2,000.69 ms |
+| Estimated retained history payload | 1,203,062 bytes |     267,314 bytes |
+| Exact undo and redo restoration    |          Passed |            Passed |
 
 For the localized path, retaining serialized whole-document snapshots for the same edits was estimated at 40,148,234 bytes. This comparison illustrates retention for this workload; neither estimate is a measured heap allocation. The recorded timing is one local observation under shared machine load, not a cross-device performance guarantee.
 

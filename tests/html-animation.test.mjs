@@ -1,48 +1,511 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDocument,element,textNode,DocumentStore} from '../dist/core/model.js';
-import {serializeHtml} from '../dist/core/html.js';
-import {parseCssAnimationStylesheet,splitCssList,listHtmlAnimations,createHtmlAnimation,setHtmlAnimationKeyframe,removeHtmlAnimationKeyframe,moveHtmlAnimationKeyframe,duplicateHtmlAnimationKeyframe,setHtmlAnimationTiming,bindHtmlAnimation,unbindHtmlAnimation,removeHtmlAnimation,renameHtmlAnimation,exportHtmlAnimationCss,HtmlAnimationPreview,HTML_ANIMATION_PRESETS} from '../dist/core/html-animation.js';
-function fixture(css='',inline=''){const target=element('div',{id:'card',style:inline}),style=element('style',{},[textNode(css)]),doc=createDocument(element('html',{},[element('head',{},[style]),element('body',{},[target])]),'HTML','motion.html');return {doc,target,style};}
-const source=style=>style.children.map(n=>n.text).join('');
-const first=doc=>listHtmlAnimations(doc).definitions[0];
-const values=(doc,offset)=>Object.assign({},...first(doc).frames.filter(f=>f.offset===offset).map(f=>f.values));
-function fakeComputed(target,properties){const native={ownerDocument:{defaultView:{getComputedStyle:()=>({getPropertyValue:key=>properties[key]||''})}}};return {elements:new Map([[target.id,native]])};}
+import { createDocument, element, textNode, DocumentStore } from '../dist/core/model.js';
+import { serializeHtml } from '../dist/core/html.js';
+import {
+  parseCssAnimationStylesheet,
+  splitCssList,
+  listHtmlAnimations,
+  createHtmlAnimation,
+  setHtmlAnimationKeyframe,
+  removeHtmlAnimationKeyframe,
+  moveHtmlAnimationKeyframe,
+  duplicateHtmlAnimationKeyframe,
+  setHtmlAnimationTiming,
+  bindHtmlAnimation,
+  unbindHtmlAnimation,
+  removeHtmlAnimation,
+  renameHtmlAnimation,
+  exportHtmlAnimationCss,
+  HtmlAnimationPreview,
+  HTML_ANIMATION_PRESETS,
+} from '../dist/core/html-animation.js';
+function fixture(css = '', inline = '') {
+  const target = element('div', { id: 'card', style: inline }),
+    style = element('style', {}, [textNode(css)]),
+    doc = createDocument(
+      element('html', {}, [element('head', {}, [style]), element('body', {}, [target])]),
+      'HTML',
+      'motion.html',
+    );
+  return { doc, target, style };
+}
+const source = (style) => style.children.map((n) => n.text).join('');
+const first = (doc) => listHtmlAnimations(doc).definitions[0];
+const values = (doc, offset) =>
+  Object.assign(
+    {},
+    ...first(doc)
+      .frames.filter((f) => f.offset === offset)
+      .map((f) => f.values),
+  );
+function fakeComputed(target, properties) {
+  const native = {
+    ownerDocument: {
+      defaultView: {
+        getComputedStyle: () => ({ getPropertyValue: (key) => properties[key] || '' }),
+      },
+    },
+  };
+  return { elements: new Map([[target.id, native]]) };
+}
 
-test('CSS range AST handles grouping, strings, comments, vendor rules and brace-like values',()=>{
- const css='/* keep { */ @import url("a;b.css"); @media (width > 300px) { .card { color:red; --x:"}"; } @layer motion { @keyframes "fade one" { from, 25% { opacity:0; transform:translate(2px, 3px); } to { opacity:1; } } } } @-webkit-keyframes spin { 0% { rotate:0deg; } 100% { rotate:360deg; } }';
- const ast=parseCssAnimationStylesheet(css);assert.equal(ast.source,css);assert.equal(ast.keyframes.length,2);assert.deepEqual(ast.keyframes[0].frames[0].offsets,[0,.25]);assert.equal(ast.keyframes[0].name,'fade one');assert.equal(ast.keyframes[1].name,'spin');assert.equal(ast.diagnostics.length,0);assert.equal(ast.keyframes[0].frames[0].values.transform,'translate(2px, 3px)');
+test('CSS range AST handles grouping, strings, comments, vendor rules and brace-like values', () => {
+  const css =
+    '/* keep { */ @import url("a;b.css"); @media (width > 300px) { .card { color:red; --x:"}"; } @layer motion { @keyframes "fade one" { from, 25% { opacity:0; transform:translate(2px, 3px); } to { opacity:1; } } } } @-webkit-keyframes spin { 0% { rotate:0deg; } 100% { rotate:360deg; } }';
+  const ast = parseCssAnimationStylesheet(css);
+  assert.equal(ast.source, css);
+  assert.equal(ast.keyframes.length, 2);
+  assert.deepEqual(ast.keyframes[0].frames[0].offsets, [0, 0.25]);
+  assert.equal(ast.keyframes[0].name, 'fade one');
+  assert.equal(ast.keyframes[1].name, 'spin');
+  assert.equal(ast.diagnostics.length, 0);
+  assert.equal(ast.keyframes[0].frames[0].values.transform, 'translate(2px, 3px)');
 });
-test('CSS list parser retains nested functions and quoted commas',()=>assert.deepEqual(splitCssList('fade 1s cubic-bezier(.2, .5, .6, 1), "a,b" 2s steps(4, jump-none)'),['fade 1s cubic-bezier(.2, .5, .6, 1)','"a,b" 2s steps(4, jump-none)']));
-test('editing one imported frame preserves unrelated source bytes and comments',()=>{const before='/* heading */ .card{color:red}\n@keyframes fade { from { /* keep this */ opacity:0; translate:0 10px; } to { opacity:1; } }\n@supports(display:grid){.x{display:grid}}',f=fixture(before);setHtmlAnimationKeyframe(f.doc,first(f.doc).id,0,{opacity:'.25'});const next=source(f.style);assert.ok(next.startsWith('/* heading */ .card{color:red}\n'));assert.ok(next.endsWith('\n@supports(display:grid){.x{display:grid}}'));assert.ok(next.includes('/* keep this */'));assert.equal(values(f.doc,0).opacity,'.25');assert.equal(values(f.doc,0).translate,'0 10px');});
-test('grouped and duplicate offsets cascade while single-offset edits leave siblings intact',()=>{const f=fixture('@keyframes fade { from, 50% { opacity:0; translate:0 5px; } 0% { opacity:.2; scale:.8; } to { opacity:1; } }'),id=first(f.doc).id;setHtmlAnimationKeyframe(f.doc,id,0,{opacity:'.4',translate:null});assert.equal(values(f.doc,0).opacity,'.4');assert.equal(values(f.doc,0).scale,'.8');assert.equal(values(f.doc,0).translate,undefined);assert.equal(values(f.doc,.5).opacity,'0');assert.equal(values(f.doc,.5).translate,'0 5px');assert.equal(first(f.doc).frames.filter(x=>x.offset===0).length,1);});
-test('remove one grouped offset retains the remaining selector and declarations',()=>{const f=fixture('@keyframes fade { from, 50%, to { opacity:.5; } }');removeHtmlAnimationKeyframe(f.doc,first(f.doc).id,.5);assert.deepEqual(first(f.doc).frames.map(f=>f.offset),[0,1]);assert.equal(values(f.doc,0).opacity,'.5');});
-test('move and duplicate keyframes preserve properties and ease values',()=>{const f=fixture('@keyframes fade { from { opacity:0; animation-timing-function:steps(4, end); } to { opacity:1; } }'),id=first(f.doc).id;duplicateHtmlAnimationKeyframe(f.doc,id,0,.25);moveHtmlAnimationKeyframe(f.doc,id,.25,.5);assert.equal(values(f.doc,.5)['animation-timing-function'],'steps(4, end)');assert.equal(first(f.doc).frames.some(f=>f.offset===.25),false);assert.equal(values(f.doc,0).opacity,'0');});
-test('missing endpoints stay missing so the browser supplies underlying computed values',()=>{const f=fixture('@keyframes partial { 40% { opacity:.5; } }');setHtmlAnimationKeyframe(f.doc,first(f.doc).id,.6,{opacity:'.8'});assert.deepEqual(first(f.doc).frames.map(f=>f.offset).sort(),[.4,.6]);});
-test('invalid CSS and named range selectors are diagnosed and retained',()=>{const f=fixture('@keyframes reveal { entry 20% { opacity:0; } to { opacity:1; } }');assert.equal(first(f.doc).frames.length,1);assert.match(listHtmlAnimations(f.doc).diagnostics[0].message,/timeline/);const bad=fixture('@keyframes bad { from {opacity:0;}');assert.throws(()=>setHtmlAnimationKeyframe(bad.doc,first(bad.doc).id,1,{opacity:'1'}),/syntax/);});
-test('create and timing edits are native CSS in canonical HTML and undo together',()=>{const f=fixture('body {color:#123}'),store=new DocumentStore(f.doc);let created;store.transaction('Animate',doc=>created=createHtmlAnimation(doc,f.target.id,{name:'enter',duration:850,delay:-200,iterations:Infinity,direction:'alternate',fill:'both',frames:[{offset:0,values:{opacity:'0',translate:'0 20px'}},{offset:1,values:{opacity:'1',translate:'0 0'}}]}));const list=listHtmlAnimations(store.document);assert.equal(list.definitions[0].id,created.id);assert.equal(list.definitions[0].authored,true);assert.equal(list.bindings[0].timing.delay,-200);assert.equal(list.bindings[0].timing.iterations,Infinity);assert.match(serializeHtml(store.document),/@keyframes enter/);assert.match(serializeHtml(store.document),/animation-name: enter/);store.undo();assert.equal(listHtmlAnimations(store.document).definitions.length,0);store.redo();assert.equal(listHtmlAnimations(store.document).definitions.length,1);});
-test('inline shorthand imports multiple tracks, functions, negative delays and timing lists',()=>{const f=fixture('', 'color:red; animation: fade 2s cubic-bezier(.2, 0, .8, 1) -500ms 2 alternate both, spin 500ms linear infinite; animation-duration: 3s;');const list=listHtmlAnimations(f.doc);assert.equal(list.bindings.length,2);assert.equal(list.bindings[0].timing.delay,-500);assert.equal(list.bindings[1].timing.duration,3000);setHtmlAnimationTiming(f.doc,f.target.id,'fade',{duration:1800,easing:'steps(5, jump-end)'});const next=listHtmlAnimations(f.doc).bindings;assert.equal(next[0].timing.duration,1800);assert.equal(next[1].timing.duration,3000);assert.equal(next[1].timing.iterations,Infinity);assert.match(f.target.props.style,/color:red;/);});
-test('longhand order and CSS list repetition survive adding and removing tracks',()=>{const f=fixture('', 'animation-duration:2s; animation-name:fade,spin; animation-delay:-1s; animation-composition:add,replace;');bindHtmlAnimation(f.doc,f.target.id,'third',{duration:900});const list=listHtmlAnimations(f.doc).bindings;assert.deepEqual(list.map(b=>b.name),['fade','spin','third']);assert.deepEqual(list.map(b=>b.timing.duration),[2000,2000,900]);unbindHtmlAnimation(f.doc,f.target.id,'fade');assert.deepEqual(listHtmlAnimations(f.doc).bindings.map(b=>b.name),['spin','third']);assert.match(f.target.props.style,/animation-composition: replace, replace/);});
-test('computed selector animations are preserved when adding tracks to the target',()=>{const f=fixture('.card { animation: imported 2s linear; }'),options=fakeComputed(f.target,{'animation-name':'imported','animation-duration':'2s','animation-timing-function':'linear','animation-delay':'-0.2s','animation-iteration-count':'infinite','animation-direction':'alternate','animation-fill-mode':'both','animation-play-state':'running'});createHtmlAnimation(f.doc,f.target.id,{name:'first'},options);createHtmlAnimation(f.doc,f.target.id,{name:'second'},options);const list=listHtmlAnimations(f.doc,options).bindings;assert.deepEqual(list.map(b=>b.name),['imported','first','second']);assert.equal(list[0].timing.duration,2000);assert.equal(list[0].timing.delay,-200);assert.equal(list[0].timing.iterations,Infinity);});
-test('stylesheet-based edits without preview fail without altering source',()=>{const f=fixture('.card {animation: imported 2s;}'),before=serializeHtml(f.doc);assert.throws(()=>createHtmlAnimation(f.doc,f.target.id,{name:'newMotion'}),/preview/);assert.equal(serializeHtml(f.doc),before);});
-test('variable shorthand is safely diagnosed and computed timing can be edited',()=>{const f=fixture('', 'animation: var(--motion);');assert.match(listHtmlAnimations(f.doc).diagnostics[0].message,/variable/);assert.throws(()=>bindHtmlAnimation(f.doc,f.target.id,'second'),/variable/);const options=fakeComputed(f.target,{'animation-name':'fade','animation-duration':'2s'});setHtmlAnimationTiming(f.doc,f.target.id,'fade',{duration:900},options);assert.equal(listHtmlAnimations(f.doc,options).bindings[0].timing.duration,900);assert.match(f.target.props.style,/animation: var\(--motion\)/);});
-test('quoted and escaped animation names survive timing operations',()=>{const f=fixture('@keyframes "my fade" {to {opacity:1}} @keyframes f\\61 de {to {opacity:0}}','animation: "my fade" 2s, f\\61 de 1s;');const names=listHtmlAnimations(f.doc).definitions.map(d=>d.name);assert.deepEqual(names,['my fade','fade']);const simple=fixture('', 'animation-name:"my fade", "ease"; animation-duration:2s;');bindHtmlAnimation(simple.doc,simple.target.id,'third');assert.deepEqual(listHtmlAnimations(simple.doc).bindings.map(b=>b.name),['my fade','ease','third']);assert.match(simple.target.props.style,/animation-name: "my fade", ease, third/);});
-test('rename updates literal rules and inline references while preserving scripts and variables',()=>{const css='/* keep */ @keyframes fade {to {opacity:1}} @media (width>10px) { .a { animation: fade 1s steps(4, end), spin 2s; /* comment: */ animation-name: fade,spin; } @keyframes fade {to {opacity:.5}} } .b {animation:var(--motion)}',f=fixture(css,'color:red; animation: fade 2s;');f.doc.root.children[1].children.push(element('script',{},[textNode('const animation = "fade";')]));const id=renameHtmlAnimation(f.doc,first(f.doc).id,'appear');assert.equal(first(f.doc).id,id);assert.equal(listHtmlAnimations(f.doc).definitions.filter(d=>d.name==='appear').length,2);assert.match(source(f.style),/animation: appear 1s steps\(4, end\), spin 2s/);assert.match(source(f.style),/animation-name: appear,spin/);assert.match(f.target.props.style,/animation: appear 2s/);assert.match(serializeHtml(f.doc),/const animation = "fade"/);assert.match(source(f.style),/animation:var\(--motion\)/);assert.ok(source(f.style).startsWith('/* keep */'));});
-test('rename quotes keyword names in shorthand to prevent interpreting them as easing',()=>{const f=fixture('@keyframes fade {to {opacity:1}} .a {animation:fade 1s}','animation:fade 2s;');renameHtmlAnimation(f.doc,first(f.doc).id,'ease');assert.match(f.target.props.style,/animation:"ease" 2s/);assert.equal(listHtmlAnimations(f.doc).bindings[0].name,'ease');});
-test('export preserves complete stylesheets and conditional keyframe context',()=>{const css='@import "base.css"; /* note */ @media (prefers-reduced-motion:no-preference) {@keyframes fade {to {opacity:1}} .a {animation:fade 1s}}',f=fixture(css);assert.equal(exportHtmlAnimationCss(f.doc),css);removeHtmlAnimation(f.doc,first(f.doc).id);assert.match(source(f.style),/@media/);assert.match(source(f.style),/\.a \{animation:fade 1s\}/);});
-test('external stylesheets produce actionable diagnostics rather than fabricated definitions',()=>{const f=fixture();f.doc.root.children[0].children.push(element('link',{rel:'stylesheet',href:'motion.css'}));assert.match(listHtmlAnimations(f.doc).diagnostics[0].message,/External stylesheet/);});
-test('mutation validation rejects declaration injection, invalid offsets and timing',()=>{const f=fixture('@keyframes fade {to {opacity:1}}','animation:fade 1s;'),id=first(f.doc).id;for(const value of ['1; color:red','0 !important','</style><script>1</script>','var(--x)/*'])assert.throws(()=>setHtmlAnimationKeyframe(f.doc,id,0,{opacity:value}));assert.throws(()=>setHtmlAnimationKeyframe(f.doc,id,2,{opacity:'1'}));assert.throws(()=>setHtmlAnimationTiming(f.doc,f.target.id,'fade',{duration:-1}));assert.throws(()=>setHtmlAnimationTiming(f.doc,f.target.id,'fade',{easing:'bad'}));assert.throws(()=>createHtmlAnimation(f.doc,f.target.id,{name:'none'}));});
-test('keyframe !important declarations remain preserved but are ignored in editable values',()=>{const f=fixture('@keyframes fade { from { opacity:.1 !important; scale:1; } to {opacity:1} }');assert.equal(values(f.doc,0).opacity,undefined);assert.match(source(f.style),/!important/);});
-test('presets use individual transform properties instead of overwriting transform',()=>{assert.ok(HTML_ANIMATION_PRESETS.length>=6);for(const preset of HTML_ANIMATION_PRESETS)for(const frame of preset.frames)assert.equal(frame.values.transform,undefined);});
-function fakeAnimation({name='fade',end=1200,duration=1000,delay=200,iterations=1,currentTime=120,playState='running'}={}){return {animationName:name,currentTime,playState,playbackRate:1,effect:{getComputedTiming:()=>({endTime:end}),getTiming:()=>({duration,delay,iterations})},pause(){this.playState='paused';},play(){this.playState='running';},cancel(){this.playState='idle';this.currentTime=null;},finish(){this.playState='finished';}};}
-test('native preview seeks all CSS animation effects without touching element styles',()=>{const a=fakeAnimation(),b=fakeAnimation({name:'spin',end:Infinity,duration:800,delay:-200}),transition={...fakeAnimation()};delete transition.animationName;const style={transform:'rotate(12deg)'},preview=new HtmlAnimationPreview({document:{getAnimations:()=>[a,b,transition]},elements:new Map([['card',{style}]])});assert.equal(preview.animations.length,2);assert.equal(preview.duration,1600);preview.seek(650);assert.equal(a.currentTime,650);assert.equal(b.currentTime,650);assert.equal(a.playState,'paused');assert.equal(transition.currentTime,120);assert.equal(style.transform,'rotate(12deg)');preview.play({from:200,rate:.5});assert.equal(a.playbackRate,.5);assert.equal(a.playState,'running');preview.stop();assert.equal(a.currentTime,0);preview.dispose();assert.equal(a.currentTime,120);assert.equal(a.playState,'running');assert.equal(a.playbackRate,1);assert.equal(style.transform,'rotate(12deg)');});
-test('preview restores paused and idle effects and ignores scroll timeline seek exceptions',()=>{const paused=fakeAnimation({playState:'paused',currentTime:400}),idle=fakeAnimation({playState:'idle',currentTime:null}),preview=new HtmlAnimationPreview({document:{getAnimations:()=>[paused,idle]}});preview.seek(12);preview.dispose();assert.equal(paused.playState,'paused');assert.equal(paused.currentTime,400);assert.equal(idle.playState,'idle');assert.equal(idle.currentTime,null);});
-test('multiple longhand timing values declared before names are not truncated',()=>{const f=fixture('', 'animation-duration:1s,2s;animation-delay:-.1s,.4s;animation-name:a,b,c;');const list=listHtmlAnimations(f.doc).bindings;assert.deepEqual(list.map(b=>b.timing.duration),[1000,2000,1000]);assert.deepEqual(list.map(b=>b.timing.delay),[-100,400,-100]);});
-test('escaped CSS identifiers including hexadecimal escape whitespace resolve in shorthand',()=>{const f=fixture('@keyframes f\\61 de {to{opacity:1}}','animation: f\\61 de 2s;');assert.equal(listHtmlAnimations(f.doc).bindings[0].name,'fade');renameHtmlAnimation(f.doc,first(f.doc).id,'appear');assert.match(f.target.props.style,/animation: appear 2s/);});
-test('CSS value editing accepts quoted punctuation and nested custom-property tokens',()=>{const f=fixture('@keyframes fade {to{opacity:1}}'),id=first(f.doc).id;setHtmlAnimationKeyframe(f.doc,id,0,{content:'"{ hello; }"','--tokens':'{ color:red; width:10px; }',filter:'blur(calc(1px + var(--amount)))'});assert.equal(values(f.doc,0).content,'"{ hello; }"');assert.equal(values(f.doc,0)['--tokens'],'{ color:red; width:10px; }');assert.throws(()=>setHtmlAnimationKeyframe(f.doc,id,.5,{opacity:'calc(1'}));});
-test('inline important timing survives lower-priority shorthand and timing edits',()=>{const f=fixture('', 'animation-duration:2s !important; animation:fade 1s linear;');assert.equal(listHtmlAnimations(f.doc).bindings[0].timing.duration,2000);setHtmlAnimationTiming(f.doc,f.target.id,'fade',{duration:900});assert.match(f.target.props.style,/animation-duration: 900ms !important/);assert.equal(listHtmlAnimations(f.doc).bindings[0].timing.duration,900);});
-test('live computed cascade stays authoritative until model declarations actually change',()=>{const f=fixture('', 'animation:fade 1s;'),options=fakeComputed(f.target,{'animation-name':'fade','animation-duration':'3s','animation-iteration-count':'1'}),native=options.elements.get(f.target.id);native.getAttribute=()=>f.target.props.style;assert.equal(listHtmlAnimations(f.doc,options).bindings[0].timing.duration,3000);});
-test('important stylesheet timing is overridden explicitly when edited visually',()=>{const f=fixture(),options=fakeComputed(f.target,{'animation-name':'fade','animation-duration':'3s','animation-iteration-count':'1'}),native=options.elements.get(f.target.id);native.matches=()=>true;native.ownerDocument.styleSheets=[{cssRules:[{selectorText:'.card',style:{getPropertyPriority:key=>key==='animation-duration'?'important':''}}]}];setHtmlAnimationTiming(f.doc,f.target.id,'fade',{duration:700},options);assert.match(f.target.props.style,/animation-duration: 700ms !important/);});
-test('comment delimiters inside CSS strings are not interpreted as comments',()=>{const f=fixture('@keyframes fade {from {content:"/* keep */"; } to {content:"done";}}');assert.equal(values(f.doc,0).content,'"/* keep */"');setHtmlAnimationKeyframe(f.doc,first(f.doc).id,.5,{content:'"/* text */"'});assert.equal(values(f.doc,.5).content,'"/* text */"');});
-test('time-relative animation durations fail safely instead of generating NaN CSS',()=>{const f=fixture('', 'animation-name:fade;animation-duration:auto;'),before=serializeHtml(f.doc);assert.throws(()=>setHtmlAnimationTiming(f.doc,f.target.id,'fade',{delay:200}),/Timeline-relative/);assert.equal(serializeHtml(f.doc),before);});
-test('repeated identical keyframe and timing edits preserve text identity and do not add undo entries',()=>{const f=fixture('@keyframes fade {from {opacity:0;} to {opacity:1;}}','animation:fade 1s;'),store=new DocumentStore(f.doc),id=first(store.document).id;store.transaction('Set opacity',doc=>setHtmlAnimationKeyframe(doc,id,0,{opacity:'.5'}));const style=store.document.root.children[0].children[0],textId=style.children[0].id;assert.equal(textId,f.style.children[0].id);const before=serializeHtml(store.document);store.transaction('Set opacity',doc=>setHtmlAnimationKeyframe(doc,id,0,{opacity:'.5'}));assert.equal(store.history.length,1);assert.equal(serializeHtml(store.document),before);assert.equal(style.children[0].id,textId);store.transaction('Timing',doc=>setHtmlAnimationTiming(doc,f.target.id,'fade',{duration:1500}));store.transaction('Timing',doc=>setHtmlAnimationTiming(doc,f.target.id,'fade',{duration:1500}));assert.equal(store.history.length,2);store.undo();store.undo();assert.equal(values(store.document,0).opacity,'0');});
+test('CSS list parser retains nested functions and quoted commas', () =>
+  assert.deepEqual(
+    splitCssList('fade 1s cubic-bezier(.2, .5, .6, 1), "a,b" 2s steps(4, jump-none)'),
+    ['fade 1s cubic-bezier(.2, .5, .6, 1)', '"a,b" 2s steps(4, jump-none)'],
+  ));
+test('editing one imported frame preserves unrelated source bytes and comments', () => {
+  const before =
+      '/* heading */ .card{color:red}\n@keyframes fade { from { /* keep this */ opacity:0; translate:0 10px; } to { opacity:1; } }\n@supports(display:grid){.x{display:grid}}',
+    f = fixture(before);
+  setHtmlAnimationKeyframe(f.doc, first(f.doc).id, 0, { opacity: '.25' });
+  const next = source(f.style);
+  assert.ok(next.startsWith('/* heading */ .card{color:red}\n'));
+  assert.ok(next.endsWith('\n@supports(display:grid){.x{display:grid}}'));
+  assert.ok(next.includes('/* keep this */'));
+  assert.equal(values(f.doc, 0).opacity, '.25');
+  assert.equal(values(f.doc, 0).translate, '0 10px');
+});
+test('grouped and duplicate offsets cascade while single-offset edits leave siblings intact', () => {
+  const f = fixture(
+      '@keyframes fade { from, 50% { opacity:0; translate:0 5px; } 0% { opacity:.2; scale:.8; } to { opacity:1; } }',
+    ),
+    id = first(f.doc).id;
+  setHtmlAnimationKeyframe(f.doc, id, 0, { opacity: '.4', translate: null });
+  assert.equal(values(f.doc, 0).opacity, '.4');
+  assert.equal(values(f.doc, 0).scale, '.8');
+  assert.equal(values(f.doc, 0).translate, undefined);
+  assert.equal(values(f.doc, 0.5).opacity, '0');
+  assert.equal(values(f.doc, 0.5).translate, '0 5px');
+  assert.equal(first(f.doc).frames.filter((x) => x.offset === 0).length, 1);
+});
+test('remove one grouped offset retains the remaining selector and declarations', () => {
+  const f = fixture('@keyframes fade { from, 50%, to { opacity:.5; } }');
+  removeHtmlAnimationKeyframe(f.doc, first(f.doc).id, 0.5);
+  assert.deepEqual(
+    first(f.doc).frames.map((f) => f.offset),
+    [0, 1],
+  );
+  assert.equal(values(f.doc, 0).opacity, '.5');
+});
+test('move and duplicate keyframes preserve properties and ease values', () => {
+  const f = fixture(
+      '@keyframes fade { from { opacity:0; animation-timing-function:steps(4, end); } to { opacity:1; } }',
+    ),
+    id = first(f.doc).id;
+  duplicateHtmlAnimationKeyframe(f.doc, id, 0, 0.25);
+  moveHtmlAnimationKeyframe(f.doc, id, 0.25, 0.5);
+  assert.equal(values(f.doc, 0.5)['animation-timing-function'], 'steps(4, end)');
+  assert.equal(
+    first(f.doc).frames.some((f) => f.offset === 0.25),
+    false,
+  );
+  assert.equal(values(f.doc, 0).opacity, '0');
+});
+test('missing endpoints stay missing so the browser supplies underlying computed values', () => {
+  const f = fixture('@keyframes partial { 40% { opacity:.5; } }');
+  setHtmlAnimationKeyframe(f.doc, first(f.doc).id, 0.6, { opacity: '.8' });
+  assert.deepEqual(
+    first(f.doc)
+      .frames.map((f) => f.offset)
+      .sort(),
+    [0.4, 0.6],
+  );
+});
+test('invalid CSS and named range selectors are diagnosed and retained', () => {
+  const f = fixture('@keyframes reveal { entry 20% { opacity:0; } to { opacity:1; } }');
+  assert.equal(first(f.doc).frames.length, 1);
+  assert.match(listHtmlAnimations(f.doc).diagnostics[0].message, /timeline/);
+  const bad = fixture('@keyframes bad { from {opacity:0;}');
+  assert.throws(
+    () => setHtmlAnimationKeyframe(bad.doc, first(bad.doc).id, 1, { opacity: '1' }),
+    /syntax/,
+  );
+});
+test('create and timing edits are native CSS in canonical HTML and undo together', () => {
+  const f = fixture('body {color:#123}'),
+    store = new DocumentStore(f.doc);
+  let created;
+  store.transaction(
+    'Animate',
+    (doc) =>
+      (created = createHtmlAnimation(doc, f.target.id, {
+        name: 'enter',
+        duration: 850,
+        delay: -200,
+        iterations: Infinity,
+        direction: 'alternate',
+        fill: 'both',
+        frames: [
+          { offset: 0, values: { opacity: '0', translate: '0 20px' } },
+          { offset: 1, values: { opacity: '1', translate: '0 0' } },
+        ],
+      })),
+  );
+  const list = listHtmlAnimations(store.document);
+  assert.equal(list.definitions[0].id, created.id);
+  assert.equal(list.definitions[0].authored, true);
+  assert.equal(list.bindings[0].timing.delay, -200);
+  assert.equal(list.bindings[0].timing.iterations, Infinity);
+  assert.match(serializeHtml(store.document), /@keyframes enter/);
+  assert.match(serializeHtml(store.document), /animation-name: enter/);
+  store.undo();
+  assert.equal(listHtmlAnimations(store.document).definitions.length, 0);
+  store.redo();
+  assert.equal(listHtmlAnimations(store.document).definitions.length, 1);
+});
+test('inline shorthand imports multiple tracks, functions, negative delays and timing lists', () => {
+  const f = fixture(
+    '',
+    'color:red; animation: fade 2s cubic-bezier(.2, 0, .8, 1) -500ms 2 alternate both, spin 500ms linear infinite; animation-duration: 3s;',
+  );
+  const list = listHtmlAnimations(f.doc);
+  assert.equal(list.bindings.length, 2);
+  assert.equal(list.bindings[0].timing.delay, -500);
+  assert.equal(list.bindings[1].timing.duration, 3000);
+  setHtmlAnimationTiming(f.doc, f.target.id, 'fade', {
+    duration: 1800,
+    easing: 'steps(5, jump-end)',
+  });
+  const next = listHtmlAnimations(f.doc).bindings;
+  assert.equal(next[0].timing.duration, 1800);
+  assert.equal(next[1].timing.duration, 3000);
+  assert.equal(next[1].timing.iterations, Infinity);
+  assert.match(f.target.props.style, /color:red;/);
+});
+test('longhand order and CSS list repetition survive adding and removing tracks', () => {
+  const f = fixture(
+    '',
+    'animation-duration:2s; animation-name:fade,spin; animation-delay:-1s; animation-composition:add,replace;',
+  );
+  bindHtmlAnimation(f.doc, f.target.id, 'third', { duration: 900 });
+  const list = listHtmlAnimations(f.doc).bindings;
+  assert.deepEqual(
+    list.map((b) => b.name),
+    ['fade', 'spin', 'third'],
+  );
+  assert.deepEqual(
+    list.map((b) => b.timing.duration),
+    [2000, 2000, 900],
+  );
+  unbindHtmlAnimation(f.doc, f.target.id, 'fade');
+  assert.deepEqual(
+    listHtmlAnimations(f.doc).bindings.map((b) => b.name),
+    ['spin', 'third'],
+  );
+  assert.match(f.target.props.style, /animation-composition: replace, replace/);
+});
+test('computed selector animations are preserved when adding tracks to the target', () => {
+  const f = fixture('.card { animation: imported 2s linear; }'),
+    options = fakeComputed(f.target, {
+      'animation-name': 'imported',
+      'animation-duration': '2s',
+      'animation-timing-function': 'linear',
+      'animation-delay': '-0.2s',
+      'animation-iteration-count': 'infinite',
+      'animation-direction': 'alternate',
+      'animation-fill-mode': 'both',
+      'animation-play-state': 'running',
+    });
+  createHtmlAnimation(f.doc, f.target.id, { name: 'first' }, options);
+  createHtmlAnimation(f.doc, f.target.id, { name: 'second' }, options);
+  const list = listHtmlAnimations(f.doc, options).bindings;
+  assert.deepEqual(
+    list.map((b) => b.name),
+    ['imported', 'first', 'second'],
+  );
+  assert.equal(list[0].timing.duration, 2000);
+  assert.equal(list[0].timing.delay, -200);
+  assert.equal(list[0].timing.iterations, Infinity);
+});
+test('stylesheet-based edits without preview fail without altering source', () => {
+  const f = fixture('.card {animation: imported 2s;}'),
+    before = serializeHtml(f.doc);
+  assert.throws(() => createHtmlAnimation(f.doc, f.target.id, { name: 'newMotion' }), /preview/);
+  assert.equal(serializeHtml(f.doc), before);
+});
+test('variable shorthand is safely diagnosed and computed timing can be edited', () => {
+  const f = fixture('', 'animation: var(--motion);');
+  assert.match(listHtmlAnimations(f.doc).diagnostics[0].message, /variable/);
+  assert.throws(() => bindHtmlAnimation(f.doc, f.target.id, 'second'), /variable/);
+  const options = fakeComputed(f.target, { 'animation-name': 'fade', 'animation-duration': '2s' });
+  setHtmlAnimationTiming(f.doc, f.target.id, 'fade', { duration: 900 }, options);
+  assert.equal(listHtmlAnimations(f.doc, options).bindings[0].timing.duration, 900);
+  assert.match(f.target.props.style, /animation: var\(--motion\)/);
+});
+test('quoted and escaped animation names survive timing operations', () => {
+  const f = fixture(
+    '@keyframes "my fade" {to {opacity:1}} @keyframes f\\61 de {to {opacity:0}}',
+    'animation: "my fade" 2s, f\\61 de 1s;',
+  );
+  const names = listHtmlAnimations(f.doc).definitions.map((d) => d.name);
+  assert.deepEqual(names, ['my fade', 'fade']);
+  const simple = fixture('', 'animation-name:"my fade", "ease"; animation-duration:2s;');
+  bindHtmlAnimation(simple.doc, simple.target.id, 'third');
+  assert.deepEqual(
+    listHtmlAnimations(simple.doc).bindings.map((b) => b.name),
+    ['my fade', 'ease', 'third'],
+  );
+  assert.match(simple.target.props.style, /animation-name: "my fade", ease, third/);
+});
+test('rename updates literal rules and inline references while preserving scripts and variables', () => {
+  const css =
+      '/* keep */ @keyframes fade {to {opacity:1}} @media (width>10px) { .a { animation: fade 1s steps(4, end), spin 2s; /* comment: */ animation-name: fade,spin; } @keyframes fade {to {opacity:.5}} } .b {animation:var(--motion)}',
+    f = fixture(css, 'color:red; animation: fade 2s;');
+  f.doc.root.children[1].children.push(
+    element('script', {}, [textNode('const animation = "fade";')]),
+  );
+  const id = renameHtmlAnimation(f.doc, first(f.doc).id, 'appear');
+  assert.equal(first(f.doc).id, id);
+  assert.equal(listHtmlAnimations(f.doc).definitions.filter((d) => d.name === 'appear').length, 2);
+  assert.match(source(f.style), /animation: appear 1s steps\(4, end\), spin 2s/);
+  assert.match(source(f.style), /animation-name: appear,spin/);
+  assert.match(f.target.props.style, /animation: appear 2s/);
+  assert.match(serializeHtml(f.doc), /const animation = "fade"/);
+  assert.match(source(f.style), /animation:var\(--motion\)/);
+  assert.ok(source(f.style).startsWith('/* keep */'));
+});
+test('rename quotes keyword names in shorthand to prevent interpreting them as easing', () => {
+  const f = fixture(
+    '@keyframes fade {to {opacity:1}} .a {animation:fade 1s}',
+    'animation:fade 2s;',
+  );
+  renameHtmlAnimation(f.doc, first(f.doc).id, 'ease');
+  assert.match(f.target.props.style, /animation:"ease" 2s/);
+  assert.equal(listHtmlAnimations(f.doc).bindings[0].name, 'ease');
+});
+test('export preserves complete stylesheets and conditional keyframe context', () => {
+  const css =
+      '@import "base.css"; /* note */ @media (prefers-reduced-motion:no-preference) {@keyframes fade {to {opacity:1}} .a {animation:fade 1s}}',
+    f = fixture(css);
+  assert.equal(exportHtmlAnimationCss(f.doc), css);
+  removeHtmlAnimation(f.doc, first(f.doc).id);
+  assert.match(source(f.style), /@media/);
+  assert.match(source(f.style), /\.a \{animation:fade 1s\}/);
+});
+test('external stylesheets produce actionable diagnostics rather than fabricated definitions', () => {
+  const f = fixture();
+  f.doc.root.children[0].children.push(element('link', { rel: 'stylesheet', href: 'motion.css' }));
+  assert.match(listHtmlAnimations(f.doc).diagnostics[0].message, /External stylesheet/);
+});
+test('mutation validation rejects declaration injection, invalid offsets and timing', () => {
+  const f = fixture('@keyframes fade {to {opacity:1}}', 'animation:fade 1s;'),
+    id = first(f.doc).id;
+  for (const value of ['1; color:red', '0 !important', '</style><script>1</script>', 'var(--x)/*'])
+    assert.throws(() => setHtmlAnimationKeyframe(f.doc, id, 0, { opacity: value }));
+  assert.throws(() => setHtmlAnimationKeyframe(f.doc, id, 2, { opacity: '1' }));
+  assert.throws(() => setHtmlAnimationTiming(f.doc, f.target.id, 'fade', { duration: -1 }));
+  assert.throws(() => setHtmlAnimationTiming(f.doc, f.target.id, 'fade', { easing: 'bad' }));
+  assert.throws(() => createHtmlAnimation(f.doc, f.target.id, { name: 'none' }));
+});
+test('keyframe !important declarations remain preserved but are ignored in editable values', () => {
+  const f = fixture('@keyframes fade { from { opacity:.1 !important; scale:1; } to {opacity:1} }');
+  assert.equal(values(f.doc, 0).opacity, undefined);
+  assert.match(source(f.style), /!important/);
+});
+test('presets use individual transform properties instead of overwriting transform', () => {
+  assert.ok(HTML_ANIMATION_PRESETS.length >= 6);
+  for (const preset of HTML_ANIMATION_PRESETS)
+    for (const frame of preset.frames) assert.equal(frame.values.transform, undefined);
+});
+function fakeAnimation({
+  name = 'fade',
+  end = 1200,
+  duration = 1000,
+  delay = 200,
+  iterations = 1,
+  currentTime = 120,
+  playState = 'running',
+} = {}) {
+  return {
+    animationName: name,
+    currentTime,
+    playState,
+    playbackRate: 1,
+    effect: {
+      getComputedTiming: () => ({ endTime: end }),
+      getTiming: () => ({ duration, delay, iterations }),
+    },
+    pause() {
+      this.playState = 'paused';
+    },
+    play() {
+      this.playState = 'running';
+    },
+    cancel() {
+      this.playState = 'idle';
+      this.currentTime = null;
+    },
+    finish() {
+      this.playState = 'finished';
+    },
+  };
+}
+test('native preview seeks all CSS animation effects without touching element styles', () => {
+  const a = fakeAnimation(),
+    b = fakeAnimation({ name: 'spin', end: Infinity, duration: 800, delay: -200 }),
+    transition = { ...fakeAnimation() };
+  delete transition.animationName;
+  const style = { transform: 'rotate(12deg)' },
+    preview = new HtmlAnimationPreview({
+      document: { getAnimations: () => [a, b, transition] },
+      elements: new Map([['card', { style }]]),
+    });
+  assert.equal(preview.animations.length, 2);
+  assert.equal(preview.duration, 1600);
+  preview.seek(650);
+  assert.equal(a.currentTime, 650);
+  assert.equal(b.currentTime, 650);
+  assert.equal(a.playState, 'paused');
+  assert.equal(transition.currentTime, 120);
+  assert.equal(style.transform, 'rotate(12deg)');
+  preview.play({ from: 200, rate: 0.5 });
+  assert.equal(a.playbackRate, 0.5);
+  assert.equal(a.playState, 'running');
+  preview.stop();
+  assert.equal(a.currentTime, 0);
+  preview.dispose();
+  assert.equal(a.currentTime, 120);
+  assert.equal(a.playState, 'running');
+  assert.equal(a.playbackRate, 1);
+  assert.equal(style.transform, 'rotate(12deg)');
+});
+test('preview restores paused and idle effects and ignores scroll timeline seek exceptions', () => {
+  const paused = fakeAnimation({ playState: 'paused', currentTime: 400 }),
+    idle = fakeAnimation({ playState: 'idle', currentTime: null }),
+    preview = new HtmlAnimationPreview({ document: { getAnimations: () => [paused, idle] } });
+  preview.seek(12);
+  preview.dispose();
+  assert.equal(paused.playState, 'paused');
+  assert.equal(paused.currentTime, 400);
+  assert.equal(idle.playState, 'idle');
+  assert.equal(idle.currentTime, null);
+});
+test('multiple longhand timing values declared before names are not truncated', () => {
+  const f = fixture('', 'animation-duration:1s,2s;animation-delay:-.1s,.4s;animation-name:a,b,c;');
+  const list = listHtmlAnimations(f.doc).bindings;
+  assert.deepEqual(
+    list.map((b) => b.timing.duration),
+    [1000, 2000, 1000],
+  );
+  assert.deepEqual(
+    list.map((b) => b.timing.delay),
+    [-100, 400, -100],
+  );
+});
+test('escaped CSS identifiers including hexadecimal escape whitespace resolve in shorthand', () => {
+  const f = fixture('@keyframes f\\61 de {to{opacity:1}}', 'animation: f\\61 de 2s;');
+  assert.equal(listHtmlAnimations(f.doc).bindings[0].name, 'fade');
+  renameHtmlAnimation(f.doc, first(f.doc).id, 'appear');
+  assert.match(f.target.props.style, /animation: appear 2s/);
+});
+test('CSS value editing accepts quoted punctuation and nested custom-property tokens', () => {
+  const f = fixture('@keyframes fade {to{opacity:1}}'),
+    id = first(f.doc).id;
+  setHtmlAnimationKeyframe(f.doc, id, 0, {
+    content: '"{ hello; }"',
+    '--tokens': '{ color:red; width:10px; }',
+    filter: 'blur(calc(1px + var(--amount)))',
+  });
+  assert.equal(values(f.doc, 0).content, '"{ hello; }"');
+  assert.equal(values(f.doc, 0)['--tokens'], '{ color:red; width:10px; }');
+  assert.throws(() => setHtmlAnimationKeyframe(f.doc, id, 0.5, { opacity: 'calc(1' }));
+});
+test('inline important timing survives lower-priority shorthand and timing edits', () => {
+  const f = fixture('', 'animation-duration:2s !important; animation:fade 1s linear;');
+  assert.equal(listHtmlAnimations(f.doc).bindings[0].timing.duration, 2000);
+  setHtmlAnimationTiming(f.doc, f.target.id, 'fade', { duration: 900 });
+  assert.match(f.target.props.style, /animation-duration: 900ms !important/);
+  assert.equal(listHtmlAnimations(f.doc).bindings[0].timing.duration, 900);
+});
+test('live computed cascade stays authoritative until model declarations actually change', () => {
+  const f = fixture('', 'animation:fade 1s;'),
+    options = fakeComputed(f.target, {
+      'animation-name': 'fade',
+      'animation-duration': '3s',
+      'animation-iteration-count': '1',
+    }),
+    native = options.elements.get(f.target.id);
+  native.getAttribute = () => f.target.props.style;
+  assert.equal(listHtmlAnimations(f.doc, options).bindings[0].timing.duration, 3000);
+});
+test('important stylesheet timing is overridden explicitly when edited visually', () => {
+  const f = fixture(),
+    options = fakeComputed(f.target, {
+      'animation-name': 'fade',
+      'animation-duration': '3s',
+      'animation-iteration-count': '1',
+    }),
+    native = options.elements.get(f.target.id);
+  native.matches = () => true;
+  native.ownerDocument.styleSheets = [
+    {
+      cssRules: [
+        {
+          selectorText: '.card',
+          style: {
+            getPropertyPriority: (key) => (key === 'animation-duration' ? 'important' : ''),
+          },
+        },
+      ],
+    },
+  ];
+  setHtmlAnimationTiming(f.doc, f.target.id, 'fade', { duration: 700 }, options);
+  assert.match(f.target.props.style, /animation-duration: 700ms !important/);
+});
+test('comment delimiters inside CSS strings are not interpreted as comments', () => {
+  const f = fixture('@keyframes fade {from {content:"/* keep */"; } to {content:"done";}}');
+  assert.equal(values(f.doc, 0).content, '"/* keep */"');
+  setHtmlAnimationKeyframe(f.doc, first(f.doc).id, 0.5, { content: '"/* text */"' });
+  assert.equal(values(f.doc, 0.5).content, '"/* text */"');
+});
+test('time-relative animation durations fail safely instead of generating NaN CSS', () => {
+  const f = fixture('', 'animation-name:fade;animation-duration:auto;'),
+    before = serializeHtml(f.doc);
+  assert.throws(
+    () => setHtmlAnimationTiming(f.doc, f.target.id, 'fade', { delay: 200 }),
+    /Timeline-relative/,
+  );
+  assert.equal(serializeHtml(f.doc), before);
+});
+test('repeated identical keyframe and timing edits preserve text identity and do not add undo entries', () => {
+  const f = fixture('@keyframes fade {from {opacity:0;} to {opacity:1;}}', 'animation:fade 1s;'),
+    store = new DocumentStore(f.doc),
+    id = first(store.document).id;
+  store.transaction('Set opacity', (doc) =>
+    setHtmlAnimationKeyframe(doc, id, 0, { opacity: '.5' }),
+  );
+  const style = store.document.root.children[0].children[0],
+    textId = style.children[0].id;
+  assert.equal(textId, f.style.children[0].id);
+  const before = serializeHtml(store.document);
+  store.transaction('Set opacity', (doc) =>
+    setHtmlAnimationKeyframe(doc, id, 0, { opacity: '.5' }),
+  );
+  assert.equal(store.history.length, 1);
+  assert.equal(serializeHtml(store.document), before);
+  assert.equal(style.children[0].id, textId);
+  store.transaction('Timing', (doc) =>
+    setHtmlAnimationTiming(doc, f.target.id, 'fade', { duration: 1500 }),
+  );
+  store.transaction('Timing', (doc) =>
+    setHtmlAnimationTiming(doc, f.target.id, 'fade', { duration: 1500 }),
+  );
+  assert.equal(store.history.length, 2);
+  store.undo();
+  store.undo();
+  assert.equal(values(store.document, 0).opacity, '0');
+});

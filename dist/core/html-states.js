@@ -1,80 +1,874 @@
 /** Source-owned CSS transitions and interaction states, independent of the studio UI. */
-import {element,textNode,find,walk} from './model.js';
-import {htmlHead} from './html.js';
-import {parseCssAnimationStylesheet,splitCssList} from './html-animation.js';
-const PSEUDOS=new Set(['hover','focus','focus-visible','active','disabled','checked']);
-const TIMING={property:'transition-property',duration:'transition-duration',delay:'transition-delay',easing:'transition-timing-function',behavior:'transition-behavior'};
-const DEFAULT={property:'all',duration:0,delay:0,easing:'ease',behavior:'normal'};
-const EVENTS=['click','dblclick','pointerenter','pointerleave','focusin','focusout','change','input'];
-const EASINGS=new Set(['linear','ease','ease-in','ease-out','ease-in-out','step-start','step-end']);
-const styleText=n=>n.children.filter(c=>c.kind==='text').map(c=>c.text).join('');
-function setText(node,source){if(styleText(node)===source)return;const existing=node.children.find(n=>n.kind==='text');node.children=[existing?{...existing,text:source}:textNode(source)];}
-function html(doc){if(doc?.framework!=='HTML')throw Error('CSS states and transitions require an HTML document.');}
-function escapeEnd(source,start){let p=start+1,count=0;if(/[\da-f]/i.test(source[p]||'')){while(p<source.length&&/[\da-f]/i.test(source[p])&&count++<6)p++;if(/\s/.test(source[p]||''))p++;return p;}return Math.min(source.length,p+1);}
-function unescapeCss(value){return value.replace(/\\([\da-f]{1,6}\s?|[^\r\n])/gi,(_,part)=>/^[\da-f]/i.test(part)?String.fromCodePoint(parseInt(part.trim(),16)||0xfffd):part);}
-function cssString(value){return '"'+String(value).replace(/[\\"\u0000-\u001f\u007f]/g,c=>'\\'+c.codePointAt(0).toString(16)+' ')+'"';}
-function ident(value){return String(value).replace(/(^-?\d)|[^a-zA-Z0-9_-]/gu,c=>'\\'+c.codePointAt(0).toString(16)+' ');}
-function safeName(value){value=String(value||'');if(!/^[a-zA-Z_][\w-]*$/.test(value))throw Error('Use a state name such as expanded or selected.');return value;}
-function parseDeclarations(source){const ast=parseCssAnimationStylesheet('x{'+source+'}'),rule=ast.rules.find(r=>r.kind==='rule'&&r.header==='x');return (rule?.declarations||[]).map(d=>({...d,start:d.start-2,end:d.end-2}));}
-function comments(source){const found=[];let quote='';for(let i=0;i<source.length;i++){const c=source[i];if(quote){if(c==='\\'){i=escapeEnd(source,i)-1;continue;}if(c===quote)quote='';continue;}if(c==='"'||c==="'"){quote=c;continue;}if(c==='/'&&source[i+1]==='*'){const end=source.indexOf('*/',i+2);if(end<0)break;found.push(source.slice(i,end+2));i=end+1;}}return found;}
-function stripComments(source){let result=source;for(const comment of comments(source))result=result.replace(comment,' '.repeat(comment.length));return result;}
-function propertyKey(property){return property.startsWith('--')?property:property.toLowerCase();}
-function declarationValues(declarations){const result={},priority={};for(const d of declarations){if(!d.property)continue;const key=propertyKey(d.property),important=/!important\s*$/i.test(d.value);if(priority[key]&&!important)continue;Object.defineProperty(result,key,{value:d.value,writable:true,enumerable:true,configurable:true});priority[key]=important;}return result;}
-function validateValue(property,value){if(!/^(?:--[\w-]+|[a-z][\w-]*)$/i.test(property)||['__proto__','prototype','constructor'].includes(property))throw Error('Invalid CSS property.');if(value===null||value===undefined)return;const text=String(value);if(/<\/style/i.test(text))throw Error('Invalid CSS value.');let quote='',comment=false;const stack=[];for(let i=0;i<text.length;i++){const c=text[i];if(comment){if(c==='*'&&text[i+1]==='/'){comment=false;i++;}continue;}if(quote){if(c==='\\'){i=escapeEnd(text,i)-1;continue;}if(c===quote)quote='';continue;}if(c==='/'&&text[i+1]==='*'){comment=true;i++;continue;}if(c==='"'||c==="'"){quote=c;continue;}if(c==='\\'){i=escapeEnd(text,i)-1;continue;}if('([{'.includes(c)){if(c==='{'&&!property.startsWith('--'))throw Error('Use one CSS value.');stack.push(c);}if(')]}'.includes(c)&&stack.pop()!==({')':'(',']':'[','}':'{'}[c]))throw Error('Unbalanced CSS value.');if(c===';'&&!stack.length)throw Error('Use one CSS value.');}if(quote||comment||stack.length)throw Error('Unbalanced CSS value.');}
-function patchDeclarations(source,values){for(const [key,value]of Object.entries(values))validateValue(key,value);let next=source;for(const [property,value]of Object.entries(values)){const key=propertyKey(property),declarations=parseDeclarations(next),matches=declarations.filter(d=>propertyKey(d.property)===key),current=declarationValues(declarations)[key];if((value==null||value==='')&&!matches.length||value!=null&&String(value).trim()===current)continue;for(const d of matches.reverse())next=next.slice(0,d.start)+comments(d.raw).join(' ')+next.slice(d.end);if(value!=null&&value!==''){next=next.trimEnd();if(next&&!next.endsWith(';')&&!next.endsWith('*/'))next+=';';next+=(next?'\n  ':'  ')+property+': '+String(value).trim()+';\n';}}return next;}
+import { element, textNode, find, walk } from './model.js';
+import { htmlHead } from './html.js';
+import { parseCssAnimationStylesheet, splitCssList } from './html-animation.js';
+const PSEUDOS = new Set(['hover', 'focus', 'focus-visible', 'active', 'disabled', 'checked']);
+const TIMING = {
+  property: 'transition-property',
+  duration: 'transition-duration',
+  delay: 'transition-delay',
+  easing: 'transition-timing-function',
+  behavior: 'transition-behavior',
+};
+const DEFAULT = { property: 'all', duration: 0, delay: 0, easing: 'ease', behavior: 'normal' };
+const EVENTS = [
+  'click',
+  'dblclick',
+  'pointerenter',
+  'pointerleave',
+  'focusin',
+  'focusout',
+  'change',
+  'input',
+];
+const EASINGS = new Set([
+  'linear',
+  'ease',
+  'ease-in',
+  'ease-out',
+  'ease-in-out',
+  'step-start',
+  'step-end',
+]);
+const styleText = (n) =>
+  n.children
+    .filter((c) => c.kind === 'text')
+    .map((c) => c.text)
+    .join('');
+function setText(node, source) {
+  if (styleText(node) === source) return;
+  const existing = node.children.find((n) => n.kind === 'text');
+  node.children = [existing ? { ...existing, text: source } : textNode(source)];
+}
+function html(doc) {
+  if (doc?.framework !== 'HTML')
+    throw Error('CSS states and transitions require an HTML document.');
+}
+function escapeEnd(source, start) {
+  let p = start + 1,
+    count = 0;
+  if (/[\da-f]/i.test(source[p] || '')) {
+    while (p < source.length && /[\da-f]/i.test(source[p]) && count++ < 6) p++;
+    if (/\s/.test(source[p] || '')) p++;
+    return p;
+  }
+  return Math.min(source.length, p + 1);
+}
+function unescapeCss(value) {
+  return value.replace(/\\([\da-f]{1,6}\s?|[^\r\n])/gi, (_, part) =>
+    /^[\da-f]/i.test(part) ? String.fromCodePoint(parseInt(part.trim(), 16) || 0xfffd) : part,
+  );
+}
+function cssString(value) {
+  return (
+    '"' +
+    String(value).replace(
+      /[\\"\u0000-\u001f\u007f]/g,
+      (c) => '\\' + c.codePointAt(0).toString(16) + ' ',
+    ) +
+    '"'
+  );
+}
+function ident(value) {
+  return String(value).replace(
+    /(^-?\d)|[^a-zA-Z0-9_-]/gu,
+    (c) => '\\' + c.codePointAt(0).toString(16) + ' ',
+  );
+}
+function safeName(value) {
+  value = String(value || '');
+  if (!/^[a-zA-Z_][\w-]*$/.test(value))
+    throw Error('Use a state name such as expanded or selected.');
+  return value;
+}
+function parseDeclarations(source) {
+  const ast = parseCssAnimationStylesheet('x{' + source + '}'),
+    rule = ast.rules.find((r) => r.kind === 'rule' && r.header === 'x');
+  return (rule?.declarations || []).map((d) => ({ ...d, start: d.start - 2, end: d.end - 2 }));
+}
+function comments(source) {
+  const found = [];
+  let quote = '';
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i];
+    if (quote) {
+      if (c === '\\') {
+        i = escapeEnd(source, i) - 1;
+        continue;
+      }
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2);
+      if (end < 0) break;
+      found.push(source.slice(i, end + 2));
+      i = end + 1;
+    }
+  }
+  return found;
+}
+function stripComments(source) {
+  let result = source;
+  for (const comment of comments(source))
+    result = result.replace(comment, ' '.repeat(comment.length));
+  return result;
+}
+function propertyKey(property) {
+  return property.startsWith('--') ? property : property.toLowerCase();
+}
+function declarationValues(declarations) {
+  const result = {},
+    priority = {};
+  for (const d of declarations) {
+    if (!d.property) continue;
+    const key = propertyKey(d.property),
+      important = /!important\s*$/i.test(d.value);
+    if (priority[key] && !important) continue;
+    Object.defineProperty(result, key, {
+      value: d.value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+    priority[key] = important;
+  }
+  return result;
+}
+function validateValue(property, value) {
+  if (
+    !/^(?:--[\w-]+|[a-z][\w-]*)$/i.test(property) ||
+    ['__proto__', 'prototype', 'constructor'].includes(property)
+  )
+    throw Error('Invalid CSS property.');
+  if (value === null || value === undefined) return;
+  const text = String(value);
+  if (/<\/style/i.test(text)) throw Error('Invalid CSS value.');
+  let quote = '',
+    comment = false;
+  const stack = [];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (comment) {
+      if (c === '*' && text[i + 1] === '/') {
+        comment = false;
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === '\\') {
+        i = escapeEnd(text, i) - 1;
+        continue;
+      }
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      comment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === '\\') {
+      i = escapeEnd(text, i) - 1;
+      continue;
+    }
+    if ('([{'.includes(c)) {
+      if (c === '{' && !property.startsWith('--')) throw Error('Use one CSS value.');
+      stack.push(c);
+    }
+    if (')]}'.includes(c) && stack.pop() !== { ')': '(', ']': '[', '}': '{' }[c])
+      throw Error('Unbalanced CSS value.');
+    if (c === ';' && !stack.length) throw Error('Use one CSS value.');
+  }
+  if (quote || comment || stack.length) throw Error('Unbalanced CSS value.');
+}
+function patchDeclarations(source, values) {
+  for (const [key, value] of Object.entries(values)) validateValue(key, value);
+  let next = source;
+  for (const [property, value] of Object.entries(values)) {
+    const key = propertyKey(property),
+      declarations = parseDeclarations(next),
+      matches = declarations.filter((d) => propertyKey(d.property) === key),
+      current = declarationValues(declarations)[key];
+    if (
+      ((value == null || value === '') && !matches.length) ||
+      (value != null && String(value).trim() === current)
+    )
+      continue;
+    for (const d of matches.reverse())
+      next = next.slice(0, d.start) + comments(d.raw).join(' ') + next.slice(d.end);
+    if (value != null && value !== '') {
+      next = next.trimEnd();
+      if (next && !next.endsWith(';') && !next.endsWith('*/')) next += ';';
+      next += (next ? '\n  ' : '  ') + property + ': ' + String(value).trim() + ';\n';
+    }
+  }
+  return next;
+}
 /** Tokenize selectors without interpreting colons/classes inside strings, comments or attributes. */
-export function tokenizeHtmlStateSelector(selector){
- const tokens=[];let quote='',bracket=0;
- for(let i=0;i<selector.length;){const c=selector[i];if(quote){if(c==='\\'){i=escapeEnd(selector,i);continue;}if(c===quote)quote='';i++;continue;}if(c==='/'&&selector[i+1]==='*'){const end=selector.indexOf('*/',i+2);i=end<0?selector.length:end+2;continue;}if(c==='"'||c==="'"){quote=c;i++;continue;}if(c==='['){const start=i;let q='';for(i++;i<selector.length;i++){const x=selector[i];if(q){if(x==='\\'){i=escapeEnd(selector,i)-1;continue;}if(x===q)q='';continue;}if(x==='"'||x==="'"){q=x;continue;}if(x===']'){i++;break;}}const raw=selector.slice(start,i),match=raw.match(/^\[\s*([\w-]+)\s*(?:(~=|=)\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\]\s]+))\s*)?\]$/);tokens.push({kind:'attribute',start,end:i,raw,name:match?.[1],operator:match?.[2],value:match?unescapeCss(match[3]??match[4]??match[5]??''):undefined});continue;}if(c==='\\'){i=escapeEnd(selector,i);continue;}if(c===':'||c==='.'){const start=i,kind=c===':'?'pseudo':'class';if(c===':'&&selector[i+1]===':'){i+=2;while(/[\w-]/.test(selector[i]||''))i++;continue;}i++;let raw='';while(i<selector.length){if(selector[i]==='\\'){const end=escapeEnd(selector,i);raw+=selector.slice(i,end);i=end;continue;}if(/[\w-]/.test(selector[i])){raw+=selector[i++];continue;}break;}if(raw)tokens.push({kind,start,end:i,raw:selector.slice(start,i),name:kind==='pseudo'?unescapeCss(raw).toLowerCase():unescapeCss(raw)});continue;}i++;}
- return tokens;
+export function tokenizeHtmlStateSelector(selector) {
+  const tokens = [];
+  let quote = '',
+    bracket = 0;
+  for (let i = 0; i < selector.length;) {
+    const c = selector[i];
+    if (quote) {
+      if (c === '\\') {
+        i = escapeEnd(selector, i);
+        continue;
+      }
+      if (c === quote) quote = '';
+      i++;
+      continue;
+    }
+    if (c === '/' && selector[i + 1] === '*') {
+      const end = selector.indexOf('*/', i + 2);
+      i = end < 0 ? selector.length : end + 2;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      i++;
+      continue;
+    }
+    if (c === '[') {
+      const start = i;
+      let q = '';
+      for (i++; i < selector.length; i++) {
+        const x = selector[i];
+        if (q) {
+          if (x === '\\') {
+            i = escapeEnd(selector, i) - 1;
+            continue;
+          }
+          if (x === q) q = '';
+          continue;
+        }
+        if (x === '"' || x === "'") {
+          q = x;
+          continue;
+        }
+        if (x === ']') {
+          i++;
+          break;
+        }
+      }
+      const raw = selector.slice(start, i),
+        match = raw.match(
+          /^\[\s*([\w-]+)\s*(?:(~=|=)\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\]\s]+))\s*)?\]$/,
+        );
+      tokens.push({
+        kind: 'attribute',
+        start,
+        end: i,
+        raw,
+        name: match?.[1],
+        operator: match?.[2],
+        value: match ? unescapeCss(match[3] ?? match[4] ?? match[5] ?? '') : undefined,
+      });
+      continue;
+    }
+    if (c === '\\') {
+      i = escapeEnd(selector, i);
+      continue;
+    }
+    if (c === ':' || c === '.') {
+      const start = i,
+        kind = c === ':' ? 'pseudo' : 'class';
+      if (c === ':' && selector[i + 1] === ':') {
+        i += 2;
+        while (/[\w-]/.test(selector[i] || '')) i++;
+        continue;
+      }
+      i++;
+      let raw = '';
+      while (i < selector.length) {
+        if (selector[i] === '\\') {
+          const end = escapeEnd(selector, i);
+          raw += selector.slice(i, end);
+          i = end;
+          continue;
+        }
+        if (/[\w-]/.test(selector[i])) {
+          raw += selector[i++];
+          continue;
+        }
+        break;
+      }
+      if (raw)
+        tokens.push({
+          kind,
+          start,
+          end: i,
+          raw: selector.slice(start, i),
+          name: kind === 'pseudo' ? unescapeCss(raw).toLowerCase() : unescapeCss(raw),
+        });
+      continue;
+    }
+    i++;
+  }
+  return tokens;
 }
-function selectorInfo(selector,authored=false){const tokens=tokenizeHtmlStateSelector(selector),pseudos=tokens.filter(t=>t.kind==='pseudo'&&PSEUDOS.has(t.name));if(pseudos.length)return {kind:pseudos[0].name,name:pseudos.map(t=>t.name).join(' + '),tokens,pseudos};const named=tokens.find(t=>t.kind==='attribute'&&t.name==='data-xamora-state');if(named)return {kind:'named',name:named.value,attribute:named.name,value:named.value,tokens,pseudos};const data=tokens.find(t=>t.kind==='attribute'&&t.name?.startsWith('data-')&&t.name!=='data-xamora-target');if(data)return {kind:'data',name:data.value||data.name,attribute:data.name,value:data.value,tokens,pseudos};const classes=tokens.filter(t=>t.kind==='class'),stateClass=authored?classes.at(-1):classes.find(t=>/^(is-|state-)/.test(t.name));if(stateClass)return {kind:'class',name:stateClass.name,tokens,pseudos};return null;}
-function replaceSelectorTokens(selector,tokens,replacement){let result=selector;for(const token of tokens.slice().sort((a,b)=>b.start-a.start))result=result.slice(0,token.start)+replacement(token)+result.slice(token.end);return result;}
-function baseSelector(selector,info){if(info.pseudos.length)return replaceSelectorTokens(selector,info.pseudos,()=>':where(*)');const tokens=info.kind==='class'?info.tokens.filter(t=>t.kind==='class'&&t.name===info.name):info.tokens.filter(t=>t.kind==='attribute'&&t.name===info.attribute);return replaceSelectorTokens(selector,tokens,()=>':where(*)');}
-function sourceEntries(doc){html(doc);const entries=[],diagnostics=[];walk(doc.root,node=>{if(node.type==='link'&&/stylesheet/i.test(node.props.rel||''))diagnostics.push({severity:'info',message:'External stylesheet states can run in preview; import their CSS to edit rules.',nodeId:node.id});if(node.type!=='style')return;const source=styleText(node),ast=parseCssAnimationStylesheet(source),authored=Object.hasOwn(node.props,'data-xamora-states');entries.push({node,source,ast,authored});diagnostics.push(...ast.diagnostics.map(d=>({...d,nodeId:node.id})));});return {entries,diagnostics};}
-function conditions(rule){const headers=[];for(let p=rule.parent;p;p=p.parent)headers.unshift(p.header);return headers;}
-function allStateRules(doc,options={}){const catalog=sourceEntries(doc),states=[];for(const entry of catalog.entries){const occurrences=new Map();for(const rule of entry.ast.rules){if(rule.kind!=='rule'||rule.header.startsWith('@'))continue;const info=selectorInfo(rule.header,entry.authored);if(!info)continue;const occurrence=occurrences.get(rule.header)||0;occurrences.set(rule.header,occurrence+1);const targetIds=[],base=baseSelector(rule.header,info);for(const [id,native]of options.elements||[]){try{if(native.matches(base))targetIds.push(id);}catch{catalog.diagnostics.push({severity:'warning',message:'This selector is preserved but the browser cannot match it: '+rule.header,nodeId:entry.node.id});break;}}const binding=info.tokens.find(t=>t.kind==='attribute'&&t.name==='data-xamora-target');if(binding)walk(doc.root,n=>{if(n.kind==='element'&&(n.props['data-xamora-target']||'').split(/\s+/).includes(binding.value)&&!targetIds.includes(n.id))targetIds.push(n.id);});states.push({id:entry.node.id+':state:'+encodeURIComponent(rule.header)+':'+occurrence,styleId:entry.node.id,selector:rule.header,kind:info.kind,name:info.name,attribute:info.attribute,value:info.value,values:declarationValues(rule.declarations||[]),authored:entry.authored,targetIds,conditions:conditions(rule),binding:binding?.value,entry,rule,info});}}return {...catalog,states};}
-function publicState({entry,rule,info,...state}){return state;}
-export function listHtmlStates(doc,options={}){const result=allStateRules(doc,options),transitions=[];walk(doc.root,node=>{if(node.kind!=='element'||['style','script','head','meta','link'].includes(node.type)||options.nodeId&&node.id!==options.nodeId)return;try{const items=getHtmlTransitions(doc,node.id,options);if(items.some(item=>item.duration||item.property!=='all'))transitions.push({nodeId:node.id,items});}catch(error){result.diagnostics.push({severity:'warning',nodeId:node.id,message:error.message});}});return {states:result.states.filter(s=>!options.nodeId||!options.elements||s.targetIds.includes(options.nodeId)).map(publicState),transitions,diagnostics:result.diagnostics};}
-function stateDefinition(doc,id){const found=allStateRules(doc).states.find(s=>s.id===id);if(!found)throw Error('The CSS state rule no longer exists. Refresh the state panel.');if(found.entry.ast.diagnostics.some(d=>d.severity==='error'))throw Error('Fix CSS syntax errors before editing the state rule.');return found;}
-function target(doc,nodeId){html(doc);const node=find(doc.root,nodeId);if(node?.kind!=='element'||['style','script','head','meta','link'].includes(node.type))throw Error('Choose a visible HTML element.');return node;}
-function uniqueBinding(doc){const used=new Set();walk(doc.root,node=>{for(const name of (node.props?.['data-xamora-target']||'').split(/\s+/))used.add(name);});let i=1;while(used.has('state-target-'+i))i++;return 'state-target-'+i;}
-export function createHtmlState(doc,nodeId,{kind='hover',name,attribute='data-state',value,values={}}={}){const node=target(doc,nodeId);if(!PSEUDOS.has(kind)&&!['class','data','named'].includes(kind))throw Error('Unsupported interaction state kind.');for(const [property,v]of Object.entries(values))validateValue(property,v);values=recordedValues([node],values);if(!PSEUDOS.has(kind))name=safeName(name||value||'expanded');if(kind==='data'&&!/^data-[a-z][\w-]*$/.test(attribute))throw Error('Use a data-* attribute for data states.');const binding=uniqueBinding(doc),base='[data-xamora-target~='+cssString(binding)+']',suffix=PSEUDOS.has(kind)?':'+kind:kind==='class'?'.'+ident(name):kind==='named'?'[data-xamora-state~='+cssString(name)+']':'['+attribute+'='+cssString(value??name)+']';let style=sourceEntries(doc).entries.find(e=>e.authored)?.node;if(!style){style=element('style',{'data-xamora-states':''},[textNode('/* Interaction states authored in Xamora Studio. */\n')]);htmlHead(doc).children.push(style);}node.props['data-xamora-target']=[...(node.props['data-xamora-target']||'').split(/\s+/).filter(Boolean),binding].join(' ');const selector=base+suffix,source=styleText(style);setText(style,source+(source.endsWith('\n')?'':'\n')+selector+' {\n'+patchDeclarations('',values)+'}\n');const created=publicState(allStateRules(doc).states.find(s=>s.styleId===style.id&&s.selector===selector));return recordHtmlStateProperties(doc,created.id,nodeId,values);}
-export function bindHtmlState(doc,stateId,nodeId){const state=stateDefinition(doc,stateId),node=target(doc,nodeId);if(!state.binding)throw Error('Imported selectors bind through their CSS selector. Edit the selector or create an authored reusable state.');const values=new Set((node.props['data-xamora-target']||'').split(/\s+/).filter(Boolean));values.add(state.binding);node.props['data-xamora-target']=[...values].join(' ');return publicState(stateDefinition(doc,stateId));}
-export function setHtmlStateProperties(doc,stateId,values){const state=stateDefinition(doc,stateId),body=state.entry.source.slice(state.rule.bodyStart,state.rule.bodyEnd),next=patchDeclarations(body,values);if(next!==body)setText(state.entry.node,state.entry.source.slice(0,state.rule.bodyStart)+next+state.entry.source.slice(state.rule.bodyEnd));return publicState(stateDefinition(doc,stateId));}
-/** State properties are authored directly into CSS, leaving target base values unchanged. */
-function recordedValues(nodes,values){const next={...values};for(const [property,value]of Object.entries(next)){if(value==null||value==='')continue;const conflicts=nodes.flatMap(n=>parseDeclarations(n.props.style||'').filter(d=>propertyKey(d.property)===propertyKey(property)||!property.startsWith('--')&&(d.property==='all'||propertyKey(property).startsWith(propertyKey(d.property)+'-')||propertyKey(d.property).startsWith(propertyKey(property)+'-'))));if(conflicts.some(d=>/!important\s*$/i.test(d.value)))throw Error('The inline '+property+' base value is !important. Remove that priority in base CSS before recording this state.');if(conflicts.length&&!/!important\s*$/i.test(value))next[property]=String(value)+' !important';}return next;}
-export function recordHtmlStateProperties(doc,stateId,nodeId,values){const node=target(doc,nodeId),state=stateDefinition(doc,stateId),targets=[node];if(state.binding)walk(doc.root,n=>{if(n.kind==='element'&&(n.props['data-xamora-target']||'').split(/\s+/).includes(state.binding)&&!targets.includes(n))targets.push(n);});return setHtmlStateProperties(doc,stateId,recordedValues(targets,values));}
-
-export function removeHtmlState(doc,stateId){
- const state=stateDefinition(doc,stateId);setText(state.entry.node,state.entry.source.slice(0,state.rule.start)+state.entry.source.slice(state.rule.end));
- if(state.kind==='named'&&state.binding&&!allStateRules(doc).states.some(other=>other.kind==='named'&&other.binding===state.binding&&other.name===state.name)){
-  let hasActions=false,hasUnparsedActions=false;
-  walk(doc.root,node=>{if(node.kind!=='element'||!Object.hasOwn(node.props,'data-xamora-state-actions'))return;let records;try{records=actionRecords(node);}catch{hasUnparsedActions=true;return;}
-   const remaining=records.filter(record=>record.target!==state.binding||record.name!==state.name);
-   if(remaining.length!==records.length){if(remaining.length)node.props['data-xamora-state-actions']=JSON.stringify(remaining);else delete node.props['data-xamora-state-actions'];}
-   if(remaining.length)hasActions=true;
+function selectorInfo(selector, authored = false) {
+  const tokens = tokenizeHtmlStateSelector(selector),
+    pseudos = tokens.filter((t) => t.kind === 'pseudo' && PSEUDOS.has(t.name));
+  if (pseudos.length)
+    return { kind: pseudos[0].name, name: pseudos.map((t) => t.name).join(' + '), tokens, pseudos };
+  const named = tokens.find((t) => t.kind === 'attribute' && t.name === 'data-xamora-state');
+  if (named)
+    return {
+      kind: 'named',
+      name: named.value,
+      attribute: named.name,
+      value: named.value,
+      tokens,
+      pseudos,
+    };
+  const data = tokens.find(
+    (t) => t.kind === 'attribute' && t.name?.startsWith('data-') && t.name !== 'data-xamora-target',
+  );
+  if (data)
+    return {
+      kind: 'data',
+      name: data.value || data.name,
+      attribute: data.name,
+      value: data.value,
+      tokens,
+      pseudos,
+    };
+  const classes = tokens.filter((t) => t.kind === 'class'),
+    stateClass = authored ? classes.at(-1) : classes.find((t) => /^(is-|state-)/.test(t.name));
+  if (stateClass) return { kind: 'class', name: stateClass.name, tokens, pseudos };
+  return null;
+}
+function replaceSelectorTokens(selector, tokens, replacement) {
+  let result = selector;
+  for (const token of tokens.slice().sort((a, b) => b.start - a.start))
+    result = result.slice(0, token.start) + replacement(token) + result.slice(token.end);
+  return result;
+}
+function baseSelector(selector, info) {
+  if (info.pseudos.length) return replaceSelectorTokens(selector, info.pseudos, () => ':where(*)');
+  const tokens =
+    info.kind === 'class'
+      ? info.tokens.filter((t) => t.kind === 'class' && t.name === info.name)
+      : info.tokens.filter((t) => t.kind === 'attribute' && t.name === info.attribute);
+  return replaceSelectorTokens(selector, tokens, () => ':where(*)');
+}
+function sourceEntries(doc) {
+  html(doc);
+  const entries = [],
+    diagnostics = [];
+  walk(doc.root, (node) => {
+    if (node.type === 'link' && /stylesheet/i.test(node.props.rel || ''))
+      diagnostics.push({
+        severity: 'info',
+        message: 'External stylesheet states can run in preview; import their CSS to edit rules.',
+        nodeId: node.id,
+      });
+    if (node.type !== 'style') return;
+    const source = styleText(node),
+      ast = parseCssAnimationStylesheet(source),
+      authored = Object.hasOwn(node.props, 'data-xamora-states');
+    entries.push({ node, source, ast, authored });
+    diagnostics.push(...ast.diagnostics.map((d) => ({ ...d, nodeId: node.id })));
   });
-  if(!hasActions&&!hasUnparsedActions)walk(doc.root,node=>{if(node.children)node.children=node.children.filter(child=>!(child.type==='script'&&Object.hasOwn(child.props,'data-xamora-state-runtime')));});
- }
- return state.name;
+  return { entries, diagnostics };
 }
-function parseTime(value){const m=String(value).match(/^(-?(?:\d+(?:\.\d*)?|\.\d+))(ms|s)$/i);return m?Number(m[1])*(m[2].toLowerCase()==='s'?1000:1):NaN;}
-function transitionShorthand(source){return splitCssList(source).map(item=>{const result={...DEFAULT};let times=0,named=false;for(const token of splitCssList(stripComments(item),' ')){if(Number.isFinite(parseTime(token))){if(times>1)throw Error('Too many transition time values.');result[times++?'delay':'duration']=parseTime(token);}else if(EASINGS.has(token)||/^(?:cubic-bezier|steps|linear)\(/.test(token))result.easing=token;else if(['normal','allow-discrete'].includes(token))result.behavior=token;else if(!named){result.property=unescapeCss(token);named=true;}else throw Error('Ambiguous CSS transition shorthand; edit its source or resolve it in the preview.');}return result;});}
-function readField(key,value){return ['duration','delay'].includes(key)?parseTime(value):value;}
-function inlineTransitions(source,initial=[DEFAULT]){const fields=Object.fromEntries(Object.keys(TIMING).map(k=>[k,initial.map(i=>i[k])])),priority={};const assign=(key,values,important)=>{if(priority[key]&&!important)return;fields[key]=values;priority[key]=important;};for(const d of parseDeclarations(source)){const property=d.property.toLowerCase();if(!/^transition(?:-|$)/.test(property))continue;const value=d.value.replace(/\s*!important\s*$/i,''),important=/!important\s*$/i.test(d.value);if(/(?:var|env)\(/i.test(value)||/^(?:inherit|initial|unset|revert|revert-layer)$/.test(value)){if(initial!==undefined&&initial!==null&&initial.length&&initial!==DEFAULT)throw Error('Variable-dependent transitions require a resolved design preview.');}if(property==='transition'){const list=transitionShorthand(value);for(const key of Object.keys(TIMING))assign(key,list.map(item=>item[key]),important);}else{const key=Object.keys(TIMING).find(k=>TIMING[k]===property);if(key)assign(key,splitCssList(value).map(v=>readField(key,v)),important);}}return fields.property.map((property,index)=>Object.fromEntries(Object.entries(fields).map(([key,values])=>[key,values[index%values.length]??DEFAULT[key]])));}
-function computedTransitions(native){const document=native?.ownerDocument,view=document?.defaultView;if(!view?.getComputedStyle)return null;const freezes=[...(document.querySelectorAll?.('style[data-xamora-design-transitions]')||[])].filter(s=>s.sheet).map(s=>[s.sheet,s.sheet.disabled]);try{for(const [sheet]of freezes)sheet.disabled=true;const css=view.getComputedStyle(native),properties=splitCssList(css.getPropertyValue('transition-property')||'all'),fields={};for(const [key,property]of Object.entries(TIMING))fields[key]=splitCssList(css.getPropertyValue(property));return properties.map((property,index)=>Object.fromEntries(Object.keys(TIMING).map(key=>[key,fields[key].length?readField(key,fields[key][index%fields[key].length]):DEFAULT[key]])));}finally{for(const [sheet,disabled]of freezes)sheet.disabled=disabled;}}
+function conditions(rule) {
+  const headers = [];
+  for (let p = rule.parent; p; p = p.parent) headers.unshift(p.header);
+  return headers;
+}
+function allStateRules(doc, options = {}) {
+  const catalog = sourceEntries(doc),
+    states = [];
+  for (const entry of catalog.entries) {
+    const occurrences = new Map();
+    for (const rule of entry.ast.rules) {
+      if (rule.kind !== 'rule' || rule.header.startsWith('@')) continue;
+      const info = selectorInfo(rule.header, entry.authored);
+      if (!info) continue;
+      const occurrence = occurrences.get(rule.header) || 0;
+      occurrences.set(rule.header, occurrence + 1);
+      const targetIds = [],
+        base = baseSelector(rule.header, info);
+      for (const [id, native] of options.elements || []) {
+        try {
+          if (native.matches(base)) targetIds.push(id);
+        } catch {
+          catalog.diagnostics.push({
+            severity: 'warning',
+            message: 'This selector is preserved but the browser cannot match it: ' + rule.header,
+            nodeId: entry.node.id,
+          });
+          break;
+        }
+      }
+      const binding = info.tokens.find(
+        (t) => t.kind === 'attribute' && t.name === 'data-xamora-target',
+      );
+      if (binding)
+        walk(doc.root, (n) => {
+          if (
+            n.kind === 'element' &&
+            (n.props['data-xamora-target'] || '').split(/\s+/).includes(binding.value) &&
+            !targetIds.includes(n.id)
+          )
+            targetIds.push(n.id);
+        });
+      states.push({
+        id: entry.node.id + ':state:' + encodeURIComponent(rule.header) + ':' + occurrence,
+        styleId: entry.node.id,
+        selector: rule.header,
+        kind: info.kind,
+        name: info.name,
+        attribute: info.attribute,
+        value: info.value,
+        values: declarationValues(rule.declarations || []),
+        authored: entry.authored,
+        targetIds,
+        conditions: conditions(rule),
+        binding: binding?.value,
+        entry,
+        rule,
+        info,
+      });
+    }
+  }
+  return { ...catalog, states };
+}
+function publicState({ entry, rule, info, ...state }) {
+  return state;
+}
+export function listHtmlStates(doc, options = {}) {
+  const result = allStateRules(doc, options),
+    transitions = [];
+  walk(doc.root, (node) => {
+    if (
+      node.kind !== 'element' ||
+      ['style', 'script', 'head', 'meta', 'link'].includes(node.type) ||
+      (options.nodeId && node.id !== options.nodeId)
+    )
+      return;
+    try {
+      const items = getHtmlTransitions(doc, node.id, options);
+      if (items.some((item) => item.duration || item.property !== 'all'))
+        transitions.push({ nodeId: node.id, items });
+    } catch (error) {
+      result.diagnostics.push({ severity: 'warning', nodeId: node.id, message: error.message });
+    }
+  });
+  return {
+    states: result.states
+      .filter((s) => !options.nodeId || !options.elements || s.targetIds.includes(options.nodeId))
+      .map(publicState),
+    transitions,
+    diagnostics: result.diagnostics,
+  };
+}
+function stateDefinition(doc, id) {
+  const found = allStateRules(doc).states.find((s) => s.id === id);
+  if (!found) throw Error('The CSS state rule no longer exists. Refresh the state panel.');
+  if (found.entry.ast.diagnostics.some((d) => d.severity === 'error'))
+    throw Error('Fix CSS syntax errors before editing the state rule.');
+  return found;
+}
+function target(doc, nodeId) {
+  html(doc);
+  const node = find(doc.root, nodeId);
+  if (node?.kind !== 'element' || ['style', 'script', 'head', 'meta', 'link'].includes(node.type))
+    throw Error('Choose a visible HTML element.');
+  return node;
+}
+function uniqueBinding(doc) {
+  const used = new Set();
+  walk(doc.root, (node) => {
+    for (const name of (node.props?.['data-xamora-target'] || '').split(/\s+/)) used.add(name);
+  });
+  let i = 1;
+  while (used.has('state-target-' + i)) i++;
+  return 'state-target-' + i;
+}
+export function createHtmlState(
+  doc,
+  nodeId,
+  { kind = 'hover', name, attribute = 'data-state', value, values = {} } = {},
+) {
+  const node = target(doc, nodeId);
+  if (!PSEUDOS.has(kind) && !['class', 'data', 'named'].includes(kind))
+    throw Error('Unsupported interaction state kind.');
+  for (const [property, v] of Object.entries(values)) validateValue(property, v);
+  values = recordedValues([node], values);
+  if (!PSEUDOS.has(kind)) name = safeName(name || value || 'expanded');
+  if (kind === 'data' && !/^data-[a-z][\w-]*$/.test(attribute))
+    throw Error('Use a data-* attribute for data states.');
+  const binding = uniqueBinding(doc),
+    base = '[data-xamora-target~=' + cssString(binding) + ']',
+    suffix = PSEUDOS.has(kind)
+      ? ':' + kind
+      : kind === 'class'
+        ? '.' + ident(name)
+        : kind === 'named'
+          ? '[data-xamora-state~=' + cssString(name) + ']'
+          : '[' + attribute + '=' + cssString(value ?? name) + ']';
+  let style = sourceEntries(doc).entries.find((e) => e.authored)?.node;
+  if (!style) {
+    style = element('style', { 'data-xamora-states': '' }, [
+      textNode('/* Interaction states authored in Xamora Studio. */\n'),
+    ]);
+    htmlHead(doc).children.push(style);
+  }
+  node.props['data-xamora-target'] = [
+    ...(node.props['data-xamora-target'] || '').split(/\s+/).filter(Boolean),
+    binding,
+  ].join(' ');
+  const selector = base + suffix,
+    source = styleText(style);
+  setText(
+    style,
+    source +
+      (source.endsWith('\n') ? '' : '\n') +
+      selector +
+      ' {\n' +
+      patchDeclarations('', values) +
+      '}\n',
+  );
+  const created = publicState(
+    allStateRules(doc).states.find((s) => s.styleId === style.id && s.selector === selector),
+  );
+  return recordHtmlStateProperties(doc, created.id, nodeId, values);
+}
+export function bindHtmlState(doc, stateId, nodeId) {
+  const state = stateDefinition(doc, stateId),
+    node = target(doc, nodeId);
+  if (!state.binding)
+    throw Error(
+      'Imported selectors bind through their CSS selector. Edit the selector or create an authored reusable state.',
+    );
+  const values = new Set((node.props['data-xamora-target'] || '').split(/\s+/).filter(Boolean));
+  values.add(state.binding);
+  node.props['data-xamora-target'] = [...values].join(' ');
+  return publicState(stateDefinition(doc, stateId));
+}
+export function setHtmlStateProperties(doc, stateId, values) {
+  const state = stateDefinition(doc, stateId),
+    body = state.entry.source.slice(state.rule.bodyStart, state.rule.bodyEnd),
+    next = patchDeclarations(body, values);
+  if (next !== body)
+    setText(
+      state.entry.node,
+      state.entry.source.slice(0, state.rule.bodyStart) +
+        next +
+        state.entry.source.slice(state.rule.bodyEnd),
+    );
+  return publicState(stateDefinition(doc, stateId));
+}
+/** State properties are authored directly into CSS, leaving target base values unchanged. */
+function recordedValues(nodes, values) {
+  const next = { ...values };
+  for (const [property, value] of Object.entries(next)) {
+    if (value == null || value === '') continue;
+    const conflicts = nodes.flatMap((n) =>
+      parseDeclarations(n.props.style || '').filter(
+        (d) =>
+          propertyKey(d.property) === propertyKey(property) ||
+          (!property.startsWith('--') &&
+            (d.property === 'all' ||
+              propertyKey(property).startsWith(propertyKey(d.property) + '-') ||
+              propertyKey(d.property).startsWith(propertyKey(property) + '-'))),
+      ),
+    );
+    if (conflicts.some((d) => /!important\s*$/i.test(d.value)))
+      throw Error(
+        'The inline ' +
+          property +
+          ' base value is !important. Remove that priority in base CSS before recording this state.',
+      );
+    if (conflicts.length && !/!important\s*$/i.test(value))
+      next[property] = String(value) + ' !important';
+  }
+  return next;
+}
+export function recordHtmlStateProperties(doc, stateId, nodeId, values) {
+  const node = target(doc, nodeId),
+    state = stateDefinition(doc, stateId),
+    targets = [node];
+  if (state.binding)
+    walk(doc.root, (n) => {
+      if (
+        n.kind === 'element' &&
+        (n.props['data-xamora-target'] || '').split(/\s+/).includes(state.binding) &&
+        !targets.includes(n)
+      )
+        targets.push(n);
+    });
+  return setHtmlStateProperties(doc, stateId, recordedValues(targets, values));
+}
 
-export function getHtmlTransitions(doc,nodeId,options={}){const node=target(doc,nodeId),native=options.elements?.get(nodeId),computed=computedTransitions(native);if(computed){const live=native.getAttribute?.('style');if(live!==undefined&&(live||'')===(node.props.style||''))return computed;const before=new Map(parseDeclarations(live||'').map(d=>[d.property,d.value])),changed=parseDeclarations(node.props.style||'').filter(d=>before.get(d.property)!==d.value&&!/(?:var|env)\(/i.test(d.value)).map(d=>d.raw).join('');return inlineTransitions(changed,computed);}return inlineTransitions(node.props.style||'');}
-function validateTransitions(items){if(!Array.isArray(items)||items.length>100)throw Error('Provide at most 100 CSS transitions.');for(const item of items){if(!/^(?:--[\w-]+|[a-z][\w-]*)$/i.test(item.property||''))throw Error('Use a CSS property name or all.');if(!Number.isFinite(item.duration)||item.duration<0||!Number.isFinite(item.delay))throw Error('Transition duration must be nonnegative and delay must be finite milliseconds.');if(!EASINGS.has(item.easing)&&! /^(?:cubic-bezier|steps|linear)\([^{};]+\)$/.test(item.easing))throw Error('Use a CSS easing keyword or function.');if(!['normal','allow-discrete'].includes(item.behavior))throw Error('Use normal or allow-discrete transition behavior.');}}
-function transitionValues(items){const list=items.length?items:[{...DEFAULT,property:'none'}];return Object.fromEntries(Object.entries(TIMING).map(([key,property])=>[property,list.map(item=>['duration','delay'].includes(key)?item[key]+'ms':item[key]).join(', ')]));}
-export function setHtmlTransitions(doc,nodeId,items,options={}){const node=target(doc,nodeId),list=items.map(item=>({...DEFAULT,...item}));validateTransitions(list);const current=getHtmlTransitions(doc,nodeId,options);if(JSON.stringify(current)===JSON.stringify(list))return list;const original=node.props.style||'',values=transitionValues(list);for(const [property,value]of Object.entries(values)){let important=parseDeclarations(original).some(d=>(d.property===property||d.property==='transition')&&/!important\s*$/i.test(d.value));const native=options.elements?.get(nodeId);if(native?.matches)for(const entry of sourceEntries(doc).entries)for(const rule of entry.ast.rules){if(rule.kind!=='rule'||rule.header.startsWith('@'))continue;try{if(native.matches(rule.header)&&rule.declarations?.some(d=>(d.property===property||d.property==='transition')&&/!important\s*$/i.test(d.value)))important=true;}catch{}}if(important)values[property]=value+' !important';}const next=patchDeclarations(original,values);if(next!==original)node.props.style=next;return list;}
-export function setHtmlStateTransitions(doc,stateId,items){const list=items.map(item=>({...DEFAULT,...item}));validateTransitions(list);return setHtmlStateProperties(doc,stateId,transitionValues(list));}
-export function getHtmlStateTransitions(doc,stateId){return inlineTransitions(stateDefinition(doc,stateId).entry.source.slice(stateDefinition(doc,stateId).rule.bodyStart,stateDefinition(doc,stateId).rule.bodyEnd));}
-export function exportHtmlStateCss(doc){return sourceEntries(doc).entries.map(e=>e.source).join('\n\n');}
+export function removeHtmlState(doc, stateId) {
+  const state = stateDefinition(doc, stateId);
+  setText(
+    state.entry.node,
+    state.entry.source.slice(0, state.rule.start) + state.entry.source.slice(state.rule.end),
+  );
+  if (
+    state.kind === 'named' &&
+    state.binding &&
+    !allStateRules(doc).states.some(
+      (other) =>
+        other.kind === 'named' && other.binding === state.binding && other.name === state.name,
+    )
+  ) {
+    let hasActions = false,
+      hasUnparsedActions = false;
+    walk(doc.root, (node) => {
+      if (node.kind !== 'element' || !Object.hasOwn(node.props, 'data-xamora-state-actions'))
+        return;
+      let records;
+      try {
+        records = actionRecords(node);
+      } catch {
+        hasUnparsedActions = true;
+        return;
+      }
+      const remaining = records.filter(
+        (record) => record.target !== state.binding || record.name !== state.name,
+      );
+      if (remaining.length !== records.length) {
+        if (remaining.length) node.props['data-xamora-state-actions'] = JSON.stringify(remaining);
+        else delete node.props['data-xamora-state-actions'];
+      }
+      if (remaining.length) hasActions = true;
+    });
+    if (!hasActions && !hasUnparsedActions)
+      walk(doc.root, (node) => {
+        if (node.children)
+          node.children = node.children.filter(
+            (child) =>
+              !(child.type === 'script' && Object.hasOwn(child.props, 'data-xamora-state-runtime')),
+          );
+      });
+  }
+  return state.name;
+}
+function parseTime(value) {
+  const m = String(value).match(/^(-?(?:\d+(?:\.\d*)?|\.\d+))(ms|s)$/i);
+  return m ? Number(m[1]) * (m[2].toLowerCase() === 's' ? 1000 : 1) : NaN;
+}
+function transitionShorthand(source) {
+  return splitCssList(source).map((item) => {
+    const result = { ...DEFAULT };
+    let times = 0,
+      named = false;
+    for (const token of splitCssList(stripComments(item), ' ')) {
+      if (Number.isFinite(parseTime(token))) {
+        if (times > 1) throw Error('Too many transition time values.');
+        result[times++ ? 'delay' : 'duration'] = parseTime(token);
+      } else if (EASINGS.has(token) || /^(?:cubic-bezier|steps|linear)\(/.test(token))
+        result.easing = token;
+      else if (['normal', 'allow-discrete'].includes(token)) result.behavior = token;
+      else if (!named) {
+        result.property = unescapeCss(token);
+        named = true;
+      } else
+        throw Error(
+          'Ambiguous CSS transition shorthand; edit its source or resolve it in the preview.',
+        );
+    }
+    return result;
+  });
+}
+function readField(key, value) {
+  return ['duration', 'delay'].includes(key) ? parseTime(value) : value;
+}
+function inlineTransitions(source, initial = [DEFAULT]) {
+  const fields = Object.fromEntries(Object.keys(TIMING).map((k) => [k, initial.map((i) => i[k])])),
+    priority = {};
+  const assign = (key, values, important) => {
+    if (priority[key] && !important) return;
+    fields[key] = values;
+    priority[key] = important;
+  };
+  for (const d of parseDeclarations(source)) {
+    const property = d.property.toLowerCase();
+    if (!/^transition(?:-|$)/.test(property)) continue;
+    const value = d.value.replace(/\s*!important\s*$/i, ''),
+      important = /!important\s*$/i.test(d.value);
+    if (
+      /(?:var|env)\(/i.test(value) ||
+      /^(?:inherit|initial|unset|revert|revert-layer)$/.test(value)
+    ) {
+      if (initial !== undefined && initial !== null && initial.length && initial !== DEFAULT)
+        throw Error('Variable-dependent transitions require a resolved design preview.');
+    }
+    if (property === 'transition') {
+      const list = transitionShorthand(value);
+      for (const key of Object.keys(TIMING))
+        assign(
+          key,
+          list.map((item) => item[key]),
+          important,
+        );
+    } else {
+      const key = Object.keys(TIMING).find((k) => TIMING[k] === property);
+      if (key)
+        assign(
+          key,
+          splitCssList(value).map((v) => readField(key, v)),
+          important,
+        );
+    }
+  }
+  return fields.property.map((property, index) =>
+    Object.fromEntries(
+      Object.entries(fields).map(([key, values]) => [
+        key,
+        values[index % values.length] ?? DEFAULT[key],
+      ]),
+    ),
+  );
+}
+function computedTransitions(native) {
+  const document = native?.ownerDocument,
+    view = document?.defaultView;
+  if (!view?.getComputedStyle) return null;
+  const freezes = [...(document.querySelectorAll?.('style[data-xamora-design-transitions]') || [])]
+    .filter((s) => s.sheet)
+    .map((s) => [s.sheet, s.sheet.disabled]);
+  try {
+    for (const [sheet] of freezes) sheet.disabled = true;
+    const css = view.getComputedStyle(native),
+      properties = splitCssList(css.getPropertyValue('transition-property') || 'all'),
+      fields = {};
+    for (const [key, property] of Object.entries(TIMING))
+      fields[key] = splitCssList(css.getPropertyValue(property));
+    return properties.map((property, index) =>
+      Object.fromEntries(
+        Object.keys(TIMING).map((key) => [
+          key,
+          fields[key].length
+            ? readField(key, fields[key][index % fields[key].length])
+            : DEFAULT[key],
+        ]),
+      ),
+    );
+  } finally {
+    for (const [sheet, disabled] of freezes) sheet.disabled = disabled;
+  }
+}
+
+export function getHtmlTransitions(doc, nodeId, options = {}) {
+  const node = target(doc, nodeId),
+    native = options.elements?.get(nodeId),
+    computed = computedTransitions(native);
+  if (computed) {
+    const live = native.getAttribute?.('style');
+    if (live !== undefined && (live || '') === (node.props.style || '')) return computed;
+    const before = new Map(parseDeclarations(live || '').map((d) => [d.property, d.value])),
+      changed = parseDeclarations(node.props.style || '')
+        .filter((d) => before.get(d.property) !== d.value && !/(?:var|env)\(/i.test(d.value))
+        .map((d) => d.raw)
+        .join('');
+    return inlineTransitions(changed, computed);
+  }
+  return inlineTransitions(node.props.style || '');
+}
+function validateTransitions(items) {
+  if (!Array.isArray(items) || items.length > 100)
+    throw Error('Provide at most 100 CSS transitions.');
+  for (const item of items) {
+    if (!/^(?:--[\w-]+|[a-z][\w-]*)$/i.test(item.property || ''))
+      throw Error('Use a CSS property name or all.');
+    if (!Number.isFinite(item.duration) || item.duration < 0 || !Number.isFinite(item.delay))
+      throw Error('Transition duration must be nonnegative and delay must be finite milliseconds.');
+    if (
+      !EASINGS.has(item.easing) &&
+      !/^(?:cubic-bezier|steps|linear)\([^{};]+\)$/.test(item.easing)
+    )
+      throw Error('Use a CSS easing keyword or function.');
+    if (!['normal', 'allow-discrete'].includes(item.behavior))
+      throw Error('Use normal or allow-discrete transition behavior.');
+  }
+}
+function transitionValues(items) {
+  const list = items.length ? items : [{ ...DEFAULT, property: 'none' }];
+  return Object.fromEntries(
+    Object.entries(TIMING).map(([key, property]) => [
+      property,
+      list
+        .map((item) => (['duration', 'delay'].includes(key) ? item[key] + 'ms' : item[key]))
+        .join(', '),
+    ]),
+  );
+}
+export function setHtmlTransitions(doc, nodeId, items, options = {}) {
+  const node = target(doc, nodeId),
+    list = items.map((item) => ({ ...DEFAULT, ...item }));
+  validateTransitions(list);
+  const current = getHtmlTransitions(doc, nodeId, options);
+  if (JSON.stringify(current) === JSON.stringify(list)) return list;
+  const original = node.props.style || '',
+    values = transitionValues(list);
+  for (const [property, value] of Object.entries(values)) {
+    let important = parseDeclarations(original).some(
+      (d) =>
+        (d.property === property || d.property === 'transition') && /!important\s*$/i.test(d.value),
+    );
+    const native = options.elements?.get(nodeId);
+    if (native?.matches)
+      for (const entry of sourceEntries(doc).entries)
+        for (const rule of entry.ast.rules) {
+          if (rule.kind !== 'rule' || rule.header.startsWith('@')) continue;
+          try {
+            if (
+              native.matches(rule.header) &&
+              rule.declarations?.some(
+                (d) =>
+                  (d.property === property || d.property === 'transition') &&
+                  /!important\s*$/i.test(d.value),
+              )
+            )
+              important = true;
+          } catch {}
+        }
+    if (important) values[property] = value + ' !important';
+  }
+  const next = patchDeclarations(original, values);
+  if (next !== original) node.props.style = next;
+  return list;
+}
+export function setHtmlStateTransitions(doc, stateId, items) {
+  const list = items.map((item) => ({ ...DEFAULT, ...item }));
+  validateTransitions(list);
+  return setHtmlStateProperties(doc, stateId, transitionValues(list));
+}
+export function getHtmlStateTransitions(doc, stateId) {
+  return inlineTransitions(
+    stateDefinition(doc, stateId).entry.source.slice(
+      stateDefinition(doc, stateId).rule.bodyStart,
+      stateDefinition(doc, stateId).rule.bodyEnd,
+    ),
+  );
+}
+export function exportHtmlStateCss(doc) {
+  return sourceEntries(doc)
+    .entries.map((e) => e.source)
+    .join('\n\n');
+}
 
 /** Optional, explicit data-attribute actions; runtime is inserted only by bindHtmlStateInteraction. */
-export function exportHtmlStateRuntime(){return `for (const type of ['click', 'dblclick', 'pointerenter', 'pointerleave', 'focusin', 'focusout', 'change', 'input']) {
+export function exportHtmlStateRuntime() {
+  return `for (const type of ['click', 'dblclick', 'pointerenter', 'pointerleave', 'focusin', 'focusout', 'change', 'input']) {
   document.addEventListener(type, event => {
     const control = event.target.closest?.('[data-xamora-state-actions]');
     if (!control || (type === 'pointerenter' || type === 'pointerleave') && event.target !== control) return;
@@ -91,31 +885,260 @@ export function exportHtmlStateRuntime(){return `for (const type of ['click', 'd
       }
     }
   }, type === 'pointerenter' || type === 'pointerleave');
-}`;}
-function actionRecords(node){const source=node.props['data-xamora-state-actions'];if(!source)return [];let parsed;try{parsed=JSON.parse(source);}catch{throw Error('Fix the malformed data-xamora-state-actions JSON before editing interactions.');}if(!Array.isArray(parsed)||parsed.some(a=>!a||typeof a.name!=='string'||typeof a.target!=='string'||!EVENTS.includes(a.event)||!['toggle','set','clear'].includes(a.action)))throw Error('Invalid state interaction configuration; edit its source.');return parsed;}
-function interactionId(nodeId,record){return nodeId+':state-action:'+encodeURIComponent(record.target+':'+record.name+':'+record.event);}
-export function listHtmlStateInteractions(doc){const states=allStateRules(doc).states,result=[];walk(doc.root,node=>{if(node.kind!=='element')return;for(const record of actionRecords(node)){const state=states.find(s=>s.kind==='named'&&s.binding===record.target&&s.name===record.name);result.push({id:interactionId(node.id,record),triggerNodeId:node.id,stateId:state?.id??null,stateName:record.name,targetBinding:record.target,event:record.event,action:record.action});}});return result;}
-export function bindHtmlStateInteraction(doc,stateId,{triggerNodeId,event='click',action='toggle'}={}){const trigger=target(doc,triggerNodeId),state=stateDefinition(doc,stateId);if(state.kind!=='named'||!state.binding)throw Error('Runtime actions require an authored named state.');if(!EVENTS.includes(event)||!['toggle','set','clear'].includes(action))throw Error('Invalid state interaction event or action.');const records=actionRecords(trigger),record={name:state.name,target:state.binding,event,action},index=records.findIndex(r=>r.name===record.name&&r.target===record.target&&r.event===event);if(index<0)records.push(record);else records[index]=record;const source=JSON.stringify(records);if(trigger.props['data-xamora-state-actions']!==source)trigger.props['data-xamora-state-actions']=source;let script;walk(doc.root,node=>{if(node.type==='script'&&Object.hasOwn(node.props,'data-xamora-state-runtime'))script=node;});if(!script){script=element('script',{'data-xamora-state-runtime':''},[textNode(exportHtmlStateRuntime())]);(doc.root.children.find(n=>n.type==='body')||doc.root).children.push(script);}return listHtmlStateInteractions(doc).find(i=>i.id===interactionId(triggerNodeId,record));}
-export function removeHtmlStateInteraction(doc,id){let removed=false;walk(doc.root,node=>{if(node.kind!=='element')return;const records=actionRecords(node),remaining=records.filter(record=>interactionId(node.id,record)!==id);if(remaining.length===records.length)return;removed=true;if(remaining.length)node.props['data-xamora-state-actions']=JSON.stringify(remaining);else delete node.props['data-xamora-state-actions'];});if(!listHtmlStateInteractions(doc).length)walk(doc.root,node=>{if(node.children)node.children=node.children.filter(child=>!(child.type==='script'&&Object.hasOwn(child.props,'data-xamora-state-runtime')));});return removed;}
+}`;
+}
+function actionRecords(node) {
+  const source = node.props['data-xamora-state-actions'];
+  if (!source) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    throw Error('Fix the malformed data-xamora-state-actions JSON before editing interactions.');
+  }
+  if (
+    !Array.isArray(parsed) ||
+    parsed.some(
+      (a) =>
+        !a ||
+        typeof a.name !== 'string' ||
+        typeof a.target !== 'string' ||
+        !EVENTS.includes(a.event) ||
+        !['toggle', 'set', 'clear'].includes(a.action),
+    )
+  )
+    throw Error('Invalid state interaction configuration; edit its source.');
+  return parsed;
+}
+function interactionId(nodeId, record) {
+  return (
+    nodeId +
+    ':state-action:' +
+    encodeURIComponent(record.target + ':' + record.name + ':' + record.event)
+  );
+}
+export function listHtmlStateInteractions(doc) {
+  const states = allStateRules(doc).states,
+    result = [];
+  walk(doc.root, (node) => {
+    if (node.kind !== 'element') return;
+    for (const record of actionRecords(node)) {
+      const state = states.find(
+        (s) => s.kind === 'named' && s.binding === record.target && s.name === record.name,
+      );
+      result.push({
+        id: interactionId(node.id, record),
+        triggerNodeId: node.id,
+        stateId: state?.id ?? null,
+        stateName: record.name,
+        targetBinding: record.target,
+        event: record.event,
+        action: record.action,
+      });
+    }
+  });
+  return result;
+}
+export function bindHtmlStateInteraction(
+  doc,
+  stateId,
+  { triggerNodeId, event = 'click', action = 'toggle' } = {},
+) {
+  const trigger = target(doc, triggerNodeId),
+    state = stateDefinition(doc, stateId);
+  if (state.kind !== 'named' || !state.binding)
+    throw Error('Runtime actions require an authored named state.');
+  if (!EVENTS.includes(event) || !['toggle', 'set', 'clear'].includes(action))
+    throw Error('Invalid state interaction event or action.');
+  const records = actionRecords(trigger),
+    record = { name: state.name, target: state.binding, event, action },
+    index = records.findIndex(
+      (r) => r.name === record.name && r.target === record.target && r.event === event,
+    );
+  if (index < 0) records.push(record);
+  else records[index] = record;
+  const source = JSON.stringify(records);
+  if (trigger.props['data-xamora-state-actions'] !== source)
+    trigger.props['data-xamora-state-actions'] = source;
+  let script;
+  walk(doc.root, (node) => {
+    if (node.type === 'script' && Object.hasOwn(node.props, 'data-xamora-state-runtime'))
+      script = node;
+  });
+  if (!script) {
+    script = element('script', { 'data-xamora-state-runtime': '' }, [
+      textNode(exportHtmlStateRuntime()),
+    ]);
+    (doc.root.children.find((n) => n.type === 'body') || doc.root).children.push(script);
+  }
+  return listHtmlStateInteractions(doc).find((i) => i.id === interactionId(triggerNodeId, record));
+}
+export function removeHtmlStateInteraction(doc, id) {
+  let removed = false;
+  walk(doc.root, (node) => {
+    if (node.kind !== 'element') return;
+    const records = actionRecords(node),
+      remaining = records.filter((record) => interactionId(node.id, record) !== id);
+    if (remaining.length === records.length) return;
+    removed = true;
+    if (remaining.length) node.props['data-xamora-state-actions'] = JSON.stringify(remaining);
+    else delete node.props['data-xamora-state-actions'];
+  });
+  if (!listHtmlStateInteractions(doc).length)
+    walk(doc.root, (node) => {
+      if (node.children)
+        node.children = node.children.filter(
+          (child) =>
+            !(child.type === 'script' && Object.hasOwn(child.props, 'data-xamora-state-runtime')),
+        );
+    });
+  return removed;
+}
 
-let previewSequence=0;
+let previewSequence = 0;
 /** Isolated DOM preview. Temporary selector rewrites never enter the source model or undo history. */
 export class HtmlStatePreview {
- constructor({document,elements,sourceDocument}={}){this.document=document;this.elements=elements;this.sourceDocument=sourceDocument;this.active=null;this.saved=[];this.diagnostics=[];this.marker='state-preview-'+(++previewSequence);}
- setState(state,nodeId,{transitions=false}={}){this.clear();const native=this.elements?.get(nodeId);if(!native)throw Error('Wait for the HTML design preview to load.');this.active={state,nodeId};
- if(transitions){for(const style of this.document.querySelectorAll('style[data-xamora-design-transitions]')){const before=style.sheet?.disabled;if(style.sheet){this.saved.push(()=>{style.sheet.disabled=before;});style.sheet.disabled=true;}}}
- const attribute='data-xamora-preview-state',saveAttr=(element,name,value)=>{const before=element.getAttribute(name);this.saved.push(()=>before===null?element.removeAttribute(name):element.setAttribute(name,before));element.setAttribute(name,value);};
- if(PSEUDOS.has(state.kind)){
-  const selected=new Set(tokenizeHtmlStateSelector(state.selector).filter(t=>t.kind==='pseudo'&&PSEUDOS.has(t.name)).map(t=>t.name));if(selected.has('focus-visible'))selected.add('focus');if(selected.has('focus'))selected.add('focus-within');
-  for(const style of this.document.querySelectorAll('style')){if(style.hasAttribute?.('data-xamora-design-transitions'))continue;const original=style.textContent||'',ast=parseCssAnimationStylesheet(original),edits=[];for(const rule of ast.rules){if(rule.kind!=='rule'||rule.header.startsWith('@'))continue;const tokens=tokenizeHtmlStateSelector(rule.header).filter(t=>t.kind==='pseudo'&&selected.has(t.name));if(tokens.length)edits.push({start:rule.start,end:rule.bodyStart-1,text:replaceSelectorTokens(rule.header,tokens,token=> '['+attribute+'~='+cssString(this.marker+'-'+token.name)+']')+' '});}let next=original;for(const edit of edits.sort((a,b)=>b.start-a.start))next=next.slice(0,edit.start)+edit.text+next.slice(edit.end);if(next!==original){this.saved.push(()=>{style.textContent=original;});style.textContent=next;}}
-  native.getBoundingClientRect?.();
-  for(let current=native;current&&current.nodeType===1;current=current.parentElement){const names=[...selected].filter(name=>current===native||['hover','active','focus-within'].includes(name));if(names.length)saveAttr(current,attribute,names.map(name=>this.marker+'-'+name).join(' '));}
-  if(selected.has('disabled')&&'disabled' in native){const before=native.disabled,attributeBefore=native.getAttribute('disabled');this.saved.push(()=>{native.disabled=before;if(attributeBefore===null)native.removeAttribute('disabled');else native.setAttribute('disabled',attributeBefore);});native.disabled=true;}
-  if(selected.has('checked')&&'checked' in native){const controls=native.type==='radio'?[...this.document.querySelectorAll('input[type="radio"]')]:[native],snapshots=controls.map(n=>[n,n.checked]);this.saved.push(()=>{for(const [n,value]of snapshots)n.checked=value;});native.checked=true;}
- }else{native.getBoundingClientRect?.();if(state.kind==='class')saveAttr(native,'class',[...(native.getAttribute('class')||'').split(/\s+/).filter(Boolean),state.name].join(' '));else if(state.kind==='named')saveAttr(native,'data-xamora-state',[...(native.getAttribute('data-xamora-state')||'').split(/\s+/).filter(Boolean),state.name].join(' '));else if(state.kind==='data')saveAttr(native,state.attribute,state.value??state.name);}
- this.document.documentElement?.getBoundingClientRect?.();return this;
- }
+  constructor({ document, elements, sourceDocument } = {}) {
+    this.document = document;
+    this.elements = elements;
+    this.sourceDocument = sourceDocument;
+    this.active = null;
+    this.saved = [];
+    this.diagnostics = [];
+    this.marker = 'state-preview-' + ++previewSequence;
+  }
+  setState(state, nodeId, { transitions = false } = {}) {
+    this.clear();
+    const native = this.elements?.get(nodeId);
+    if (!native) throw Error('Wait for the HTML design preview to load.');
+    this.active = { state, nodeId };
+    if (transitions) {
+      for (const style of this.document.querySelectorAll('style[data-xamora-design-transitions]')) {
+        const before = style.sheet?.disabled;
+        if (style.sheet) {
+          this.saved.push(() => {
+            style.sheet.disabled = before;
+          });
+          style.sheet.disabled = true;
+        }
+      }
+    }
+    const attribute = 'data-xamora-preview-state',
+      saveAttr = (element, name, value) => {
+        const before = element.getAttribute(name);
+        this.saved.push(() =>
+          before === null ? element.removeAttribute(name) : element.setAttribute(name, before),
+        );
+        element.setAttribute(name, value);
+      };
+    if (PSEUDOS.has(state.kind)) {
+      const selected = new Set(
+        tokenizeHtmlStateSelector(state.selector)
+          .filter((t) => t.kind === 'pseudo' && PSEUDOS.has(t.name))
+          .map((t) => t.name),
+      );
+      if (selected.has('focus-visible')) selected.add('focus');
+      if (selected.has('focus')) selected.add('focus-within');
+      for (const style of this.document.querySelectorAll('style')) {
+        if (style.hasAttribute?.('data-xamora-design-transitions')) continue;
+        const original = style.textContent || '',
+          ast = parseCssAnimationStylesheet(original),
+          edits = [];
+        for (const rule of ast.rules) {
+          if (rule.kind !== 'rule' || rule.header.startsWith('@')) continue;
+          const tokens = tokenizeHtmlStateSelector(rule.header).filter(
+            (t) => t.kind === 'pseudo' && selected.has(t.name),
+          );
+          if (tokens.length)
+            edits.push({
+              start: rule.start,
+              end: rule.bodyStart - 1,
+              text:
+                replaceSelectorTokens(
+                  rule.header,
+                  tokens,
+                  (token) =>
+                    '[' + attribute + '~=' + cssString(this.marker + '-' + token.name) + ']',
+                ) + ' ',
+            });
+        }
+        let next = original;
+        for (const edit of edits.sort((a, b) => b.start - a.start))
+          next = next.slice(0, edit.start) + edit.text + next.slice(edit.end);
+        if (next !== original) {
+          this.saved.push(() => {
+            style.textContent = original;
+          });
+          style.textContent = next;
+        }
+      }
+      native.getBoundingClientRect?.();
+      for (
+        let current = native;
+        current && current.nodeType === 1;
+        current = current.parentElement
+      ) {
+        const names = [...selected].filter(
+          (name) => current === native || ['hover', 'active', 'focus-within'].includes(name),
+        );
+        if (names.length)
+          saveAttr(current, attribute, names.map((name) => this.marker + '-' + name).join(' '));
+      }
+      if (selected.has('disabled') && 'disabled' in native) {
+        const before = native.disabled,
+          attributeBefore = native.getAttribute('disabled');
+        this.saved.push(() => {
+          native.disabled = before;
+          if (attributeBefore === null) native.removeAttribute('disabled');
+          else native.setAttribute('disabled', attributeBefore);
+        });
+        native.disabled = true;
+      }
+      if (selected.has('checked') && 'checked' in native) {
+        const controls =
+            native.type === 'radio'
+              ? [...this.document.querySelectorAll('input[type="radio"]')]
+              : [native],
+          snapshots = controls.map((n) => [n, n.checked]);
+        this.saved.push(() => {
+          for (const [n, value] of snapshots) n.checked = value;
+        });
+        native.checked = true;
+      }
+    } else {
+      native.getBoundingClientRect?.();
+      if (state.kind === 'class')
+        saveAttr(
+          native,
+          'class',
+          [...(native.getAttribute('class') || '').split(/\s+/).filter(Boolean), state.name].join(
+            ' ',
+          ),
+        );
+      else if (state.kind === 'named')
+        saveAttr(
+          native,
+          'data-xamora-state',
+          [
+            ...(native.getAttribute('data-xamora-state') || '').split(/\s+/).filter(Boolean),
+            state.name,
+          ].join(' '),
+        );
+      else if (state.kind === 'data') saveAttr(native, state.attribute, state.value ?? state.name);
+    }
+    this.document.documentElement?.getBoundingClientRect?.();
+    return this;
+  }
 
- clear(){for(const restore of this.saved.splice(0).reverse())restore();this.active=null;return this;}
- dispose(){this.clear();this.document=null;this.elements=null;this.sourceDocument=null;}
+  clear() {
+    for (const restore of this.saved.splice(0).reverse()) restore();
+    this.active = null;
+    return this;
+  }
+  dispose() {
+    this.clear();
+    this.document = null;
+    this.elements = null;
+    this.sourceDocument = null;
+  }
 }

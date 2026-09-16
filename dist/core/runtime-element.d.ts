@@ -1,10 +1,11 @@
-import type {ApplicationOptions, XamlApplication} from './web-runtime.js';
-import type {ObservableState} from './runtime-properties.js';
+import type { ApplicationOptions, XamlApplication } from './web-runtime.js';
+import type { ObservableState } from './runtime-properties.js';
 
 /** Defaults passed to each hosted application. Shadow DOM is enabled by default. */
-export type XamlElementOptions<T extends object = Record<string, unknown>> = ApplicationOptions<T> & {
-  shadow?: boolean;
-};
+export type XamlElementOptions<T extends object = Record<string, unknown>> =
+  ApplicationOptions<T> & {
+    shadow?: boolean;
+  };
 
 export interface XamlViewElement<T extends object = Record<string, unknown>> extends HTMLElement {
   /** The currently mounted application; null after disconnection or disposal. */
@@ -26,4 +27,7 @@ export interface XamlViewElementConstructor<T extends object = Record<string, un
 }
 
 /** DOM-safe to import in Node; call only when customElements/HTMLElement exist. */
-export function registerXamlElement<T extends object = Record<string, unknown>>(name?: string, options?: XamlElementOptions<T>): XamlViewElementConstructor<T>;
+export function registerXamlElement<T extends object = Record<string, unknown>>(
+  name?: string,
+  options?: XamlElementOptions<T>,
+): XamlViewElementConstructor<T>;

@@ -121,7 +121,6 @@ interface NativePreviewResponse {
 
 This is a proposed integration contract, not an implemented service. A native implementation must isolate untrusted markup/code, constrain assembly loading, authenticate host communication, respect browser origin rules, cancel stale revisions, and avoid forwarding local secrets or files into imported controls.
 
-
 ## Data, prototype and language services in 0.2
 
 The new services are also exported from `dist/core/index.js`. They do not depend on the Studio UI.
@@ -187,7 +186,6 @@ This makes the same contextual suggestions reusable in a richer editor host. A n
 
 The live host additionally exposes `window.xamora.data`, `.prototype`, `.hitTest`, and `.completeXaml`. Studio-specific methods are convenience integration points and may change between releases; prefer the core exports for embedded applications.
 
-
 ## Motion services (0.3)
 
 ```js
@@ -214,7 +212,6 @@ VisualStateRuntime owns transient group state. Call go(groupId, stateName, timeI
 
 Studio MotionRuntime requires a PreviewRenderer and manages browser input/clock lifecycle. Dispose it when removing a view. Custom animation types and framework-specific state models need a separate adapter and native validation; the current evaluator is intentionally bounded.
 
-
 ## Docking extensions in 0.4
 
 `DockLayout` is exported by `dist/core/index.js`; the DOM control is exported separately by `dist/controls/index.js`. Both have TypeScript declarations. The docking model has no Studio or DOM dependency. See [DOCKING.md](DOCKING.md) for standalone construction, lifecycle and serialization contracts.
@@ -222,7 +219,6 @@ Studio MotionRuntime requires a PreviewRenderer and manages browser input/clock 
 Use `window.xamora.docking.registerPanel({id, title, content, kind, icon, onClose})` to add an independently dockable extension tool. `content` is a live HTMLElement and is moved rather than cloned. The returned handle exposes `show()`, `close()` and `dispose()`. Choose a stable namespaced ID such as `my-toolkit:inspector`; exported layout JSON stores that ID, not executable callbacks or content markup.
 
 The model's `change` event carries the operation label. The control emits `resize` for renderer invalidation and offers visibility/activation callbacks. Keep costly work paused when its window is invisible, and keep document edits inside document transactions instead of docking transactions. Avoid assuming a fixed side, size or parent for extension content.
-
 
 ## Editor extensions in 0.5
 
@@ -255,7 +251,6 @@ The editor callback receives `studio`, `node`, selected `ids`, `key`, `value` an
 The new DOM-free `solution.js`, `authoring.js` and `timeline-editing.js` modules are exported through `core/index.js`, with corresponding TypeScript declarations. Use `moveSolutionPath` and `renameResource` for staged operations; validate and apply their returned documents in your own workspace transaction. Wrap in-place timeline helpers in `DocumentStore.transaction` to preserve undo and event delivery.
 
 Dock descriptors may supply `minWidth` and `minHeight`; `dockMinimum` and `dockRatioLimits` expose the size calculation. `DockLayout.batch('Arrange windows', model => { ... })` combines layout-only operations into one event and undo step. Do not register/unregister panels, nest batches, or perform asynchronous work inside its synchronous callback.
-
 
 ## Workspace density in 0.6
 

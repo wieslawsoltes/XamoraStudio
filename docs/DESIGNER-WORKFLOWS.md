@@ -13,19 +13,19 @@ Preview changes use an isolated copy. The source database changes only through t
 
 ## Nested selection and hit testing
 
-| Gesture | Result |
-| --- | --- |
-| Click | Select a hit layer; retain a selected ancestor beneath the pointer for easier dragging |
-| Ctrl/Command-click | Select the deepest eligible hit |
-| Alt-click | Cycle front-to-back through overlapping eligible layers |
-| Alt-Shift-click | Cycle in reverse |
-| Right-click → Select layer at pointer | Inspect the explicit hit list, including locked layers |
-| Shift-click | Toggle a layer in the selection |
-| Drag on empty canvas | Select fully enclosed layers; avoid redundant descendants |
-| Enter / Shift-Enter | Select a child / logical parent |
-| Tab / Shift-Tab | Select the next / previous sibling when focus is on the canvas or layer tree |
-| Isolate | Restrict canvas hits and destinations to the selected subtree |
-| Escape | Cancel a drag, close a dialog, or leave isolation |
+| Gesture                               | Result                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------- |
+| Click                                 | Select a hit layer; retain a selected ancestor beneath the pointer for easier dragging |
+| Ctrl/Command-click                    | Select the deepest eligible hit                                                        |
+| Alt-click                             | Cycle front-to-back through overlapping eligible layers                                |
+| Alt-Shift-click                       | Cycle in reverse                                                                       |
+| Right-click → Select layer at pointer | Inspect the explicit hit list, including locked layers                                 |
+| Shift-click                           | Toggle a layer in the selection                                                        |
+| Drag on empty canvas                  | Select fully enclosed layers; avoid redundant descendants                              |
+| Enter / Shift-Enter                   | Select a child / logical parent                                                        |
+| Tab / Shift-Tab                       | Select the next / previous sibling when focus is on the canvas or layer tree           |
+| Isolate                               | Restrict canvas hits and destinations to the selected subtree                          |
+| Escape                                | Cancel a drag, close a dialog, or leave isolation                                      |
 
 The breadcrumb above the canvas provides direct ancestor selection. Locked layers remain inspectable from the tree but their editing commands and drag handles are disabled. Lock metadata is stored in the project, not authored into native XAML. To edit a child of a locked container, unlock its ancestor.
 
@@ -62,13 +62,13 @@ Apply attempts to preserve identity for unique named elements and unchanged stru
 
 Open **Data → Open data editor**. The editor has five views:
 
-| View | Operations |
-| --- | --- |
-| Records | Add/delete records, edit typed cells, filter all displayed values, sort columns, follow foreign-key choices, bind a collection |
-| Schema | Add/edit/delete columns; string, number, boolean, date, and JSON types; required/unique/default values; table names |
-| Relationships | Many-to-one foreign keys with unique targets; restrict, cascade, or set-null deletion |
-| Queries | Multiple filters, indexed inner/left joins, sorting, row limit, run/inspect output, saved named results |
-| Objects | Expandable object tree, scalar editing, add/remove paths, and whole-object JSON editing |
+| View          | Operations                                                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Records       | Add/delete records, edit typed cells, filter all displayed values, sort columns, follow foreign-key choices, bind a collection |
+| Schema        | Add/edit/delete columns; string, number, boolean, date, and JSON types; required/unique/default values; table names            |
+| Relationships | Many-to-one foreign keys with unique targets; restrict, cascade, or set-null deletion                                          |
+| Queries       | Multiple filters, indexed inner/left joins, sorting, row limit, run/inspect output, saved named results                        |
+| Objects       | Expandable object tree, scalar editing, add/remove paths, and whole-object JSON editing                                        |
 
 The project-wide database lives in the first document containing `metadata.dataModel`, otherwise the first workspace document becomes its owner. Data edits use that document’s undo history. The data editor’s Undo/Redo buttons operate on the owner’s complete history. A workspace currently resolves one active database; importing another workspace with its own database does not automatically merge the two databases.
 
@@ -110,11 +110,9 @@ Actions from an event run as one rollback boundary. A missing destination or inv
 
 The workspace JSON stores the prototype graph. XAML export preserves authored native bindings and properties; it does not synthesize native application code from prototype actions. HTML export contains a rendered view and current design data; the multi-view prototype runtime is supplied as reusable JavaScript source, not bundled into the standalone HTML snapshot.
 
-
 ## Docking workspace in 0.4
 
 Panels described above now have independent docking windows. Drag tabs/title bars to rearrange them; use the compass for tabbing or splitting, the pin for auto-hide, and Window for layout presets, named layouts, import/export and recovery of closed windows. Use the dedicated [docking guide](DOCKING.md) for all gestures, shortcuts and extension APIs. Canvas and source-editor instances survive panel moves. Switching between design pages retains the existing source validation guard.
-
 
 ## Editor workspace in 0.5
 

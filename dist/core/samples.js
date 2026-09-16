@@ -1,5 +1,5 @@
-import {parseXaml} from './xaml.js';
-export const mainXaml=`<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+import { parseXaml } from './xaml.js';
+export const mainXaml = `<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Name="WorkspaceView" Width="1100" Height="760" Background="#FFFFFF">
     <UserControl.Resources>
@@ -61,12 +61,12 @@ export const mainXaml=`<UserControl xmlns="http://schemas.microsoft.com/winfx/20
         </Grid>
     </Grid>
 </UserControl>`;
-export const templateXaml=`<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Key="PrimaryButtonTemplate" TargetType="Button">
+export const templateXaml = `<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Key="PrimaryButtonTemplate" TargetType="Button">
     <Border x:Name="PART_Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20,12">
         <ContentPresenter x:Name="PART_Content" Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" />
     </Border>
 </ControlTemplate>`;
-export const resourceXaml=`<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+export const resourceXaml = `<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <SolidColorBrush x:Key="AccentBrush" Color="#7953E8" />
     <SolidColorBrush x:Key="SurfaceBrush" Color="#F7F6FA" />
     <SolidColorBrush x:Key="InkBrush" Color="#252432" />
@@ -77,4 +77,29 @@ export const resourceXaml=`<ResourceDictionary xmlns="http://schemas.microsoft.c
         <Setter Property="Padding" Value="18,10" />
     </Style>
 </ResourceDictionary>`;
-export function samples(){const docs=[parseXaml(mainXaml),parseXaml(templateXaml,{name:'PrimaryButton.xaml'}),parseXaml(resourceXaml,{name:'AppResources.xaml'})];docs[1].design={width:380,height:140};docs[1].metadata.templateSample={Content:'Create a project',Background:'#7953E8',Foreground:'#FFFFFF',BorderBrush:'#7953E8'};docs[0].annotations=[{id:'a1',nodeId:null,x:1020,y:345,text:'Try a softer accent for the activity panel.',author:'Design note',resolved:false}];return docs;}
+export function samples() {
+  const docs = [
+    parseXaml(mainXaml),
+    parseXaml(templateXaml, { name: 'PrimaryButton.xaml' }),
+    parseXaml(resourceXaml, { name: 'AppResources.xaml' }),
+  ];
+  docs[1].design = { width: 380, height: 140 };
+  docs[1].metadata.templateSample = {
+    Content: 'Create a project',
+    Background: '#7953E8',
+    Foreground: '#FFFFFF',
+    BorderBrush: '#7953E8',
+  };
+  docs[0].annotations = [
+    {
+      id: 'a1',
+      nodeId: null,
+      x: 1020,
+      y: 345,
+      text: 'Try a softer accent for the activity panel.',
+      author: 'Design note',
+      resolved: false,
+    },
+  ];
+  return docs;
+}

@@ -6,21 +6,21 @@ Xamora's packages are built from the same `dist/core` and `dist/controls` module
 
 All names use the `@wieslawsoltes/` scope and a coordinated version. Internal dependency versions are exact so a release uses a compatible AST and runtime contract.
 
-| Package | Contents |
-| --- | --- |
-| `xamora-contracts` | Type-only public AST, rendering, animation, and extension contracts; its JavaScript entry is empty |
-| `xamora-model` | Universal document nodes, validation, transactions, compact undo history, toolkit registry |
-| `xamora-data` | Data tables, relationships, queries, binding paths, CSV import/export |
-| `xamora-styling` | Resources, styles, brushes, property paths, vector geometry |
-| `xamora-animation` | XAML storyboards, clock sampling, visual states, timeline editing |
-| `xamora-markup` | XAML/HTML parsing and serialization, source buffer/index, document synchronization, semantic language service, CSS animation/state authoring |
-| `xamora-renderer` | Shared DOM/CSS renderer, HTML iframe renderer, motion application, optional GPU overlay |
-| `xamora-controls` | Docking layout model and DOM control, menus, scroll buttons, workspace density; CSS assets |
-| `xamora-designer` | Drop planning, layout editing, solution/resource authoring, prototypes, code editor, examples |
-| `xamora-properties` | Observable state and extensible runtime property metadata/value precedence |
-| `xamora-runtime` | Standalone application host, binding updates, commands, events, lifecycle, resources, animation, optional custom element |
-| `xamora` | Convenience SDK aggregating executable package APIs |
-| `xamora-compiler` (optional) | Semantic document/project conversion, Node CLI, dependent asset discovery/copy |
+| Package                      | Contents                                                                                                                                     |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `xamora-contracts`           | Type-only public AST, rendering, animation, and extension contracts; its JavaScript entry is empty                                           |
+| `xamora-model`               | Universal document nodes, validation, transactions, compact undo history, toolkit registry                                                   |
+| `xamora-data`                | Data tables, relationships, queries, binding paths, CSV import/export                                                                        |
+| `xamora-styling`             | Resources, styles, brushes, property paths, vector geometry                                                                                  |
+| `xamora-animation`           | XAML storyboards, clock sampling, visual states, timeline editing                                                                            |
+| `xamora-markup`              | XAML/HTML parsing and serialization, source buffer/index, document synchronization, semantic language service, CSS animation/state authoring |
+| `xamora-renderer`            | Shared DOM/CSS renderer, HTML iframe renderer, motion application, optional GPU overlay                                                      |
+| `xamora-controls`            | Docking layout model and DOM control, menus, scroll buttons, workspace density; CSS assets                                                   |
+| `xamora-designer`            | Drop planning, layout editing, solution/resource authoring, prototypes, code editor, examples                                                |
+| `xamora-properties`          | Observable state and extensible runtime property metadata/value precedence                                                                   |
+| `xamora-runtime`             | Standalone application host, binding updates, commands, events, lifecycle, resources, animation, optional custom element                     |
+| `xamora`                     | Convenience SDK aggregating executable package APIs                                                                                          |
+| `xamora-compiler` (optional) | Semantic document/project conversion, Node CLI, dependent asset discovery/copy                                                               |
 
 The contracts package breaks type dependencies such as a control descriptor referring to rendering services. It exports these names using `export type`, not nonexistent JavaScript constructors. Actual constructors always come from their owning executable package. For example, the SDK's `DocumentStore` and the model package's `DocumentStore` are the same function when loaded through ESM, and also the same function when loaded through CommonJS. As with most dual-format packages, mixing ESM and CommonJS in one process creates separate module-format instances; select one format for a running application.
 

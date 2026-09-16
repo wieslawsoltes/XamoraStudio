@@ -51,7 +51,6 @@ The browser renderer approximates native brushes, effects and layout. Style/Stor
 
 New reusable services are exported from core/index.js. The DOM-free animation, property-path, styling, state and vector modules can be used independently of the Studio. motion-render.js and the Studio runtime bridge require a DOM renderer. See ARCHITECTURE.md and EXTENDING.md for module contracts and limits.
 
-
 ## Inline authoring in 0.5
 
 The timeline adds a quick name/duration/property strip, key inspector, multiple-key selection, group dragging, frame snapping, timeline zoom, duplicate/copy/paste and keyboard nudging. Editing a value preserves existing curve metadata; moving/pasting rejects collisions atomically. Recording respects supported nested clock timing and keeps authored base values separate. For gestures, local-time ruler limitations and current framework scope, read [Editor workflows](EDITOR-WORKFLOWS.md).

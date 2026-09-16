@@ -37,7 +37,6 @@ External stylesheets, scripts, fonts and media retain their URLs. Relative resou
 
 Source and model limits remain two megabytes of imported HTML, 15,000 nodes, and 150 levels. Tests exercise model/serialization/projection, CSS preservation, sandbox configuration, geometry and docking behavior with deterministic fixtures. A complete browser interaction/visual qualification was not performed.
 
-
 ## Live source and CSS animation editing
 
 Code and visual edits now synchronize automatically through [DocumentSession](DOCUMENT-SYNC.md). HTML animations have a docked CSS keyframe timeline, browser-native scrubbing/playback and property/canvas recording; see [HTML animation workflows](HTML-ANIMATIONS.md). The old CSS-source-only animation guidance is superseded by that workflow.

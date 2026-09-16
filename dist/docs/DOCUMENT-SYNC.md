@@ -93,22 +93,22 @@ session.undo();
 session.redo();
 ```
 
-| API | Meaning |
-| --- | --- |
-| `session.source` | Current buffer, including an invalid draft. |
-| `session.validSource` | Exact source corresponding to the current valid model. |
-| `session.isValid`, `session.diagnostics` | Current draft validity and source diagnostics. |
-| `session.revision` | Current `DocumentStore` revision. |
-| `applySourceEdits(edits, { origin, expectedRevision, expectedVersion })` | Commit atomic UTF-16 range edits against a document and text version. |
-| `buffer`, `processingStats`, `lastUpdate` | Inspect text mapping/version and localized/full processing work. |
-| `updateSource(text, { origin, expectedRevision })` | Commit code or a retained draft; return `{ accepted, valid, revision, diagnostics }`. |
-| `serialize({ draft: false })` | Return the last valid source; use `draft: true` for the current buffer. |
-| `discardDraft()` | Restore the last valid source as an undoable source change. |
-| `sourceAtNode(id)` | Return the node's source range, line/column, and attribute ranges; `null` when absent. |
-| `nodeAtOffset(offset)` | Return the innermost mapped semantic node or `null`. |
-| `undo()`, `redo()` | Traverse shared document history. |
-| `refresh()` | Rebuild indexes after a controlled solution snapshot replacement. |
-| `dispose()` | Remove store hooks and event subscriptions. |
+| API                                                                      | Meaning                                                                                |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `session.source`                                                         | Current buffer, including an invalid draft.                                            |
+| `session.validSource`                                                    | Exact source corresponding to the current valid model.                                 |
+| `session.isValid`, `session.diagnostics`                                 | Current draft validity and source diagnostics.                                         |
+| `session.revision`                                                       | Current `DocumentStore` revision.                                                      |
+| `applySourceEdits(edits, { origin, expectedRevision, expectedVersion })` | Commit atomic UTF-16 range edits against a document and text version.                  |
+| `buffer`, `processingStats`, `lastUpdate`                                | Inspect text mapping/version and localized/full processing work.                       |
+| `updateSource(text, { origin, expectedRevision })`                       | Commit code or a retained draft; return `{ accepted, valid, revision, diagnostics }`.  |
+| `serialize({ draft: false })`                                            | Return the last valid source; use `draft: true` for the current buffer.                |
+| `discardDraft()`                                                         | Restore the last valid source as an undoable source change.                            |
+| `sourceAtNode(id)`                                                       | Return the node's source range, line/column, and attribute ranges; `null` when absent. |
+| `nodeAtOffset(offset)`                                                   | Return the innermost mapped semantic node or `null`.                                   |
+| `undo()`, `redo()`                                                       | Traverse shared document history.                                                      |
+| `refresh()`                                                              | Rebuild indexes after a controlled solution snapshot replacement.                      |
+| `dispose()`                                                              | Remove store hooks and event subscriptions.                                            |
 
 Source offsets use JavaScript string indices, matching textarea selection offsets. Lines and columns are one-based. Source ranges describe the last valid source while a draft is invalid.
 

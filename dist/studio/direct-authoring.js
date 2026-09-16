@@ -1,26 +1,492 @@
-import {placeSelectionToolbar} from '../core/overlay-layout.js';
-import {clone,find,localName} from '../core/model.js';
-import {isLocked,logicalParent,contentHost,applyDropPlan} from '../core/design-tools.js';
-import {textTarget,setText,inverseVector} from '../core/authoring.js';
-import {TRANSFORM_PATHS,ensureTransformPath,readPropertyPath,writePropertyPath} from '../core/property-path.js';
-import {sampleStoryboard} from '../core/animation.js';
-import {parsePath,pathPoints,movePathPoint,serializePath} from '../core/vector.js';
-import {esc,$,$$,notify} from './ui.js';
-function worldMatrix(el){let result=new DOMMatrix();for(let node=el;node instanceof Element;node=node.parentElement){const style=getComputedStyle(node);if(style.transform&&style.transform!=='none')result=new DOMMatrix(style.transform).multiply(result);}return result;}
-export class DirectAuthoring {
-  constructor(s){this.s=s;this.pathEnabled=false;this.originalPrepare=s.prepareEdit.bind(s);s.prepareEdit=()=>{this.cancelGesture?.();if(this.inline&&!this.finishText(true))return false;return this.originalPrepare();};s.editText=node=>this.editText(node);const down=s.pointerDown.bind(s);s.pointerDown=e=>{if(e.target.closest('.inline-text-editor,.direct-adorner,.path-point'))return;if(s.blend.animation.record&&s.blend.animation.story&&e.button===0&&s.tool==='select'&&!s.spaceHeld&&this.beginRecord(e))return;down(e);};const selection=s.drawSelection.bind(s);s.drawSelection=()=>{selection();this.draw();};
-    const tool=s.setTool.bind(s);s.setTool=value=>{tool(value);if(['ellipse','line'].includes(value))$('#canvas-viewport').style.cursor='crosshair';};
-    const oldDown=s.pointerDown.bind(s);s.pointerDown=e=>{if(['ellipse','line'].includes(s.tool)){const type=s.tool;s.tool='rectangle';oldDown(e);s.tool=type;if(s.drag?.kind==='draw')s.drag.type=type==='ellipse'?'Ellipse':'Line';return;}oldDown(e);};
-    const up=s.pointerUp.bind(s);s.pointerUp=(e,cancel=false)=>{const d=s.drag;if(d?.kind==='draw'&&!cancel){s.drag=null;try{$('#canvas-viewport').releasePointerCapture(e.pointerId);}catch{}$('.marquee')?.remove();this.finishDraw(d,e);return;}up(e,cancel);};
+import { placeSelectionToolbar } from '../core/overlay-layout.js';
+import { clone, find, localName } from '../core/model.js';
+import { isLocked, logicalParent, contentHost, applyDropPlan } from '../core/design-tools.js';
+import { textTarget, setText, inverseVector } from '../core/authoring.js';
+import {
+  TRANSFORM_PATHS,
+  ensureTransformPath,
+  readPropertyPath,
+  writePropertyPath,
+} from '../core/property-path.js';
+import { sampleStoryboard } from '../core/animation.js';
+import { parsePath, pathPoints, movePathPoint, serializePath } from '../core/vector.js';
+import { esc, $, $$, notify } from './ui.js';
+function worldMatrix(el) {
+  let result = new DOMMatrix();
+  for (let node = el; node instanceof Element; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (style.transform && style.transform !== 'none')
+      result = new DOMMatrix(style.transform).multiply(result);
   }
-  editText(node){const s=this.s;if(!this.originalPrepare()||isLocked(s.doc,node.id))return;if(!this.finishText(true))return;try{const target=textTarget(node);if(!target){notify('Select a text control.');return;}const rect=s.rectFor(node.id),el=s.renderer.elements.get(node.id);if(!rect||!el)return;const host=document.createElement('div');host.className='inline-text-editor';host.style.cssText=`left:${Math.max(0,rect.x)}px;top:${Math.max(0,rect.y)}px;width:${Math.max(180,rect.width)}px`;host.innerHTML='<textarea aria-label="Edit text on canvas"></textarea><div><span>Ctrl/⌘+Enter to apply · Esc to cancel</span><button data-inline-save>✓</button><button data-inline-cancel>×</button></div>';const input=$('textarea',host),style=getComputedStyle(el);input.value=target.value;input.style.fontFamily=style.fontFamily;input.style.fontSize=Math.max(14,parseFloat(style.fontSize)*s.zoom)+'px';input.style.minHeight=Math.max(48,rect.height)+'px';this.inline={host,input,nodeId:node.id,docId:s.doc.id,value:target.value};$('#canvas-viewport').append(host);host.onpointerdown=e=>e.stopPropagation();host.onkeydown=e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();this.finishText(false);}if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();this.finishText(true);}};$('[data-inline-save]',host).onclick=()=>this.finishText(true);$('[data-inline-cancel]',host).onclick=()=>this.finishText(false);input.focus();input.select();}catch(e){notify(e.message);}}
-  finishText(commit){const state=this.inline;if(!state)return true;const s=this.s;if(commit&&s.doc.id!==state.docId)return false;this.inline=null;if(commit&&state.input.value!==state.value){try{s.store.transaction('Edit text on canvas',doc=>setText(find(doc.root,state.nodeId),state.input.value));}catch(e){this.inline=state;notify(e.message);state.input.focus();return false;}}state.host.remove();return true;}
+  return result;
+}
+export class DirectAuthoring {
+  constructor(s) {
+    this.s = s;
+    this.pathEnabled = false;
+    this.originalPrepare = s.prepareEdit.bind(s);
+    s.prepareEdit = () => {
+      this.cancelGesture?.();
+      if (this.inline && !this.finishText(true)) return false;
+      return this.originalPrepare();
+    };
+    s.editText = (node) => this.editText(node);
+    const down = s.pointerDown.bind(s);
+    s.pointerDown = (e) => {
+      if (e.target.closest('.inline-text-editor,.direct-adorner,.path-point')) return;
+      if (
+        s.blend.animation.record &&
+        s.blend.animation.story &&
+        e.button === 0 &&
+        s.tool === 'select' &&
+        !s.spaceHeld &&
+        this.beginRecord(e)
+      )
+        return;
+      down(e);
+    };
+    const selection = s.drawSelection.bind(s);
+    s.drawSelection = () => {
+      selection();
+      this.draw();
+    };
+    const tool = s.setTool.bind(s);
+    s.setTool = (value) => {
+      tool(value);
+      if (['ellipse', 'line'].includes(value)) $('#canvas-viewport').style.cursor = 'crosshair';
+    };
+    const oldDown = s.pointerDown.bind(s);
+    s.pointerDown = (e) => {
+      if (['ellipse', 'line'].includes(s.tool)) {
+        const type = s.tool;
+        s.tool = 'rectangle';
+        oldDown(e);
+        s.tool = type;
+        if (s.drag?.kind === 'draw') s.drag.type = type === 'ellipse' ? 'Ellipse' : 'Line';
+        return;
+      }
+      oldDown(e);
+    };
+    const up = s.pointerUp.bind(s);
+    s.pointerUp = (e, cancel = false) => {
+      const d = s.drag;
+      if (d?.kind === 'draw' && !cancel) {
+        s.drag = null;
+        try {
+          $('#canvas-viewport').releasePointerCapture(e.pointerId);
+        } catch {}
+        $('.marquee')?.remove();
+        this.finishDraw(d, e);
+        return;
+      }
+      up(e, cancel);
+    };
+  }
+  editText(node) {
+    const s = this.s;
+    if (!this.originalPrepare() || isLocked(s.doc, node.id)) return;
+    if (!this.finishText(true)) return;
+    try {
+      const target = textTarget(node);
+      if (!target) {
+        notify('Select a text control.');
+        return;
+      }
+      const rect = s.rectFor(node.id),
+        el = s.renderer.elements.get(node.id);
+      if (!rect || !el) return;
+      const host = document.createElement('div');
+      host.className = 'inline-text-editor';
+      host.style.cssText = `left:${Math.max(0, rect.x)}px;top:${Math.max(0, rect.y)}px;width:${Math.max(180, rect.width)}px`;
+      host.innerHTML =
+        '<textarea aria-label="Edit text on canvas"></textarea><div><span>Ctrl/⌘+Enter to apply · Esc to cancel</span><button data-inline-save>✓</button><button data-inline-cancel>×</button></div>';
+      const input = $('textarea', host),
+        style = getComputedStyle(el);
+      input.value = target.value;
+      input.style.fontFamily = style.fontFamily;
+      input.style.fontSize = Math.max(14, parseFloat(style.fontSize) * s.zoom) + 'px';
+      input.style.minHeight = Math.max(48, rect.height) + 'px';
+      this.inline = { host, input, nodeId: node.id, docId: s.doc.id, value: target.value };
+      $('#canvas-viewport').append(host);
+      host.onpointerdown = (e) => e.stopPropagation();
+      host.onkeydown = (e) => {
+        e.stopPropagation();
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          this.finishText(false);
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          this.finishText(true);
+        }
+      };
+      $('[data-inline-save]', host).onclick = () => this.finishText(true);
+      $('[data-inline-cancel]', host).onclick = () => this.finishText(false);
+      input.focus();
+      input.select();
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  finishText(commit) {
+    const state = this.inline;
+    if (!state) return true;
+    const s = this.s;
+    if (commit && s.doc.id !== state.docId) return false;
+    this.inline = null;
+    if (commit && state.input.value !== state.value) {
+      try {
+        s.store.transaction('Edit text on canvas', (doc) =>
+          setText(find(doc.root, state.nodeId), state.input.value),
+        );
+      } catch (e) {
+        this.inline = state;
+        notify(e.message);
+        state.input.focus();
+        return false;
+      }
+    }
+    state.host.remove();
+    return true;
+  }
 
-  finishDraw(d,e){const s=this.s;try{let box=d.box||{width:120*s.zoom,height:80*s.zoom,x:d.start.x,y:d.start.y};if(e.shiftKey){const size=Math.max(box.width,box.height);box={...box,width:size,height:size};}const parent=find(s.doc.root,d.parentId),node=s.registry.create(d.type);s.canContain(parent,[node]);node.props.Width=String(Math.max(1,s.snapValue(box.width/s.zoom)));node.props.Height=String(Math.max(1,s.snapValue(box.height/s.zoom)));if(d.type==='Line'){node.props.X1=e.clientX<d.x?node.props.Width:'0';node.props.Y1=e.clientY<d.y?node.props.Height:'0';node.props.X2=e.clientX<d.x?'0':node.props.Width;node.props.Y2=e.clientY<d.y?'0':node.props.Height;node.props.Stroke='#2563EB';node.props.StrokeThickness='2';}
-      const vr=$('#canvas-viewport').getBoundingClientRect();s.store.transaction('Draw '+d.type,doc=>{contentHost(parent).children.push(node);const plan=s.features.canvas.createPlan(parent,[node.id],{clientX:vr.left+box.x,clientY:vr.top+box.y});if(!plan.allowed)throw Error(plan.reason);applyDropPlan(doc,plan);});s.store.select([node.id]);s.setTool('select');}catch(error){notify(error.message);}}
-  beginRecord(e){const s=this.s,a=s.blend.animation,handle=e.target.closest('[data-h]'),node=handle?find(s.doc.root,handle.dataset.id):s.features.canvas.hit.pick(e.clientX,e.clientY,{deep:e.ctrlKey||e.metaKey});if(!node||node.id===s.doc.root.id||isLocked(s.doc,node.id))return false;if(!s.store.selection.includes(node.id))s.store.select([node.id]);if(!s.prepareEdit())return true;a.player.pause();const sample=sampleStoryboard(a.base||s.doc,find((a.base||s.doc).root,a.storyId)||a.story,a.player.time).overrides;const ids=handle?[node.id]:s.topSelection().filter(n=>!isLocked(s.doc,n.id)).map(n=>n.id),items=ids.map(id=>{const target=find(s.doc.root,id),el=s.renderer.elements.get(id),rect=el.getBoundingClientRect(),parent=logicalParent(s.doc.root,id),base=clone(a.base||s.doc),baseNode=find(base.root,id),x=localName(parent?.type||'')==='Canvas'?'Canvas.Left':ensureTransformPath(base,baseNode,TRANSFORM_PATHS.X),y=x==='Canvas.Left'?'Canvas.Top':ensureTransformPath(base,baseNode,TRANSFORM_PATHS.Y);const value=path=>Number(sample.get(id)?.[path]??readPropertyPath(base,baseNode,path))||0;return {id,el,css:el.style.cssText,rect,x,y,left:value(x),top:value(y),width:el.offsetWidth||rect.width/s.zoom,height:el.offsetHeight||rect.height/s.zoom,matrix:worldMatrix(el),parentMatrix:worldMatrix(el.parentElement)};});e.preventDefault();e.stopPropagation();let changes=[];this.gesture(e,ev=>{const dx=(ev.clientX-e.clientX)/s.zoom,dy=(ev.clientY-e.clientY)/s.zoom;changes=[];for(const item of items){const local=inverseVector(item.matrix,ev.clientX-e.clientX,ev.clientY-e.clientY),parentDelta=inverseVector(item.parentMatrix,ev.clientX-e.clientX,ev.clientY-e.clientY);if(handle){const dx=local.x,dy=local.y,h=handle.dataset.h,w=Math.max(1,item.width+(h.includes('w')?-dx:h.includes('e')?dx:0)),height=Math.max(1,item.height+(h.includes('n')?-dy:h.includes('s')?dy:0));if(h.includes('w')||h.includes('e')){item.el.style.width=w+'px';changes.push({id:item.id,path:'Width',value:w});}if(h.includes('n')||h.includes('s')){item.el.style.height=height+'px';changes.push({id:item.id,path:'Height',value:height});}if(h.includes('w'))changes.push({id:item.id,path:item.x,value:item.left+parentDelta.x});if(h.includes('n'))changes.push({id:item.id,path:item.y,value:item.top+parentDelta.y});}else{const dx=parentDelta.x,dy=parentDelta.y;item.el.style.translate=dx+'px '+dy+'px';changes.push({id:item.id,path:item.x,value:item.left+dx},{id:item.id,path:item.y,value:item.top+dy});}}s.drawSelection();},cancel=>{items.forEach(i=>i.el.style.cssText=i.css);if(!cancel&&changes.length)a.recordBatch(changes,handle?'Record canvas resize':'Record canvas move');else a.frame();s.drawSelection();});return true;}
-  gesture(e,move,finish){this.cancelGesture?.();const store=this.s.store,revision=store.revision,storyId=this.s.blend.animation.storyId,record=this.s.blend.animation.record,docId=this.s.doc.id,pointer=e.pointerId;const valid=()=>this.s.store===store&&store.revision===revision&&this.s.blend.animation.storyId===storyId&&this.s.blend.animation.record===record;const cleanup=()=>{document.removeEventListener('pointermove',update);document.removeEventListener('pointerup',end);document.removeEventListener('pointercancel',cancel);document.removeEventListener('keydown',key,true);window.removeEventListener('blur',cancel);this.cancelGesture=null;};const update=ev=>{if(ev.pointerId!==pointer)return;if(this.s.doc.id!==docId||!valid()){cancel();return;}move(ev);};const cancel=()=>{cleanup();finish(true);},end=ev=>{if(ev.pointerId!==pointer)return;cleanup();finish(this.s.doc.id!==docId||!valid());},key=ev=>{if(ev.key==='Escape'){ev.preventDefault();ev.stopImmediatePropagation();cancel();}};this.cancelGesture=cancel;document.addEventListener('pointermove',update);document.addEventListener('pointerup',end);document.addEventListener('pointercancel',cancel);document.addEventListener('keydown',key,true);window.addEventListener('blur',cancel);}
-  draw(){const s=this.s;$$('.direct-adorner,.path-point').forEach(n=>n.remove());const node=s.selected[0];if(!node||s.selected.length!==1||isLocked(s.doc,node.id)||this.inline)return;const rect=s.rectFor(node.id);if(!rect)return;const host=document.createElement('div');host.className='direct-adorner';host.style.cssText=`left:${Math.max(0,rect.x)}px;top:${Math.max(2,rect.y-34)}px`;host.innerHTML=`${['TextBlock','Button','TextBox','Label','Run'].includes(localName(node.type))?'<button data-direct-text title="Edit text directly">T</button>':''}<button data-direct-rotate title="Drag to rotate; Shift snaps to 15°">↻</button>${localName(node.type)==='Path'?'<button data-direct-path title="Edit path points">◇</button>':''}<button data-direct-properties title="Show properties">⚙</button>`;$('#canvas-viewport').append(host);const vp=$('#canvas-viewport'),vr=vp.getBoundingClientRect(),lr=$('.selection-label')?.getBoundingClientRect(),hr=host.getBoundingClientRect();const placed=placeSelectionToolbar(rect,{width:hr.width,height:hr.height},lr?{x:lr.left-vr.left,y:lr.top-vr.top,width:lr.width,height:lr.height}:null,{width:vp.clientWidth,height:vp.clientHeight});host.style.left=placed.x+'px';host.style.top=placed.y+'px';$('[data-direct-text]',host)?.addEventListener('click',()=>this.editText(node));$('[data-direct-properties]',host).onclick=()=>s.docking.control.show('properties');$('[data-direct-path]',host)?.addEventListener('click',()=>{this.pathEnabled=!this.pathEnabled;this.draw();});$('[data-direct-rotate]',host).onpointerdown=e=>this.rotate(e,node);if(this.pathEnabled&&localName(node.type)==='Path')this.pathPoints(node);}
-  rotate(e,node){e.preventDefault();e.stopPropagation();const s=this.s;if(!s.prepareEdit())return;const el=s.renderer.elements.get(node.id),r=el.getBoundingClientRect(),origin=(node.props.RenderTransformOrigin||'0,0').split(',').map(Number),cx=r.left+r.width*(origin[0]||0),cy=r.top+r.height*(origin[1]||0),start=Math.atan2(e.clientY-cy,e.clientX-cx),draft=clone(s.doc),path=ensureTransformPath(draft,find(draft.root,node.id),TRANSFORM_PATHS.Angle),sample=s.blend.animation.previewing&&s.blend.animation.story?sampleStoryboard(s.blend.animation.base||s.doc,find((s.blend.animation.base||s.doc).root,s.blend.animation.storyId)||s.blend.animation.story,s.blend.animation.player.time).overrides.get(node.id):null,base=Number(sample?.[path]??readPropertyPath(draft,find(draft.root,node.id),path))||0,css=el.style.cssText;let angle=base;this.gesture(e,ev=>{angle=base+(Math.atan2(ev.clientY-cy,ev.clientX-cx)-start)*180/Math.PI;if(ev.shiftKey)angle=Math.round(angle/15)*15;el.style.rotate=(angle-base)+'deg';s.drawSelection();},cancel=>{el.style.cssText=css;if(!cancel){if(s.blend.animation.record)s.blend.animation.recordBatch([{id:node.id,path:TRANSFORM_PATHS.Angle,value:angle}],'Record rotation');else s.store.transaction('Rotate on canvas',doc=>{const target=find(doc.root,node.id),path=ensureTransformPath(doc,target,TRANSFORM_PATHS.Angle);writePropertyPath(doc,target,path,angle);});}s.drawSelection();});}
-  pathPoints(node){const s=this.s,el=s.renderer.elements.get(node.id),path=el?.querySelector('path');if(!path?.getScreenCTM)return;let commands;try{commands=parsePath(node.props.Data);}catch{return;}const matrix=path.getScreenCTM(),vp=$('#canvas-viewport').getBoundingClientRect();if(!matrix)return;for(const point of pathPoints(commands)){const screen=new DOMPoint(point.x,point.y).matrixTransform(matrix),button=document.createElement('button');button.className='path-point'+(point.control?' tangent':'');button.title=point.control?'Drag curve control point':'Drag path anchor';button.style.cssText=`left:${screen.x-vp.left-4}px;top:${screen.y-vp.top-4}px`;$('#canvas-viewport').append(button);button.onpointerdown=e=>{e.preventDefault();e.stopPropagation();if(!s.prepareEdit())return;const old=path.getAttribute('d'),inverse=matrix.inverse();let next=commands;this.gesture(e,ev=>{const local=new DOMPoint(ev.clientX,ev.clientY).matrixTransform(inverse);next=movePathPoint(commands,point,ev.shiftKey?Math.round(local.x/8)*8:local.x,ev.shiftKey?Math.round(local.y/8)*8:local.y);path.setAttribute('d',serializePath(next));button.style.left=ev.clientX-vp.left-4+'px';button.style.top=ev.clientY-vp.top-4+'px';},cancel=>{path.setAttribute('d',old);if(!cancel)s.setProps([node.id],'Data',serializePath(next));s.drawSelection();});};}}
+  finishDraw(d, e) {
+    const s = this.s;
+    try {
+      let box = d.box || { width: 120 * s.zoom, height: 80 * s.zoom, x: d.start.x, y: d.start.y };
+      if (e.shiftKey) {
+        const size = Math.max(box.width, box.height);
+        box = { ...box, width: size, height: size };
+      }
+      const parent = find(s.doc.root, d.parentId),
+        node = s.registry.create(d.type);
+      s.canContain(parent, [node]);
+      node.props.Width = String(Math.max(1, s.snapValue(box.width / s.zoom)));
+      node.props.Height = String(Math.max(1, s.snapValue(box.height / s.zoom)));
+      if (d.type === 'Line') {
+        node.props.X1 = e.clientX < d.x ? node.props.Width : '0';
+        node.props.Y1 = e.clientY < d.y ? node.props.Height : '0';
+        node.props.X2 = e.clientX < d.x ? '0' : node.props.Width;
+        node.props.Y2 = e.clientY < d.y ? '0' : node.props.Height;
+        node.props.Stroke = '#2563EB';
+        node.props.StrokeThickness = '2';
+      }
+      const vr = $('#canvas-viewport').getBoundingClientRect();
+      s.store.transaction('Draw ' + d.type, (doc) => {
+        contentHost(parent).children.push(node);
+        const plan = s.features.canvas.createPlan(parent, [node.id], {
+          clientX: vr.left + box.x,
+          clientY: vr.top + box.y,
+        });
+        if (!plan.allowed) throw Error(plan.reason);
+        applyDropPlan(doc, plan);
+      });
+      s.store.select([node.id]);
+      s.setTool('select');
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  beginRecord(e) {
+    const s = this.s,
+      a = s.blend.animation,
+      handle = e.target.closest('[data-h]'),
+      node = handle
+        ? find(s.doc.root, handle.dataset.id)
+        : s.features.canvas.hit.pick(e.clientX, e.clientY, { deep: e.ctrlKey || e.metaKey });
+    if (!node || node.id === s.doc.root.id || isLocked(s.doc, node.id)) return false;
+    if (!s.store.selection.includes(node.id)) s.store.select([node.id]);
+    if (!s.prepareEdit()) return true;
+    a.player.pause();
+    const sample = sampleStoryboard(
+      a.base || s.doc,
+      find((a.base || s.doc).root, a.storyId) || a.story,
+      a.player.time,
+    ).overrides;
+    const ids = handle
+        ? [node.id]
+        : s
+            .topSelection()
+            .filter((n) => !isLocked(s.doc, n.id))
+            .map((n) => n.id),
+      items = ids.map((id) => {
+        const target = find(s.doc.root, id),
+          el = s.renderer.elements.get(id),
+          rect = el.getBoundingClientRect(),
+          parent = logicalParent(s.doc.root, id),
+          base = clone(a.base || s.doc),
+          baseNode = find(base.root, id),
+          x =
+            localName(parent?.type || '') === 'Canvas'
+              ? 'Canvas.Left'
+              : ensureTransformPath(base, baseNode, TRANSFORM_PATHS.X),
+          y =
+            x === 'Canvas.Left'
+              ? 'Canvas.Top'
+              : ensureTransformPath(base, baseNode, TRANSFORM_PATHS.Y);
+        const value = (path) =>
+          Number(sample.get(id)?.[path] ?? readPropertyPath(base, baseNode, path)) || 0;
+        return {
+          id,
+          el,
+          css: el.style.cssText,
+          rect,
+          x,
+          y,
+          left: value(x),
+          top: value(y),
+          width: el.offsetWidth || rect.width / s.zoom,
+          height: el.offsetHeight || rect.height / s.zoom,
+          matrix: worldMatrix(el),
+          parentMatrix: worldMatrix(el.parentElement),
+        };
+      });
+    e.preventDefault();
+    e.stopPropagation();
+    let changes = [];
+    this.gesture(
+      e,
+      (ev) => {
+        const dx = (ev.clientX - e.clientX) / s.zoom,
+          dy = (ev.clientY - e.clientY) / s.zoom;
+        changes = [];
+        for (const item of items) {
+          const local = inverseVector(item.matrix, ev.clientX - e.clientX, ev.clientY - e.clientY),
+            parentDelta = inverseVector(
+              item.parentMatrix,
+              ev.clientX - e.clientX,
+              ev.clientY - e.clientY,
+            );
+          if (handle) {
+            const dx = local.x,
+              dy = local.y,
+              h = handle.dataset.h,
+              w = Math.max(1, item.width + (h.includes('w') ? -dx : h.includes('e') ? dx : 0)),
+              height = Math.max(
+                1,
+                item.height + (h.includes('n') ? -dy : h.includes('s') ? dy : 0),
+              );
+            if (h.includes('w') || h.includes('e')) {
+              item.el.style.width = w + 'px';
+              changes.push({ id: item.id, path: 'Width', value: w });
+            }
+            if (h.includes('n') || h.includes('s')) {
+              item.el.style.height = height + 'px';
+              changes.push({ id: item.id, path: 'Height', value: height });
+            }
+            if (h.includes('w'))
+              changes.push({ id: item.id, path: item.x, value: item.left + parentDelta.x });
+            if (h.includes('n'))
+              changes.push({ id: item.id, path: item.y, value: item.top + parentDelta.y });
+          } else {
+            const dx = parentDelta.x,
+              dy = parentDelta.y;
+            item.el.style.translate = dx + 'px ' + dy + 'px';
+            changes.push(
+              { id: item.id, path: item.x, value: item.left + dx },
+              { id: item.id, path: item.y, value: item.top + dy },
+            );
+          }
+        }
+        s.drawSelection();
+      },
+      (cancel) => {
+        items.forEach((i) => (i.el.style.cssText = i.css));
+        if (!cancel && changes.length)
+          a.recordBatch(changes, handle ? 'Record canvas resize' : 'Record canvas move');
+        else a.frame();
+        s.drawSelection();
+      },
+    );
+    return true;
+  }
+  gesture(e, move, finish) {
+    this.cancelGesture?.();
+    const store = this.s.store,
+      revision = store.revision,
+      storyId = this.s.blend.animation.storyId,
+      record = this.s.blend.animation.record,
+      docId = this.s.doc.id,
+      pointer = e.pointerId;
+    const valid = () =>
+      this.s.store === store &&
+      store.revision === revision &&
+      this.s.blend.animation.storyId === storyId &&
+      this.s.blend.animation.record === record;
+    const cleanup = () => {
+      document.removeEventListener('pointermove', update);
+      document.removeEventListener('pointerup', end);
+      document.removeEventListener('pointercancel', cancel);
+      document.removeEventListener('keydown', key, true);
+      window.removeEventListener('blur', cancel);
+      this.cancelGesture = null;
+    };
+    const update = (ev) => {
+      if (ev.pointerId !== pointer) return;
+      if (this.s.doc.id !== docId || !valid()) {
+        cancel();
+        return;
+      }
+      move(ev);
+    };
+    const cancel = () => {
+        cleanup();
+        finish(true);
+      },
+      end = (ev) => {
+        if (ev.pointerId !== pointer) return;
+        cleanup();
+        finish(this.s.doc.id !== docId || !valid());
+      },
+      key = (ev) => {
+        if (ev.key === 'Escape') {
+          ev.preventDefault();
+          ev.stopImmediatePropagation();
+          cancel();
+        }
+      };
+    this.cancelGesture = cancel;
+    document.addEventListener('pointermove', update);
+    document.addEventListener('pointerup', end);
+    document.addEventListener('pointercancel', cancel);
+    document.addEventListener('keydown', key, true);
+    window.addEventListener('blur', cancel);
+  }
+  draw() {
+    const s = this.s;
+    $$('.direct-adorner,.path-point').forEach((n) => n.remove());
+    const node = s.selected[0];
+    if (!node || s.selected.length !== 1 || isLocked(s.doc, node.id) || this.inline) return;
+    const rect = s.rectFor(node.id);
+    if (!rect) return;
+    const host = document.createElement('div');
+    host.className = 'direct-adorner';
+    host.style.cssText = `left:${Math.max(0, rect.x)}px;top:${Math.max(2, rect.y - 34)}px`;
+    host.innerHTML = `${['TextBlock', 'Button', 'TextBox', 'Label', 'Run'].includes(localName(node.type)) ? '<button data-direct-text title="Edit text directly">T</button>' : ''}<button data-direct-rotate title="Drag to rotate; Shift snaps to 15°">↻</button>${localName(node.type) === 'Path' ? '<button data-direct-path title="Edit path points">◇</button>' : ''}<button data-direct-properties title="Show properties">⚙</button>`;
+    $('#canvas-viewport').append(host);
+    const vp = $('#canvas-viewport'),
+      vr = vp.getBoundingClientRect(),
+      lr = $('.selection-label')?.getBoundingClientRect(),
+      hr = host.getBoundingClientRect();
+    const placed = placeSelectionToolbar(
+      rect,
+      { width: hr.width, height: hr.height },
+      lr ? { x: lr.left - vr.left, y: lr.top - vr.top, width: lr.width, height: lr.height } : null,
+      { width: vp.clientWidth, height: vp.clientHeight },
+    );
+    host.style.left = placed.x + 'px';
+    host.style.top = placed.y + 'px';
+    $('[data-direct-text]', host)?.addEventListener('click', () => this.editText(node));
+    $('[data-direct-properties]', host).onclick = () => s.docking.control.show('properties');
+    $('[data-direct-path]', host)?.addEventListener('click', () => {
+      this.pathEnabled = !this.pathEnabled;
+      this.draw();
+    });
+    $('[data-direct-rotate]', host).onpointerdown = (e) => this.rotate(e, node);
+    if (this.pathEnabled && localName(node.type) === 'Path') this.pathPoints(node);
+  }
+  rotate(e, node) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = this.s;
+    if (!s.prepareEdit()) return;
+    const el = s.renderer.elements.get(node.id),
+      r = el.getBoundingClientRect(),
+      origin = (node.props.RenderTransformOrigin || '0,0').split(',').map(Number),
+      cx = r.left + r.width * (origin[0] || 0),
+      cy = r.top + r.height * (origin[1] || 0),
+      start = Math.atan2(e.clientY - cy, e.clientX - cx),
+      draft = clone(s.doc),
+      path = ensureTransformPath(draft, find(draft.root, node.id), TRANSFORM_PATHS.Angle),
+      sample =
+        s.blend.animation.previewing && s.blend.animation.story
+          ? sampleStoryboard(
+              s.blend.animation.base || s.doc,
+              find((s.blend.animation.base || s.doc).root, s.blend.animation.storyId) ||
+                s.blend.animation.story,
+              s.blend.animation.player.time,
+            ).overrides.get(node.id)
+          : null,
+      base =
+        Number(sample?.[path] ?? readPropertyPath(draft, find(draft.root, node.id), path)) || 0,
+      css = el.style.cssText;
+    let angle = base;
+    this.gesture(
+      e,
+      (ev) => {
+        angle = base + ((Math.atan2(ev.clientY - cy, ev.clientX - cx) - start) * 180) / Math.PI;
+        if (ev.shiftKey) angle = Math.round(angle / 15) * 15;
+        el.style.rotate = angle - base + 'deg';
+        s.drawSelection();
+      },
+      (cancel) => {
+        el.style.cssText = css;
+        if (!cancel) {
+          if (s.blend.animation.record)
+            s.blend.animation.recordBatch(
+              [{ id: node.id, path: TRANSFORM_PATHS.Angle, value: angle }],
+              'Record rotation',
+            );
+          else
+            s.store.transaction('Rotate on canvas', (doc) => {
+              const target = find(doc.root, node.id),
+                path = ensureTransformPath(doc, target, TRANSFORM_PATHS.Angle);
+              writePropertyPath(doc, target, path, angle);
+            });
+        }
+        s.drawSelection();
+      },
+    );
+  }
+  pathPoints(node) {
+    const s = this.s,
+      el = s.renderer.elements.get(node.id),
+      path = el?.querySelector('path');
+    if (!path?.getScreenCTM) return;
+    let commands;
+    try {
+      commands = parsePath(node.props.Data);
+    } catch {
+      return;
+    }
+    const matrix = path.getScreenCTM(),
+      vp = $('#canvas-viewport').getBoundingClientRect();
+    if (!matrix) return;
+    for (const point of pathPoints(commands)) {
+      const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix),
+        button = document.createElement('button');
+      button.className = 'path-point' + (point.control ? ' tangent' : '');
+      button.title = point.control ? 'Drag curve control point' : 'Drag path anchor';
+      button.style.cssText = `left:${screen.x - vp.left - 4}px;top:${screen.y - vp.top - 4}px`;
+      $('#canvas-viewport').append(button);
+      button.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!s.prepareEdit()) return;
+        const old = path.getAttribute('d'),
+          inverse = matrix.inverse();
+        let next = commands;
+        this.gesture(
+          e,
+          (ev) => {
+            const local = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(inverse);
+            next = movePathPoint(
+              commands,
+              point,
+              ev.shiftKey ? Math.round(local.x / 8) * 8 : local.x,
+              ev.shiftKey ? Math.round(local.y / 8) * 8 : local.y,
+            );
+            path.setAttribute('d', serializePath(next));
+            button.style.left = ev.clientX - vp.left - 4 + 'px';
+            button.style.top = ev.clientY - vp.top - 4 + 'px';
+          },
+          (cancel) => {
+            path.setAttribute('d', old);
+            if (!cancel) s.setProps([node.id], 'Data', serializePath(next));
+            s.drawSelection();
+          },
+        );
+      };
+    }
+  }
 }

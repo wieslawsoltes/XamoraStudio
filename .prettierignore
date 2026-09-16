@@ -13,3 +13,10 @@ dist/examples/
 **/*.xaml
 docs/benchmarks/
 dist/docs/benchmarks/
+
+# Local build, release and hosting workspaces.
+.artifacts/
+.package-build/
+.sites-runtime/
+deliverables/
+upload/

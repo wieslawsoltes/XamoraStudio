@@ -17,35 +17,35 @@ The top Window button opens the layout manager directly. “All windows…” op
 
 ## Integrated windows
 
-| Window | Integration |
-| --- | --- |
-| Document tabs | Each workspace page has a stable document tab. Tabs can be reordered, pinned, floated or split into multiple document groups. |
-| Designer | The active page owns the original live canvas, hit testing, selection, grid editor, pan/zoom and GPU grid surface. Other visible page groups show scaled previews; activating a page moves the live canvas to it. |
-| XAML source | The existing editor instance and textarea are retained when docking changes. Dirty source, selection, scroll, completion state and listeners are preserved across panel moves. The tab marks unapplied source with an asterisk. |
-| Layers | Page list, tree, selection, locks, layer drag/drop and search remain connected to the active design document. |
-| Toolbox | Separate search and control insertion surface, including drag from the toolbox to the canvas. |
-| Resources | Separate brush, template, style and theme resource navigation. |
-| Data sources | Independent table/query/binding-source browser; its editing dialogs remain available. |
-| Properties, Raw properties, Interactions, XAML inspector, Annotations | Separate dockable tools that update with the active selection and retain the existing editing behavior. |
-| Views & connections | Independent multi-view board with prototype connections and responsive comparisons. It can remain visible alongside the canvas. |
-| Objects & timeline | Independent timeline; showing it initializes the active page's storyboard. Hiding it stops recording and preview playback. |
-| Error list | Dockable diagnostics list connected to document selection and XAML source. |
+| Window                                                                | Integration                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Document tabs                                                         | Each workspace page has a stable document tab. Tabs can be reordered, pinned, floated or split into multiple document groups.                                                                                                   |
+| Designer                                                              | The active page owns the original live canvas, hit testing, selection, grid editor, pan/zoom and GPU grid surface. Other visible page groups show scaled previews; activating a page moves the live canvas to it.               |
+| XAML source                                                           | The existing editor instance and textarea are retained when docking changes. Dirty source, selection, scroll, completion state and listeners are preserved across panel moves. The tab marks unapplied source with an asterisk. |
+| Layers                                                                | Page list, tree, selection, locks, layer drag/drop and search remain connected to the active design document.                                                                                                                   |
+| Toolbox                                                               | Separate search and control insertion surface, including drag from the toolbox to the canvas.                                                                                                                                   |
+| Resources                                                             | Separate brush, template, style and theme resource navigation.                                                                                                                                                                  |
+| Data sources                                                          | Independent table/query/binding-source browser; its editing dialogs remain available.                                                                                                                                           |
+| Properties, Raw properties, Interactions, XAML inspector, Annotations | Separate dockable tools that update with the active selection and retain the existing editing behavior.                                                                                                                         |
+| Views & connections                                                   | Independent multi-view board with prototype connections and responsive comparisons. It can remain visible alongside the canvas.                                                                                                 |
+| Objects & timeline                                                    | Independent timeline; showing it initializes the active page's storyboard. Hiding it stops recording and preview playback.                                                                                                      |
+| Error list                                                            | Dockable diagnostics list connected to document selection and XAML source.                                                                                                                                                      |
 
 Tools may join document wells. Document windows use document groups and cannot auto-hide. Selecting a different design page keeps the designer's existing XAML validation guard: pending invalid XAML must be fixed before switching; the docking operation does not discard it.
 
 ## Keyboard and accessibility
 
-| Action | Shortcut / control |
-| --- | --- |
-| Next / previous visible window | F6 / Shift+F6 |
-| Next / previous open tab | Ctrl/Command+Tab / Ctrl/Command+Shift+Tab, when the browser delivers it |
-| Window navigator | Ctrl/Command+Q; also always available from Window |
-| Close active window | Ctrl/Command+F4 |
-| Maximize / restore active group | Alt+Shift+Enter; title-bar button and context menu |
-| Tab-strip navigation | Arrow keys, Home and End |
-| Tab context menu | Shift+F10 or right-click |
-| Keyboard splitter resizing | Arrow keys; Shift for larger steps; Home/End; Enter for equal split |
-| Cancel drag/resize; dismiss flyout/menu | Escape |
+| Action                                  | Shortcut / control                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| Next / previous visible window          | F6 / Shift+F6                                                           |
+| Next / previous open tab                | Ctrl/Command+Tab / Ctrl/Command+Shift+Tab, when the browser delivers it |
+| Window navigator                        | Ctrl/Command+Q; also always available from Window                       |
+| Close active window                     | Ctrl/Command+F4                                                         |
+| Maximize / restore active group         | Alt+Shift+Enter; title-bar button and context menu                      |
+| Tab-strip navigation                    | Arrow keys, Home and End                                                |
+| Tab context menu                        | Shift+F10 or right-click                                                |
+| Keyboard splitter resizing              | Arrow keys; Shift for larger steps; Home/End; Enter for equal split     |
+| Cancel drag/resize; dismiss flyout/menu | Escape                                                                  |
 
 The docking chrome includes tablist/tab/tabpanel semantics, selected states, labels, focus indicators, keyboard separators and live docking announcements. The browser or OS may reserve Ctrl+Tab, Command+Q or other combinations, so menu routes are provided. This release has not undergone an accessibility audit.
 
@@ -116,13 +116,11 @@ Multiple design pages can be displayed together, but one page at a time owns the
 
 Validation covers the model and deterministic DOM/integration behavior. No browser-driven drag/drop, visual layout, touch device, physical GPU or native Windows qualification was performed. See VALIDATION.md for the executed suite.
 
-
 ## Refinements in 0.5
 
 Design/Code/Split/Views are now explicit surface modes. Code and Views retain a serialized snapshot of the preceding whole window arrangement, including tiled/floating pages and closed tabs. Design/Split restore that snapshot before applying their visibility. Tool-window changes made in the temporary mode also return to that arrangement. Mode changes are a single layout undo step. Re-selecting a matching split preserves its ratio.
 
 The group header's tab list exposes overflowed tabs. Revealing a window outside a focused group exits focus, and activation scrolls its tab into view. Panel descriptors accept minimum width/height hints for pointer split limits. Registration changes are excluded from synchronous layout batches. See [Editor workflows](EDITOR-WORKFLOWS.md) for source-buffer recovery, multi-view tiling and the shared-canvas model.
-
 
 ## Density in 0.6
 

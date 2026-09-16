@@ -1,6 +1,13 @@
 /** UTF-16 offsets against the original source snapshot. */
-export interface SourceTextEdit { start: number; end: number; text: string; }
-export interface SourceTextPosition { line: number; column: number; }
+export interface SourceTextEdit {
+  start: number;
+  end: number;
+  text: string;
+}
+export interface SourceTextPosition {
+  line: number;
+  column: number;
+}
 export interface SourceTextBufferStats {
   /** Code units scanned for line endings; excludes prefix/suffix comparison. */
   charsScanned: number;
@@ -14,7 +21,7 @@ export interface SourceTextEditResult {
   changed: boolean;
   version: number;
   edits: SourceTextEdit[];
-  changedRange: {start: number; oldEnd: number; newEnd: number} | null;
+  changedRange: { start: number; oldEnd: number; newEnd: number } | null;
   reason?: 'version-conflict' | 'invalid-edit' | 'overlapping-edits' | 'version-exhausted';
   error?: string;
 }
@@ -24,7 +31,7 @@ export interface SourceTextEditResult {
  * scanning only visits edited text and its immediate boundaries.
  */
 export declare class SourceTextBuffer {
-  constructor(text?: string, options?: {version?: number});
+  constructor(text?: string, options?: { version?: number });
   readonly text: string;
   readonly version: number;
   readonly length: number;
@@ -38,7 +45,10 @@ export declare class SourceTextBuffer {
   /** Clamps to the last offset belonging to the requested line. */
   offsetAt(position?: Partial<SourceTextPosition>): number;
   /** Atomically applies original-snapshot ranges, independent of input order. */
-  applyEdits(edits: readonly SourceTextEdit[], options?: {expectedVersion?: number}): SourceTextEditResult;
-  replace(text: string, options?: {expectedVersion?: number}): SourceTextEditResult;
+  applyEdits(
+    edits: readonly SourceTextEdit[],
+    options?: { expectedVersion?: number },
+  ): SourceTextEditResult;
+  replace(text: string, options?: { expectedVersion?: number }): SourceTextEditResult;
 }
 export declare function computeSourceEdit(before: string, after: string): SourceTextEdit | null;
