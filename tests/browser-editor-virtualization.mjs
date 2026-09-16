@@ -38,6 +38,11 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 let browser, page;
+const watchdog = setTimeout(() => {
+  console.error('Virtual editor browser suite exceeded its 120-second execution budget.');
+  process.exitCode = 1;
+  void browser?.close();
+}, 120000);
 const errors = [],
   failed = [],
   requests = [];
@@ -50,6 +55,7 @@ try {
   });
   page.on('request', (r) => requests.push(new URL(r.url()).pathname));
   for (const path of ['/examples/VirtualEditorLab/', '/packed/']) {
+    console.log(`Testing 100000-line editor ${path}`);
     requests.length = 0;
     await page.goto(`http://127.0.0.1:${server.address().port}${path}`);
     await page.waitForFunction(() => !!window.virtualEditorLab);
@@ -99,11 +105,36 @@ try {
         .textContent()
         .then((s) => s.includes('row 100000')),
     );
+    console.log(`Testing native text insertion ${path}`);
     await input.press('End');
     await page.keyboard.insertText(' Edited');
     assert((await input.inputValue()).endsWith(' Edited'));
     await input.press('Control+z');
     assert(!(await input.inputValue()).endsWith(' Edited'));
+    const selectionStart = await input.evaluate((el) => {
+      const editor = window.virtualEditorLab.editor;
+      const start = editor.lineIndex.offsetAt(50000);
+      el.setSelectionRange(start, start + 3, 'backward');
+      editor.reveal(start);
+      return start;
+    });
+    await page.keyboard.insertText('👩‍💻');
+    assert.deepEqual(
+      await input.evaluate(
+        (el, start) => ({
+          text: el.value.slice(start, start + '👩‍💻'.length),
+          start: el.selectionStart,
+          end: el.selectionEnd,
+        }),
+        selectionStart,
+      ),
+      { text: '👩‍💻', start: selectionStart + '👩‍💻'.length, end: selectionStart + '👩‍💻'.length },
+    );
+    await input.press('Control+z');
+    assert.equal(
+      await input.evaluate((el, start) => el.value.slice(start, start + 3), selectionStart),
+      'row',
+    );
     await page.setViewportSize({ width: 700, height: 500 });
     await page.waitForFunction(() => window.virtualEditorLab.editor.viewport.renderedLines < 50);
     await page.evaluate(() => {
@@ -129,10 +160,12 @@ try {
 } catch (error) {
   await mkdir(resolve(root, 'test-results'), { recursive: true });
   await page
-    ?.screenshot({ path: resolve(root, 'test-results/nested-properties.png') })
+    ?.screenshot({ path: resolve(root, 'test-results/editor-virtualization.png') })
     .catch(() => {});
   throw error;
 } finally {
+  clearTimeout(watchdog);
   await browser?.close();
+  server.closeAllConnections();
   await new Promise((r) => server.close(r));
 }

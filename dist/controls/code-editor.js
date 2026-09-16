@@ -45,6 +45,43 @@ export class CodeEditor {
     this.completions = host.querySelector('.completions');
     this.message = host.querySelector('.code-message');
     this.position = host.querySelector('.code-position');
+    // Large native textarea insertions can stall before an input event is delivered.
+    // Keep the textarea authoritative but apply ordinary virtualized text inserts
+    // through its range API, then use the existing input/history/validation path.
+    this.listen(this.input, 'beforeinput', (event) => {
+      if (
+        this.disposed ||
+        this.input.readOnly ||
+        this.input.disabled ||
+        this.composing ||
+        event.isComposing ||
+        event.defaultPrevented ||
+        !event.cancelable ||
+        !this.viewport?.virtualized ||
+        event.inputType !== 'insertText' ||
+        typeof event.data !== 'string'
+      )
+        return;
+      event.preventDefault();
+      const top = this.input.scrollTop,
+        left = this.input.scrollLeft;
+      this.input.setRangeText(
+        event.data,
+        this.input.selectionStart,
+        this.input.selectionEnd,
+        'end',
+      );
+      this.input.scrollTop = top;
+      this.input.scrollLeft = left;
+      this.input.dispatchEvent(
+        new this.window.InputEvent('input', {
+          bubbles: true,
+          composed: true,
+          inputType: event.inputType,
+          data: event.data,
+        }),
+      );
+    });
     this.listen(this.input, 'compositionstart', () => {
       this.composing = true;
     });
