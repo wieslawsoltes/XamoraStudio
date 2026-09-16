@@ -7,6 +7,11 @@ import { chromium } from 'playwright';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const sourceOnly = process.env.XAMORA_FIDELITY_SOURCE_ONLY === '1';
 let browser;
+const watchdog = setTimeout(() => {
+  console.error('Compiler fidelity suite exceeded its 90-second execution budget.');
+  process.exitCode = 1;
+  void browser?.close();
+}, 90000);
 try {
   browser = await chromium.launch({
     headless: true,
@@ -27,6 +32,10 @@ try {
     });
     const page = await browser.newPage();
     const errors = [];
+    page.on('console', (message) => {
+      if (message.text().startsWith('Fidelity:')) console.log(message.text());
+    });
+    console.log(`Testing Chromium fidelity ${modulePath}`);
     page.on('pageerror', (e) => errors.push(e.message));
     await page.setContent('<!doctype html><title>Compiler fidelity</title>');
     const report = await page.evaluate(async (code) => {
@@ -40,7 +49,20 @@ try {
         const el = document.createElement('iframe');
         el.width = '600';
         el.height = '300';
-        const ready = new Promise((resolve) => (el.onload = resolve));
+        const ready = new Promise((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(Error('Fidelity iframe did not load within 10 seconds.')),
+            10000,
+          );
+          el.onload = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          el.onerror = () => {
+            clearTimeout(timeout);
+            reject(Error('Fidelity iframe load failed.'));
+          };
+        });
         el.srcdoc = source;
         document.body.append(el);
         await ready;
@@ -58,6 +80,7 @@ try {
         #first+button[data-token="a,b:c"] {padding-left:7px}
         #first~button {margin-right:9px}
       </style></head><body><main><button id="first">A</button><!--gap--><button id="target" data-token="a,b:c" style="--base:33px;min-width:var(--derived)">B</button></main></body></html>`;
+      console.log('Fidelity: CSS comparison');
       const original = await frame(source);
       const originalStyle = original.contentWindow.getComputedStyle(
         original.contentDocument.getElementById('target'),
@@ -114,6 +137,7 @@ try {
         '<button id="text">Click <strong>here</strong> now</button>',
       ]) {
         const input = `<!doctype html><html><head><style>#text {font-family:Arial;font-size:16px}</style></head><body>${body}</body></html>`;
+        console.log(`Fidelity: rich text ${rich + 1}`);
         const before = await frame(input);
         const converted = compileDocument(input, { from: 'html', Parser: DOMParser });
         check(converted.success, 'rich text conversion failed');
@@ -132,6 +156,7 @@ try {
         after.remove();
         rich++;
       }
+      console.log('Fidelity: edited forms');
       const forms = compileDocument(
         '<html><body><div><textarea id="edit" readonly>one\ntwo</textarea><select id="choice"><option selected>A</option><option>B</option></select><input id="radio" type="radio" name="team" checked></div></body></html>',
         { from: 'html', Parser: DOMParser },
@@ -158,5 +183,6 @@ try {
     );
   }
 } finally {
+  clearTimeout(watchdog);
   await browser?.close();
 }
