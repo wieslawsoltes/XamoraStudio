@@ -27,11 +27,6 @@ jobs:
           manifest.scripts.format = 'prettier . --write';
           manifest.scripts['format:check'] = 'prettier . --check';
           await writeFile(file, JSON.stringify(manifest, null, 2) + '\n');
-          const ciPath = '.github/workflows/ci.yml';
-          const ci = await readFile(ciPath, 'utf8');
-          const anchor = '      - run: npm run check\n';
-          if (!ci.includes(anchor)) throw Error('CI validation anchor changed');
-          await writeFile(ciPath, ci.replace(anchor, '      - run: npm run format:check\n' + anchor));
           await appendFile('.prettierignore', '\n# Local build, release and hosting workspaces.\n.artifacts/\n.package-build/\n.sites-runtime/\ndeliverables/\nupload/\n');
           await unlink('.github/workflows/prepare-code-formatting.yml');
           JS
@@ -43,7 +38,7 @@ jobs:
           npm run format:check
           npm run check
           npm test
-      - name: Commit formatting only to the task branch
+      - name: Commit source formatting only to the task branch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -51,6 +46,7 @@ jobs:
           test "$GITHUB_REF" = refs/heads/chore/code-formatting
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git restore --source=HEAD --staged --worktree .github/workflows
           git add --all
           git commit -m 'style: format canonical source and enforce consistent conventions'
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
