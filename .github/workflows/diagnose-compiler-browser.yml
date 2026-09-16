@@ -1,0 +1,42 @@
+name: Diagnose compiler browser qualification
+on:
+  push:
+    branches: [feat/compiler-fidelity]
+    paths: [.github/workflows/diagnose-compiler-browser.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: chromium-${{ runner.os }}-playwright-1.62.1
+      - run: npx playwright install --with-deps --only-shell chromium
+      - name: Run every browser suite with bounded logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          for suite in tests/browser-*.mjs; do
+            echo "Starting $suite"
+            timeout --signal=TERM --kill-after=5s 120s node "$suite" 2>&1 | tee "test-results/$(basename "$suite").log"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compiler-browser-diagnostics
+          path: test-results/
+          if-no-files-found: error
+          retention-days: 3
