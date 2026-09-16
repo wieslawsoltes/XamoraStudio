@@ -267,3 +267,13 @@ Canvas, XAML motion/states, HTML motion/states, resources/brushes, solution and 
 Nested object control example: [NestedPropertiesLab](https://wieslawsoltes.github.io/XamoraStudio/examples/NestedPropertiesLab/).
 
 Standalone large-document editor example: [VirtualEditorLab](https://wieslawsoltes.github.io/XamoraStudio/examples/VirtualEditorLab/).
+
+## Responsive semantic conversion
+
+The compiler supports explicit media/supports/container environments, structural and
+functional selectors, cascade layers, supplied external stylesheet graphs, bounded
+CSS length math and live browser-layout capture/observation. The CLI accepts
+`--viewport WIDTHxHEIGHT` and resolves local CSS without following symlinks; Studio
+exposes viewport/media options. Read [Responsive compiler contracts](docs/RESPONSIVE-COMPILER.md)
+for the API, loader policy, measured-layout limits and WPF/Avalonia qualification.
+New source APIs require a checkout build; this increment does not publish npm packages.

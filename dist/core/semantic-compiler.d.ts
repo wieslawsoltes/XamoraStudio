@@ -1,3 +1,5 @@
+import type { CssEnvironment } from './compiler-environment.js';
+import type { CssPseudoStates } from './compiler-selectors.js';
 import type { DesignDocument, DesignNode } from './index.js';
 
 export declare const SEMANTIC_COMPILER_VERSION: 1;
@@ -41,6 +43,23 @@ export interface SemanticCompilerPlugin {
   htmlToXaml?(node: DesignNode, context: CompilerPluginContext): DesignNode | null | undefined;
 }
 export interface CompilerOptions {
+  /** Explicit environment used for point-in-time media/supports and relative-length lowering. */
+  environment?: CssEnvironment;
+  /** Base for supplied stylesheet resources. No ambient network/file access. */
+  baseUrl?: string;
+  stylesheets?: Map<string, string> | Record<string, string>;
+  resolveStylesheet?: (
+    url: string,
+    context: { href: string; baseUrl: string; nodeId: string },
+  ) => string | null | undefined;
+  containerEnvironment?: (node: DesignNode, name: string) => CssEnvironment | null | undefined;
+  pseudoStates?: CssPseudoStates;
+  targetId?: string;
+  maxStylesheets?: number;
+  maxStylesheetDepth?: number;
+  maxStylesheetBytes?: number;
+  maxCssRules?: number;
+  maxSelectorSteps?: number;
   from?: CompilerLanguage;
   to?: CompilerLanguage;
   framework?: 'WPF' | 'Avalonia';
@@ -74,6 +93,8 @@ export interface CompilerResult {
     from: CompilerLanguage;
     to: CompilerLanguage;
     preserved: boolean;
+    css?: { baseUrl?: string; mode?: string; stylesheets: string[]; rules: number; bytes: number };
+    rendered?: { width: number; height: number; nodes: number; mode: 'browser-snapshot' };
     sourceNodeCount?: number;
     targetNodeCount?: number;
   };

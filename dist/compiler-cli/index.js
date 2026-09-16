@@ -4,6 +4,8 @@ import { lstat, readFile, readdir, realpath, mkdir, open, unlink } from 'node:fs
 import { resolve, relative, dirname, basename, isAbsolute, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizePath } from '../core/solution.js';
+import { preloadCompilerStylesheets } from '../core/compiler-resources.js';
+import { compilerStylesheetUrl } from '../core/compiler-css.js';
 import { collectReferencedAssets } from './assets.js';
 
 export const HELP = `Xamora semantic document converter
@@ -17,6 +19,8 @@ Usage: xamora-convert <file|folder|solution.json> --to html|xaml --out-dir <fold
   --solution                Treat input as a solution / conversion manifest
   --strict                  Reject conversions with semantic losses
   --no-metadata             Omit round-trip metadata from generated documents
+  --viewport <width>x<height> Evaluate responsive CSS at this CSS-pixel viewport
+  --media screen|print      Media type (default: screen when a viewport is supplied)
   --dry-run                 Compile and report without creating files
   --report <file|->          JSON report destination; '-' writes to stdout
   --help                    Display help
@@ -54,6 +58,8 @@ export function parseArguments(argv) {
     ['--framework', 'framework'],
     ['--out-dir', 'outDir'],
     ['--report', 'report'],
+    ['--viewport', 'viewport'],
+    ['--media', 'media'],
   ]);
   let positional = false;
   for (let i = 0; i < argv.length; i++) {
@@ -97,6 +103,19 @@ export function parseArguments(argv) {
     throw Error('--out-dir is required unless --dry-run is used.');
   if (options.dryRun && options.report && options.report !== '-')
     throw Error('--dry-run writes no files; use --report - for a JSON report.');
+  if (options.viewport) {
+    const match = options.viewport.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
+    if (!match || !match.slice(1).every((v) => Number(v) > 0 && Number(v) <= 100000))
+      throw Error('--viewport must be positive WIDTHxHEIGHT in CSS pixels (maximum 100000).');
+    options.environment = {
+      width: Number(match[1]),
+      height: Number(match[2]),
+      type: options.media || 'screen',
+    };
+  }
+  if (options.media && !['screen', 'print'].includes(options.media))
+    throw Error('--media must be screen or print.');
+  if (options.media && !options.environment) options.environment = { type: options.media };
   return options;
 }
 
@@ -389,6 +408,30 @@ export async function runCli(
       )
     )
       Parser = await loadNodeParser();
+    let stylesheets = new Map();
+    for (const entry of collected.entries)
+      if (entry.framework === 'HTML') {
+        const input = entry.source ?? entry.document;
+        if (!input) continue;
+        stylesheets = await preloadCompilerStylesheets(input, {
+          Parser,
+          stylesheets,
+          environment: options.environment,
+          baseUrl: compilerStylesheetUrl(entry.path),
+          allowMissingStylesheets: true,
+          async loadStylesheet(url) {
+            const parsed = new URL(url);
+            if (parsed.origin !== 'https://xamora.invalid') return undefined;
+            const path = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+            try {
+              return await manifestFile(collected.root, path);
+            } catch (error) {
+              if (error.code === 'ENOENT') return undefined;
+              throw error;
+            }
+          },
+        });
+      }
     const plan = planner(collected.entries, {
       to: options.to,
       framework: options.framework,
@@ -397,6 +440,8 @@ export async function runCli(
       collision: 'error',
       preserveMetadata: options.preserveMetadata,
       strict: options.strict,
+      environment: options.environment,
+      stylesheets,
       Parser,
     });
     const assets = await collectReferencedAssets(plan, collected.root);

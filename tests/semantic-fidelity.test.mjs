@@ -393,7 +393,7 @@ test('native inline formatting retains bold and italic defaults over inherited n
   );
   assert.equal(find(result, 'bold').props.FontWeight, '700');
   assert.equal(find(result, 'heavy').props.FontWeight, '900');
-  assert.equal(find(result, 'italic').props.FontStyle, 'italic');
+  assert.equal(find(result, 'italic').props.FontStyle, 'Italic');
   assert.ok(!result.losses.some((d) => d.code === 'CSS_VALUE'));
 });
 test('authored inline font overrides beat defaults and relative weights become native numbers', () => {
