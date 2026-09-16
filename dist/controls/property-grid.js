@@ -150,6 +150,32 @@ export class PropertyGrid {
       ),
     );
   }
+  /** Update values without rebuilding fields or losing input focus/selection. */
+  updateValues(values) {
+    if (this.disposed) return false;
+    if (!(values instanceof Map)) throw new TypeError('Values must be a Map.');
+    const current = new Map(this.properties.map((property) => [property.name, property]));
+    for (const [name, value] of values) {
+      if (!current.has(name)) throw new Error(`Unknown property ${name}.`);
+      if (value !== undefined && !['string', 'number', 'boolean'].includes(typeof value))
+        throw new TypeError('Property values must be scalar.');
+    }
+    const next = normalize(
+      this.properties.map((property) =>
+        values.has(property.name)
+          ? { ...property, value: values.get(property.name), mixed: false }
+          : property,
+      ),
+    );
+    this.properties = next;
+    for (const property of next)
+      if (values.has(property.name)) {
+        const entry = this.fields.get(property.name);
+        entry.property = property;
+        this.syncInput(entry);
+      }
+    return true;
+  }
   render(properties = this.properties) {
     const doc = this.host.ownerDocument;
     const root = doc.createElement('div');

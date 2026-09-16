@@ -39,6 +39,7 @@
     },
     "./workspace-base.css": "./dist/assets/workspace-base.css",
     "./data-workspace.css": "./dist/assets/data-workspace.css",
+    "./property-grid.css": "./dist/assets/property-grid.css",
     "./browser": {
       "types": "./dist/esm/index.d.ts",
       "default": "./dist/browser/index.js"
@@ -66,6 +67,7 @@
     "@wieslawsoltes/xamora-contracts": "0.8.0",
     "@wieslawsoltes/xamora-data": "0.8.0",
     "@wieslawsoltes/xamora-model": "0.8.0",
+    "@wieslawsoltes/xamora-property-grid": "0.8.0",
     "@wieslawsoltes/xamora-workspace-context": "0.8.0"
   }
 }

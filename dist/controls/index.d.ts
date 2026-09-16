@@ -5,3 +5,6 @@ export * from './workspace-density.js';
 
 export * from './code-editor.js';
 export * from './property-grid.js';
+
+export * from './object-properties.js';
+export * from './object-property-grid.js';

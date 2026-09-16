@@ -54,7 +54,11 @@ export const packageLayout = [
     id: 'data-workspace',
     description: 'Document-aware database, schema, relationships, queries and binding editor',
     workspaces: ['data-editor'],
-    assets: ['dist/workspaces/workspace-base.css', 'dist/workspaces/data-workspace.css'],
+    assets: [
+      'dist/workspaces/workspace-base.css',
+      'dist/workspaces/data-workspace.css',
+      'dist/controls/property-grid.css',
+    ],
   },
   {
     id: 'contracts',
@@ -134,7 +138,7 @@ export const packageLayout = [
     id: 'property-grid',
     description: 'Standalone controlled property grid with validation, grouping and custom fields',
     modules: [],
-    controls: ['property-grid'],
+    controls: ['property-grid', 'object-properties', 'object-property-grid'],
     assets: ['dist/controls/property-grid.css'],
     typeContracts: false,
     standalone: true,
@@ -157,6 +161,10 @@ export const packageLayout = [
       { name: 'docking', source: 'dist/core/docking.js' },
       { name: 'code-editor', source: 'dist/controls/code-editor.js' },
       { name: 'property-grid', source: 'dist/controls/property-grid.js' },
+      ...['object-properties', 'object-property-grid'].map((name) => ({
+        name,
+        source: `dist/controls/${name}.js`,
+      })),
       ...['dock-workspace', 'menu-bar', 'scroll-buttons', 'workspace-density'].map((name) => ({
         name,
         source: `dist/controls/${name}.js`,

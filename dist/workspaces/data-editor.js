@@ -1,3 +1,4 @@
+import { ObjectPropertyGrid } from '../controls/object-property-grid.js';
 import { clone, uid } from '../core/model.js';
 import {
   DesignDatabase,
@@ -80,6 +81,8 @@ export class DataEditor extends WorkspaceComponent {
       );
   }
   open() {
+    this.objectGrid?.dispose();
+    this.objectGrid = null;
     const db = this.db;
     if (!tableBy(db, this.tableId)) this.tableId = db.tables[0]?.id || null;
     const table = tableBy(db, this.tableId);
@@ -718,44 +721,30 @@ export class DataEditor extends WorkspaceComponent {
     show();
   }
   renderObjects(host) {
-    const objects = this.db.objects || {};
-    const tree = (value, path = '', depth = 0) =>
-      Object.entries(value)
-        .map(([key, v]) => {
-          const p = path ? path + '.' + key : key;
-          if (v && typeof v === 'object')
-            return `<details open class="object-branch"><summary>${esc(key)} <small>${Array.isArray(v) ? 'array' : 'object'}</small></summary>${tree(v, p, depth + 1)}</details>`;
-          return `<div class="object-property"><label title="${esc(p)}">${esc(key)}</label>${typeof v === 'boolean' ? `<select data-object-path="${esc(p)}" data-value-type="boolean"><option ${v ? 'selected' : ''}>true</option><option ${!v ? 'selected' : ''}>false</option></select>` : `<input data-object-path="${esc(p)}" data-value-type="${v === null ? 'json' : typeof v}" value="${esc(v === null ? 'null' : v)}">`}<button class="icon-button" data-delete-object="${esc(p)}" title="Remove property">×</button></div>`;
-        })
-        .join('');
-    host.innerHTML = `<div class="data-heading"><h3>Object model</h3><span class="spacer"></span><button class="button" id="object-json">Edit JSON</button><button class="button primary" id="object-add">+ Property</button></div><p class="feature-help">Object properties are exposed at the binding root. Use App.Counter or App.Search in controls and interaction actions.</p><div class="object-tree">${tree(objects)}</div>`;
-    this.environment.all('[data-object-path]').forEach((input) =>
-      this.environment.handler(input, 'onchange', () => {
-        try {
-          let type = input.dataset.valueType;
-          if (type === 'object') type = 'json';
-          const value = parseValue(input.value, type);
-          this.mutate('Edit object value', (db) =>
-            db.transaction((d) => writePath(d.objects, input.dataset.objectPath, value)),
-          );
-        } catch (e) {
-          this.environment.notify(e.message);
-        }
-      }),
-    );
-    this.environment.all('[data-delete-object]').forEach((b) =>
-      this.environment.handler(b, 'onclick', () => {
-        this.mutate('Remove object property', (db) =>
-          db.transaction((d) => {
-            const parts = b.dataset.deleteObject.split('.'),
-              key = parts.pop(),
-              parent = parts.length ? readPath(d.objects, parts.join('.')) : d.objects;
-            delete parent[key];
+    this.objectGrid?.dispose();
+    host.innerHTML =
+      '<div class="data-heading"><h3>Object model</h3><span class="spacer"></span><button class="button" id="object-json">Edit JSON</button><button class="button primary" id="object-add">+ Property</button></div><p class="feature-help">Expand nested objects and arrays. Edits use the document undo history.</p><div class="object-tree"></div>';
+    this.objectGrid = new ObjectPropertyGrid(host.querySelector('.object-tree'), {
+      value: this.db.objects || {},
+      expandedDepth: 2,
+      onChange: ({ next }) => {
+        if (this.disposed || !host.isConnected) return false;
+        if (!next || typeof next !== 'object' || Array.isArray(next))
+          return 'The binding root must remain an object.';
+        // Design databases are serialized as JSON, unlike the generic control's richer data graphs.
+        JSON.stringify(next, (_key, value) => {
+          if (value === undefined || ['function', 'symbol', 'bigint'].includes(typeof value))
+            throw new TypeError('Design data must contain JSON values.');
+          return value;
+        });
+        this.mutate('Edit nested object property', (db) =>
+          db.transaction((data) => {
+            data.objects = next;
           }),
         );
-        this.renderObjects(host);
-      }),
-    );
+        return true;
+      },
+    });
     this.environment.handler(this.environment.query('#object-add'), 'onclick', () =>
       this.objectDialog(),
     );
@@ -995,6 +984,8 @@ export class DataEditor extends WorkspaceComponent {
   }
   dispose() {
     if (this.disposed) return;
+    this.objectGrid?.dispose();
+    this.objectGrid = null;
     super.dispose();
   }
 }

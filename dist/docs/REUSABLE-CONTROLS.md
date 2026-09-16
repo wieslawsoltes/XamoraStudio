@@ -43,3 +43,7 @@ All names above use the `@wieslawsoltes/` scope. For existing XAML/HTML code-edi
 The editor is textarea-based with synchronous providers, not a Monaco-equivalent editor or a line-virtualized renderer. The property grid handles explicitly supplied scalar descriptors, not automatic reflection of arbitrary object graphs. Docking floats within the browser page, not native OS windows. Existing richer Studio features remain in their application adapters; this extraction does not claim they all became standalone controls.
 
 The document-aware workspace implementations are now independently packaged; see [Workspace components](WORKSPACE-COMPONENTS.md).
+
+## Nested object properties
+
+`ObjectPropertyGrid` and the pure object-path/inspection helpers now ship in `xamora-property-grid`. The data workspace Objects view uses the same control with document transactions. Automatic own-data-property discovery, arrays, expansion, filtering, immutable callbacks and reset are covered by unit and standalone-browser tests. Accessors/classes/proxies are not invoked as reflection providers; see the package README for graph and inspection limits. Scalar PropertyGrid remains compatible.

@@ -1,3 +1,4 @@
+@import '../controls/property-grid.css';
 @import './workspace-base.css';
 :where(.xamora-workspace) .editing [data-node-id],
 :where(.xamora-workspace) .editing input,
