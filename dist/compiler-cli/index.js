@@ -5,6 +5,7 @@ import { resolve, relative, dirname, basename, isAbsolute, sep } from 'node:path
 import { fileURLToPath } from 'node:url';
 import { normalizePath } from '../core/solution.js';
 import { collectReferencedAssets } from './assets.js';
+import { loadLocalStylesheets } from './stylesheets.js';
 
 export const HELP = `Xamora semantic document converter
 
@@ -17,6 +18,11 @@ Usage: xamora-convert <file|folder|solution.json> --to html|xaml --out-dir <fold
   --solution                Treat input as a solution / conversion manifest
   --strict                  Reject conversions with semantic losses
   --no-metadata             Omit round-trip metadata from generated documents
+  --native                  Emit native layout/property adapters (no metadata)
+  --load-css                Read project-confined local stylesheets and imports
+  --viewport <width>x<height>  Explicit media-query viewport in CSS pixels
+  --media-type screen|print  Media type when evaluating conditional CSS
+  --color-scheme light|dark  Explicit color-scheme media preference
   --dry-run                 Compile and report without creating files
   --report <file|->          JSON report destination; '-' writes to stdout
   --help                    Display help
@@ -54,6 +60,9 @@ export function parseArguments(argv) {
     ['--framework', 'framework'],
     ['--out-dir', 'outDir'],
     ['--report', 'report'],
+    ['--viewport', 'viewport'],
+    ['--media-type', 'mediaType'],
+    ['--color-scheme', 'colorScheme'],
   ]);
   let positional = false;
   for (let i = 0; i < argv.length; i++) {
@@ -68,12 +77,19 @@ export function parseArguments(argv) {
     }
     if (
       !positional &&
-      ['--strict', '--dry-run', '--solution', '--no-metadata'].includes(argument)
+      ['--strict', '--dry-run', '--solution', '--no-metadata', '--native', '--load-css'].includes(
+        argument,
+      )
     ) {
       if (argument === '--strict') options.strict = true;
       if (argument === '--dry-run') options.dryRun = true;
       if (argument === '--solution') options.solution = true;
       if (argument === '--no-metadata') options.preserveMetadata = false;
+      if (argument === '--native') {
+        options.nativeOutput = true;
+        options.preserveMetadata = false;
+      }
+      if (argument === '--load-css') options.loadCss = true;
       continue;
     }
     if (!positional && values.has(argument)) {
@@ -97,6 +113,22 @@ export function parseArguments(argv) {
     throw Error('--out-dir is required unless --dry-run is used.');
   if (options.dryRun && options.report && options.report !== '-')
     throw Error('--dry-run writes no files; use --report - for a JSON report.');
+  if (options.viewport) {
+    const parts = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/.exec(options.viewport);
+    if (!parts || !parts.slice(1).every((value) => +value > 0 && +value <= 100000))
+      throw Error('--viewport requires positive widthxheight up to 100000 pixels.');
+    options.environment = { type: 'screen', width: +parts[1], height: +parts[2] };
+  }
+  if (options.mediaType) {
+    if (!['screen', 'print'].includes(options.mediaType))
+      throw Error('--media-type must be screen or print.');
+    options.environment = { ...options.environment, type: options.mediaType };
+  }
+  if (options.colorScheme) {
+    if (!['light', 'dark'].includes(options.colorScheme))
+      throw Error('--color-scheme must be light or dark.');
+    options.environment = { ...options.environment, colorScheme: options.colorScheme };
+  }
   return options;
 }
 
@@ -389,7 +421,13 @@ export async function runCli(
       )
     )
       Parser = await loadNodeParser();
+    const stylesheets = options.loadCss
+      ? await loadLocalStylesheets(collected.entries, collected.root, Parser)
+      : undefined;
     const plan = planner(collected.entries, {
+      stylesheets,
+      environment: options.environment,
+      nativeOutput: options.nativeOutput,
       to: options.to,
       framework: options.framework,
       scope: 'solution',

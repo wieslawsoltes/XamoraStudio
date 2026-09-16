@@ -140,7 +140,7 @@ export class CompilerWorkspace {
     this.currentSettings = settings;
     s.modal(
       'Convert XAML and HTML',
-      `<div class="compiler-workspace"><p>Create editable semantic conversions for one document, a folder, or the solution. Review reported approximations and unsupported behavior before using an output.</p><div class="compiler-options"><label>Scope<select data-convert-option="scope"><option value="document">Selected document</option><option value="folder">Folder and descendants</option><option value="solution">Entire solution</option></select></label><label data-convert-document-label>Document<select data-convert-option="documentId">${s.stores.map((store) => `<option value="${esc(store.document.id)}">${esc(filePath(store.document))}</option>`).join('')}</select></label><label data-convert-folder-label>Source folder<select data-convert-option="folder"><option value="">Solution root</option>${s.solution.model.folders.map((path) => `<option value="${esc(path)}">${esc(path)}</option>`).join('')}</select></label><label>Target<select data-convert-target><option value="html">HTML / CSS / JavaScript</option><option value="WPF">WPF XAML</option><option value="Avalonia">Avalonia XAML</option></select></label><label>Output folder<input data-convert-option="outputFolder" placeholder="Beside each source file" value=""></label><label>Existing output paths<select data-convert-option="collision"><option value="rename">Create a unique file name</option><option value="skip">Skip conflicting files</option><option value="error">Report a conversion failure</option></select></label></div><div class="compiler-flags"><label><input type="checkbox" data-convert-option="preserveMetadata" checked> Preserve round-trip metadata</label><label><input type="checkbox" data-convert-option="strict"> Fail on semantic losses</label><label><input type="checkbox" data-convert-partial> Create successful files only</label><label><input type="checkbox" data-convert-open> Open a converted document</label></div><div class="compiler-status" role="status" aria-live="polite"></div><div class="compiler-review"><div class="compiler-files" role="group" aria-label="Conversion files"></div><div class="compiler-detail"><div class="compiler-detail-header"><strong data-convert-filename>Output preview</strong><button type="button" data-convert-source>Show original</button></div><textarea data-convert-preview readonly spellcheck="false" aria-label="Converted source preview"></textarea><div class="compiler-diagnostics" aria-label="Conversion diagnostics"></div></div></div><p class="compiler-note">Original files stay in the solution. Generated files enter the same source, canvas, properties, and undo workflow. One solution undo removes the entire conversion batch.</p></div>`,
+      `<div class="compiler-workspace"><p>Create editable semantic conversions for one document, a folder, or the solution. Review reported approximations and unsupported behavior before using an output.</p><div class="compiler-options"><label>Scope<select data-convert-option="scope"><option value="document">Selected document</option><option value="folder">Folder and descendants</option><option value="solution">Entire solution</option></select></label><label data-convert-document-label>Document<select data-convert-option="documentId">${s.stores.map((store) => `<option value="${esc(store.document.id)}">${esc(filePath(store.document))}</option>`).join('')}</select></label><label data-convert-folder-label>Source folder<select data-convert-option="folder"><option value="">Solution root</option>${s.solution.model.folders.map((path) => `<option value="${esc(path)}">${esc(path)}</option>`).join('')}</select></label><label>Target<select data-convert-target><option value="html">HTML / CSS / JavaScript</option><option value="WPF">WPF XAML</option><option value="Avalonia">Avalonia XAML</option></select></label><label>Output folder<input data-convert-option="outputFolder" placeholder="Beside each source file" value=""></label><label>Existing output paths<select data-convert-option="collision"><option value="rename">Create a unique file name</option><option value="skip">Skip conflicting files</option><option value="error">Report a conversion failure</option></select></label></div><div class="compiler-flags"><label><input type="checkbox" data-convert-option="preserveMetadata" checked> Preserve round-trip metadata</label><label><input type="checkbox" data-convert-option="strict"> Fail on semantic losses</label><label><input type="checkbox" data-convert-partial> Create successful files only</label><label><input type="checkbox" data-convert-open> Open a converted document</label></div><details class="compiler-advanced"><summary>CSS environment and native output</summary><div class="compiler-options"><label>Viewport width<input type="number" min="1" max="100000" data-convert-width placeholder="Unspecified"></label><label>Viewport height<input type="number" min="1" max="100000" data-convert-height placeholder="Unspecified"></label><label>Color preference<select data-convert-color><option value="">Unspecified</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div><div class="compiler-flags"><label><input type="checkbox" data-convert-option="nativeOutput"> Native property and layout adapters</label><label><input type="checkbox" data-convert-supports> Evaluate @supports using this browser</label></div><label>Supplied stylesheet text (JSON URL-to-text map)<textarea data-convert-stylesheets spellcheck="false" aria-label="Supplied stylesheet JSON" placeholder='{"styles.css":"button { width:120px }"}'></textarea></label><p>Conditions resolve for this explicit context; recompile when it changes. No stylesheet is fetched automatically. Browser-measured responsive capture is available in the <a href="./examples/CompilerFidelityLab/" target="_blank" rel="noopener">Compiler Fidelity Lab</a>.</p></details><div class="compiler-status" role="status" aria-live="polite"></div><div class="compiler-review"><div class="compiler-files" role="group" aria-label="Conversion files"></div><div class="compiler-detail"><div class="compiler-detail-header"><strong data-convert-filename>Output preview</strong><button type="button" data-convert-source>Show original</button></div><textarea data-convert-preview readonly spellcheck="false" aria-label="Converted source preview"></textarea><div class="compiler-diagnostics" aria-label="Conversion diagnostics"></div></div></div><p class="compiler-note">Original files stay in the solution. Generated files enter the same source, canvas, properties, and undo workflow. One solution undo removes the entire conversion batch.</p></div>`,
       [
         { label: 'Preview again', run: () => this.refresh() },
         { label: 'Download report', run: () => this.downloadPlan() },
@@ -168,8 +168,32 @@ export class CompilerWorkspace {
         if (input.type === 'checkbox') input.checked = !!value;
         else input.value = value;
       }
-      input.onchange = () => this.refresh();
+      input.onchange = () => {
+        if (input.dataset.convertOption === 'nativeOutput' && input.checked)
+          $('[data-convert-option="preserveMetadata"]').checked = false;
+        this.refresh();
+      };
     }
+    $('[data-convert-width]').value = settings.environment?.width ?? '';
+    $('[data-convert-height]').value = settings.environment?.height ?? '';
+    $('[data-convert-color]').value = settings.environment?.colorScheme ?? '';
+    $('[data-convert-stylesheets]').value = settings.stylesheets
+      ? JSON.stringify(
+          settings.stylesheets instanceof Map
+            ? Object.fromEntries(settings.stylesheets)
+            : settings.stylesheets,
+          null,
+          2,
+        )
+      : '';
+    for (const selector of [
+      '[data-convert-width]',
+      '[data-convert-height]',
+      '[data-convert-color]',
+      '[data-convert-stylesheets]',
+      '[data-convert-supports]',
+    ])
+      $(selector).onchange = () => this.refresh();
     $('[data-convert-target]').value = to === 'html' ? 'html' : settings.framework;
     $('[data-convert-target]').onchange = () => this.refresh();
     $('[data-convert-partial]').onchange = () => this.updateApply();
@@ -194,6 +218,44 @@ export class CompilerWorkspace {
     for (const input of $('.compiler-workspace').querySelectorAll('[data-convert-option]'))
       settings[input.dataset.convertOption] =
         input.type === 'checkbox' ? input.checked : input.value;
+    const width = $('[data-convert-width]').value,
+      height = $('[data-convert-height]').value;
+    if (width || height) {
+      if (
+        ![width, height].every(
+          (value) => value && Number.isFinite(+value) && +value > 0 && +value <= 100000,
+        )
+      )
+        throw Error('Specify both viewport dimensions between 1 and 100000 CSS pixels.');
+      settings.environment = {
+        ...settings.environment,
+        type: 'screen',
+        width: +width,
+        height: +height,
+      };
+    } else if (settings.environment) {
+      settings.environment = { ...settings.environment };
+      delete settings.environment.width;
+      delete settings.environment.height;
+    }
+    const color = $('[data-convert-color]').value;
+    if (color) settings.environment = { ...settings.environment, colorScheme: color };
+    else if (settings.environment) delete settings.environment.colorScheme;
+    const sheets = $('[data-convert-stylesheets]').value.trim();
+    if (sheets.length > 2_000_000) throw Error('Supplied stylesheet JSON exceeds 2 MB.');
+    const supplied = sheets ? JSON.parse(sheets) : undefined;
+    if (
+      sheets &&
+      (!supplied ||
+        typeof supplied !== 'object' ||
+        Array.isArray(supplied) ||
+        Object.values(supplied).some((value) => typeof value !== 'string'))
+    )
+      throw Error('Stylesheets must be a JSON object mapping URLs to CSS text.');
+    settings.stylesheets = supplied;
+    if ($('[data-convert-supports]').checked)
+      settings.supports = (condition) => globalThis.CSS?.supports(condition) ?? null;
+    else delete settings.supports;
     const target = $('[data-convert-target]').value;
     settings.to = target === 'html' ? 'html' : 'xaml';
     if (target !== 'html') settings.framework = target;

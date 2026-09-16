@@ -46,6 +46,36 @@
         "types": "./dist/cjs/conversion-project.d.cts",
         "default": "./dist/cjs/conversion-project.cjs"
       }
+    },
+    "./compiler-css": {
+      "import": {
+        "types": "./dist/esm/compiler-css.d.ts",
+        "default": "./dist/esm/compiler-css.js"
+      },
+      "require": {
+        "types": "./dist/cjs/compiler-css.d.cts",
+        "default": "./dist/cjs/compiler-css.cjs"
+      }
+    },
+    "./compiler-native": {
+      "import": {
+        "types": "./dist/esm/compiler-native.d.ts",
+        "default": "./dist/esm/compiler-native.js"
+      },
+      "require": {
+        "types": "./dist/cjs/compiler-native.d.cts",
+        "default": "./dist/cjs/compiler-native.cjs"
+      }
+    },
+    "./compiler-browser": {
+      "import": {
+        "types": "./dist/esm/compiler-browser.d.ts",
+        "default": "./dist/esm/compiler-browser.js"
+      },
+      "require": {
+        "types": "./dist/cjs/compiler-browser.d.cts",
+        "default": "./dist/cjs/compiler-browser.cjs"
+      }
     }
   },
   "files": [
@@ -81,11 +111,15 @@
   "xamora": {
     "modules": [
       "semantic-compiler",
-      "conversion-project"
+      "conversion-project",
+      "compiler-css",
+      "compiler-native",
+      "compiler-browser"
     ],
     "cli": "dist/compiler-cli/index.js",
     "cliModules": [
-      "assets"
+      "assets",
+      "stylesheets"
     ]
   }
 }

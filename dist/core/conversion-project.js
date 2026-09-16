@@ -195,7 +195,7 @@ export function planProjectConversion(inputs, options = {}, compiler = compileDo
     folder,
     outputFolder,
     framework: options.framework || 'WPF',
-    preserveMetadata: options.preserveMetadata !== false,
+    preserveMetadata: options.preserveMetadata ?? !options.nativeOutput,
     strict: !!options.strict,
   };
   const occupied = new Set(),
@@ -317,7 +317,7 @@ export function planProjectConversion(inputs, options = {}, compiler = compileDo
         ...settings,
         from,
         to,
-        sourceName: path.split('/').at(-1),
+        sourceName: path,
         name: target.split('/').at(-1),
       });
       if (!result || typeof result.success !== 'boolean')
@@ -358,6 +358,7 @@ export function planProjectConversion(inputs, options = {}, compiler = compileDo
     summary.losses += entry.result?.losses?.length || 0;
   }
   // Parser/plugin functions stay out of the serializable preview and conversion report.
-  const { Parser, parse, plugins, ...serializable } = settings;
+  const { Parser, parse, plugins, evaluateCondition, supports, stylesheets, ...serializable } =
+    settings;
   return { version: 1, options: serializable, entries, summary };
 }

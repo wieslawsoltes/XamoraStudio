@@ -5,6 +5,12 @@ export interface CliOptions {
   framework: 'WPF' | 'Avalonia';
   outDir?: string;
   preserveMetadata: boolean;
+  nativeOutput?: boolean;
+  loadCss?: boolean;
+  viewport?: string;
+  mediaType?: 'screen' | 'print';
+  colorScheme?: 'light' | 'dark';
+  environment?: import('../core/semantic-compiler.js').CompilerEnvironment;
   strict: boolean;
   dryRun: boolean;
   solution: boolean;
