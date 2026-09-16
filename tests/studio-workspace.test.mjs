@@ -9,26 +9,43 @@ function fixture(t) {
   for (const name of ['document', 'localStorage']) {
     const previous = Object.getOwnPropertyDescriptor(globalThis, name);
     Object.defineProperty(globalThis, name, { value: window[name], configurable: true });
-    t.after(() => previous ? Object.defineProperty(globalThis, name, previous) : delete globalThis[name]);
+    t.after(() =>
+      previous ? Object.defineProperty(globalThis, name, previous) : delete globalThis[name],
+    );
   }
   t.after(() => window.close());
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  window.document.body.innerHTML = '<button id="previous">Previous</button><div id="modal-root"></div><div id="toast"></div><span id="save-state"></span>';
+  window.document.body.innerHTML =
+    '<button id="previous">Previous</button><div id="modal-root"></div><div id="toast"></div><span id="save-state"></span>';
   const host = Object.create(Studio.prototype);
   host.stores = [new DocumentStore(createDocument(element('Grid')))];
   host.active = 0;
   host.registry = { toolkits: new Map(), adapters: new Map(), install() {} };
   host.prepareEdit = () => true;
-  host.addStore = doc => host.stores.push(new DocumentStore(doc));
-  host.switchDocument = index => { host.active = index; };
+  host.addStore = (doc) => host.stores.push(new DocumentStore(doc));
+  host.switchDocument = (index) => {
+    host.active = index;
+  };
   return { window, document: window.document, host };
 }
 
-test('modal delegates preserve accessible markup, action errors, focus wrapping and restoration', async t => {
+test('modal delegates preserve accessible markup, action errors, focus wrapping and restoration', async (t) => {
   const { window, document, host } = fixture(t);
   const previous = document.querySelector('#previous');
   previous.focus();
-  host.modal('<Title>', '<input id="value">', [{ label: '<Run>', run() { throw Error('<Failure>'); } }], true);
+  host.modal(
+    '<Title>',
+    '<input id="value">',
+    [
+      {
+        label: '<Run>',
+        run() {
+          throw Error('<Failure>');
+        },
+      },
+    ],
+    true,
+  );
   t.mock.timers.tick(0);
   const dialog = document.querySelector('[role="dialog"]');
   assert.equal(dialog.getAttribute('aria-label'), '<Title>');
@@ -40,28 +57,41 @@ test('modal delegates preserve accessible markup, action errors, focus wrapping 
   assert.equal(document.querySelector('[role="alert"]').textContent, '<Failure>');
   assert.equal(document.querySelector('[role="alert"]').children.length, 0);
   last.focus();
-  dialog.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+  dialog.dispatchEvent(
+    new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
+  );
   assert.equal(document.activeElement, first);
-  dialog.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+  dialog.dispatchEvent(
+    new window.KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
   assert.equal(document.activeElement, last);
   host.closeModal();
   assert.equal(document.querySelector('#modal-root').children.length, 0);
   assert.equal(document.activeElement, previous);
 });
 
-test('modal cancellation and overlay dismissal remain distinct from clicks inside the dialog', t => {
+test('modal cancellation and overlay dismissal remain distinct from clicks inside the dialog', (t) => {
   const { window, document, host } = fixture(t);
   host.modal('Actions', '<p>Body</p>', [{ label: 'Run', run() {} }]);
-  document.querySelector('.modal-body').dispatchEvent(new window.Event('pointerdown', { bubbles: true }));
+  document
+    .querySelector('.modal-body')
+    .dispatchEvent(new window.Event('pointerdown', { bubbles: true }));
   assert(document.querySelector('.modal'));
   document.querySelector('#cancel-modal').click();
   assert.equal(document.querySelector('.modal'), null);
   host.modal('Overlay', 'Body');
-  document.querySelector('.modal-overlay').dispatchEvent(new window.Event('pointerdown', { bubbles: true }));
+  document
+    .querySelector('.modal-overlay')
+    .dispatchEvent(new window.Event('pointerdown', { bubbles: true }));
   assert.equal(document.querySelector('.modal'), null);
 });
 
-test('new document dialog keeps validation and framework/template defaults', async t => {
+test('new document dialog keeps validation and framework/template defaults', async (t) => {
   const { document, host } = fixture(t);
   host.doc.framework = 'HTML';
   host.newDocumentDialog();
@@ -82,7 +112,7 @@ test('new document dialog keeps validation and framework/template defaults', asy
   assert.equal(document.querySelector('.modal'), null);
 });
 
-test('rename dialog uses the original document transaction and rejects an empty name', async t => {
+test('rename dialog uses the original document transaction and rejects an empty name', async (t) => {
   const { document, host } = fixture(t);
   const original = host.doc.name;
   host.renameDocumentDialog();
@@ -96,7 +126,7 @@ test('rename dialog uses the original document transaction and rejects an empty 
   assert.equal(host.doc.name, original);
 });
 
-test('workspace persistence retains its schema, shared documents and storage-full feedback', t => {
+test('workspace persistence retains its schema, shared documents and storage-full feedback', (t) => {
   const { document, host } = fixture(t);
   host.solution = { model: { name: 'Solution' } };
   const data = host.workspaceData();
@@ -110,17 +140,24 @@ test('workspace persistence retains its schema, shared documents and storage-ful
   assert.equal(saved.documents[0].id, host.doc.id);
   assert.equal(saved.active, 0);
   assert.equal(document.querySelector('#save-state').textContent, 'Saved on this device');
-  t.mock.method(localStorage, 'setItem', () => { throw Error('Quota'); });
+  t.mock.method(localStorage, 'setItem', () => {
+    throw Error('Quota');
+  });
   host.save();
   assert.match(document.querySelector('#save-state').textContent, /Local storage full/);
   assert.match(document.querySelector('#toast').textContent, /Export your project/);
 });
 
-test('file delegates retain pending-edit guards, size limits and XAML import results', async t => {
+test('file delegates retain pending-edit guards, size limits and XAML import results', async (t) => {
   const { host } = fixture(t);
   host.prepareEdit = () => false;
   assert.equal(host.importText('<Grid/>'), undefined);
-  await host.importFile({ size: 1, text() { throw Error('Must not read'); } });
+  await host.importFile({
+    size: 1,
+    text() {
+      throw Error('Must not read');
+    },
+  });
   assert.equal(host.stores.length, 1);
   host.prepareEdit = () => true;
   await assert.rejects(host.importFile({ size: 15000001 }), /15 MB/);
@@ -130,10 +167,13 @@ test('file delegates retain pending-edit guards, size limits and XAML import res
   assert.equal(host.stores.length, 2);
 });
 
-test('export dialog preserves raw pending source and skips composition-time exports', async t => {
+test('export dialog preserves raw pending source and skips composition-time exports', async (t) => {
   const { window, document, host } = fixture(t);
   const blobs = [];
-  t.mock.method(URL, 'createObjectURL', blob => { blobs.push(blob); return 'blob:test'; });
+  t.mock.method(URL, 'createObjectURL', (blob) => {
+    blobs.push(blob);
+    return 'blob:test';
+  });
   t.mock.method(URL, 'revokeObjectURL', () => {});
   t.mock.method(window.HTMLAnchorElement.prototype, 'click', () => {});
   host.editor = { composing: true };
@@ -141,7 +181,11 @@ test('export dialog preserves raw pending source and skips composition-time expo
   assert.equal(document.querySelector('.modal'), null);
   host.editor.composing = false;
   let flushed = 0;
-  host.sync = { flush() { flushed++; } };
+  host.sync = {
+    flush() {
+      flushed++;
+    },
+  };
   host.store.session = { source: '<Grid><!-- pending source' };
   host.prepareEdit = () => false;
   host.exportDialog();

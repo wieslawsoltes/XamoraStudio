@@ -44,6 +44,9 @@ flowchart TD
 | `studio/features.js`              | Module integration, raw properties, editing helpers, connected example                                            | Browser DOM                                      |
 | `app.js`                          | Application startup and workspace recovery                                                                        | Studio feature constructors                      |
 | `studio/studio.js`                | Base workspace host, interaction and state coordination                                                           | Core modules and shared Studio UI                |
+| `studio/dialog-host.js`           | Modal markup, actions, focus trapping and restoration                                                             | Browser DOM                                      |
+| `studio/workspace-files.js`       | Workspace import/export primitives and local persistence                                                          | Studio document host and browser file APIs       |
+| `studio/workspace-dialogs.js`     | Project, document, export and navigation dialogs                                                                  | Studio host and shared UI helpers                |
 | `studio/icons.js`, `studio/ui.js` | Icon markup and shared DOM, notification and download helpers                                                     | Browser DOM only when invoked                    |
 
 The source modules are native ES modules. No build step or application runtime dependency is required. The local server uses the Node standard library. A static deployment serves the same `dist/` files as local development.
@@ -393,3 +396,7 @@ See [web framework architecture](WEB-FRAMEWORK-ARCHITECTURE.md), [runtime APIs](
 `core/conversion-project.js` plans document, folder and solution outputs without writes. It centralizes target path selection, collision policy, invalid-draft rejection and static reference relocation. `studio/compiler-workspace.js` previews those plans, verifies the captured solution has not changed, and commits selected outputs through solution history while preserving unchanged document stores and source sessions. `compiler-cli/` consumes the same planner, injects a Node HTML parser, resolves local assets and commits output files with exclusive writes and rollback.
 
 Conversion does not infer arbitrary JavaScript behavior, native platform services or unsupported CSS into equivalent native XAML. Strict mode rejects known semantic losses; ordinary mode preserves available source information and reports the target behavior needing an adapter. See [the compiler contract](SEMANTIC-COMPILER.md) and [CLI file/asset rules](COMPILER-CLI.md).
+
+### Studio composition boundaries
+
+`app.js` alone creates the application. `studio/studio.js` owns the base workspace and delegates modal presentation, file interchange and workspace dialogs to focused modules. Delegates receive the host explicitly; they never import or instantiate `Studio`. The original host methods remain as forwarding entry points so feature wrappers and `window.xamora.studio` integrations retain their signatures and behavior. Dialog actions use the same stores, document sessions and edit guards as the host; there is no second document model.

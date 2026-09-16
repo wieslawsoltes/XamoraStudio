@@ -1,3 +1,25 @@
+import { modal, closeModal } from './dialog-host.js';
+import {
+  chooseFile,
+  importFile,
+  importText,
+  workspaceData,
+  svgSnapshot,
+  save,
+} from './workspace-files.js';
+import {
+  newDocumentDialog,
+  renameDocumentDialog,
+  exportDialog,
+  resetDemoDialog,
+  installToolkitDialog,
+  projectMenu,
+  commandPalette,
+  problemsDialog,
+  symbolsDialog,
+  historyDialog,
+  helpDialog,
+} from './workspace-dialogs.js';
 import { DocumentSession } from '../core/document-session.js';
 import {
   DocumentStore,
@@ -17,16 +39,9 @@ import {
   createDocument,
   descendants,
 } from '../core/model.js';
-import {
-  parseXaml,
-  serializeXaml,
-  serializeNode,
-  diagnostics,
-  newRoot,
-  namespaces,
-} from '../core/xaml.js';
+import { parseXaml, serializeXaml, serializeNode, diagnostics, newRoot } from '../core/xaml.js';
 import { builtins, propertyGroups } from '../core/registry.js';
-import { PreviewRenderer, exportHTML, gridDefinitions, color, thickness } from '../core/render.js';
+import { PreviewRenderer, gridDefinitions, color, thickness } from '../core/render.js';
 import { GridSurface } from '../core/gpu.js';
 import { XamlEditor } from '../core/editor.js';
 import { samples } from '../core/samples.js';
@@ -34,7 +49,6 @@ import {
   reconcileIdentities,
   contentChildren,
   contentHost,
-  logicalParent,
   isLocked,
 } from '../core/design-tools.js';
 import { $, $$, esc, toast, download } from './ui.js';
@@ -1260,21 +1274,7 @@ export class Studio {
     this.save();
   }
   save() {
-    try {
-      localStorage.setItem(
-        'xamora-workspace-v1',
-        JSON.stringify({
-          documents: this.stores.map((s) => s.document),
-          active: this.active,
-          toolkits: [...this.registry.toolkits.values()],
-          solution: this.solution?.model,
-        }),
-      );
-      $('#save-state').textContent = 'Saved on this device';
-    } catch (error) {
-      $('#save-state').textContent = 'Local storage full · Export to save';
-      toast('Device storage is full. Export your project to keep a copy.');
-    }
+    return save(this);
   }
   changeFramework(name) {
     if (!this.prepareEdit()) return;
@@ -1944,255 +1944,34 @@ export class Studio {
     menu.addEventListener('click', () => menu.remove());
   }
   modal(title, body, actions = [], wide = false) {
-    this.closeModal();
-    const previous = document.activeElement;
-    this.modalPrevious = previous;
-    $('#modal-root').innerHTML =
-      `<div class="modal-overlay"><section class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-header"><h2>${esc(title)}</h2><button class="icon-button" id="close-modal" aria-label="Close dialog">${icon('close')}</button></div><div class="modal-body">${body}</div>${actions.length ? `<div class="modal-footer"><span class="modal-error" role="alert"></span><button class="button" id="cancel-modal">Cancel</button>${actions.map((a, i) => `<button class="button ${a.primary ? 'primary' : ''}" data-modal-action="${i}">${esc(a.label)}</button>`).join('')}</div>` : ''}</section></div>`;
-    $('#close-modal').onclick = () => this.closeModal();
-    $('#cancel-modal')?.addEventListener('click', () => this.closeModal());
-    $('.modal-overlay').addEventListener('pointerdown', (e) => {
-      if (e.target.classList.contains('modal-overlay')) this.closeModal();
-    });
-    $$('[data-modal-action]').forEach(
-      (b) =>
-        (b.onclick = async () => {
-          try {
-            await actions[Number(b.dataset.modalAction)].run();
-          } catch (error) {
-            $('.modal-error').textContent = error.message;
-          }
-        }),
-    );
-    $('.modal').addEventListener('keydown', (e) => {
-      if (e.key !== 'Tab') return;
-      const nodes = $$('button,input,select,textarea,a[href]', $('.modal')).filter(
-        (n) => !n.disabled && !n.hidden,
-      );
-      if (e.shiftKey && document.activeElement === nodes[0]) {
-        e.preventDefault();
-        nodes.at(-1).focus();
-      } else if (!e.shiftKey && document.activeElement === nodes.at(-1)) {
-        e.preventDefault();
-        nodes[0].focus();
-      }
-    });
-    setTimeout(
-      () =>
-        $(
-          '.modal-body input,.modal-body textarea,.modal-body select,.modal-body button,#close-modal',
-        )?.focus(),
-      0,
-    );
+    return modal(this, title, body, actions, wide);
   }
   closeModal() {
-    $('#modal-root').replaceChildren();
-    this.modalPrevious?.focus?.();
+    return closeModal(this);
   }
   newDocumentDialog() {
-    this.modal(
-      'New design',
-      `<label for="new-name">File name</label><input id="new-name" value="NewView.xaml"><label for="new-kind">Document type</label><select id="new-kind"><option>UserControl</option><option>Window</option><option>ControlTemplate</option><option>DataTemplate</option><option>ResourceDictionary</option></select><label for="new-framework">Framework</label><select id="new-framework"><option>WPF</option><option>Avalonia</option><option>WinUI</option><option>MAUI</option></select><div style="display:grid;grid-template-columns:1fr 1fr;gap:15px"><div><label for="new-width">Width</label><input id="new-width" type="number" value="1100" min="100" max="8000"></div><div><label for="new-height">Height</label><input id="new-height" type="number" value="760" min="100" max="8000"></div></div>`,
-      [
-        {
-          label: 'Create design',
-          primary: true,
-          run: () => {
-            const name = $('#new-name').value.trim();
-            if (!name) throw Error('Enter a file name.');
-            const fw = $('#new-framework').value,
-              type = $('#new-kind').value,
-              root = newRoot(type, fw),
-              w = Number($('#new-width').value),
-              h = Number($('#new-height').value);
-            if (
-              !Number.isFinite(w) ||
-              !Number.isFinite(h) ||
-              w < 100 ||
-              h < 100 ||
-              w > 8000 ||
-              h > 8000
-            )
-              throw Error('Choose dimensions between 100 and 8000.');
-            if (['ResourceDictionary', 'ControlTemplate', 'DataTemplate'].includes(type)) {
-              delete root.props.Width;
-              delete root.props.Height;
-              delete root.props.Background;
-            } else {
-              root.props.Width = String(w);
-              root.props.Height = String(h);
-            }
-            if (type !== 'ResourceDictionary') root.children.push(element('Grid'));
-            if (type === 'ControlTemplate') root.props.TargetType = 'Button';
-            const doc = createDocument(root, fw, name.endsWith('.xaml') ? name : name + '.xaml');
-            doc.design = { width: w, height: h };
-            this.addStore(doc);
-            this.closeModal();
-            this.switchDocument(this.stores.length - 1);
-          },
-        },
-      ],
-    );
-    $('#new-framework').value = this.doc.framework === 'HTML' ? 'WPF' : this.doc.framework;
+    return newDocumentDialog(this);
   }
   renameDocumentDialog() {
-    this.modal(
-      'Rename page',
-      `<label for="page-name">File name</label><input id="page-name" value="${esc(this.doc.name)}">`,
-      [
-        {
-          label: 'Rename',
-          primary: true,
-          run: () => {
-            const name = $('#page-name').value.trim();
-            if (!name) throw Error('Enter a name.');
-            this.store.transaction('Rename page', (d) => (d.name = name));
-            this.closeModal();
-          },
-        },
-      ],
-    );
+    return renameDocumentDialog(this);
   }
   chooseFile(accept, callback) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept;
-    input.onchange = () => {
-      if (input.files[0])
-        Promise.resolve(callback(input.files[0])).catch((error) => toast(error.message));
-    };
-    input.click();
+    return chooseFile(this, accept, callback);
   }
   async importFile(file) {
-    if (!this.prepareEdit()) return;
-    if (file.size > 15_000_000) throw Error('Import files up to 15 MB.');
-    const text = await file.text();
-    if (file.name.endsWith('.json') || file.name.endsWith('.xamora')) {
-      const data = JSON.parse(text);
-      if (data.format === 'xamora-workspace' && Array.isArray(data.documents)) {
-        data.documents.forEach(validateDocument);
-        for (const m of data.toolkits || []) this.registry.install(m);
-        const remap = new Map(),
-          seen = new Set(this.stores.map((s) => s.document.id));
-        for (const d of data.documents) {
-          const old = d.id;
-          if (seen.has(old)) {
-            d.id = uid();
-            remap.set(old, d.id);
-          }
-          seen.add(d.id);
-        }
-        for (const d of data.documents)
-          for (const c of d.metadata?.interactions || [])
-            for (const a of c.actions || [])
-              if (remap.has(a.targetViewId)) a.targetViewId = remap.get(a.targetViewId);
-        data.documents.forEach((d) => this.addStore(d));
-        this.switchDocument(this.stores.length - data.documents.length);
-        toast(`${data.documents.length} pages imported`);
-      } else if (data.version && data.root) {
-        validateDocument(data);
-        this.addStore(data);
-        this.switchDocument(this.stores.length - 1);
-      } else if (data.controls) {
-        this.registry.install(data);
-        this.save();
-        this.leftTab = 'toolkit';
-        this.renderLeft();
-        toast('Toolkit installed');
-      } else throw Error('Unrecognized JSON file.');
-    } else this.importText(text, file.name);
+    return importFile(this, file);
   }
   importText(text, name = 'Imported.xaml') {
-    if (!this.prepareEdit()) return;
-    const doc = parseXaml(text, { name });
-    this.addStore(doc);
-    this.switchDocument(this.stores.length - 1);
-    toast(doc.framework === 'HTML' ? 'HTML imported' : 'XAML imported');
-    return doc.id;
+    return importText(this, text, name);
   }
   workspaceData() {
-    return {
-      format: 'xamora-workspace',
-      version: 1,
-      documents: this.stores.map((s) => s.document),
-      toolkits: [...this.registry.toolkits.values()],
-      solution: this.solution?.model,
-      activeId: this.doc.id,
-      exportedAt: new Date().toISOString(),
-    };
+    return workspaceData(this);
   }
   exportDialog() {
-    if (this.editor.composing) return;
-    this.sync?.flush();
-    let format = 'xaml';
-    this.modal(
-      'Export your design',
-      `<p>Export the current page, or save all pages as an editable project.</p><div class="export-options">${[['xaml', 'code', 'XAML', 'Human-readable framework markup'], ['html', 'file', 'HTML', 'Portable browser layout'], ['project', 'layers', 'Project JSON', 'All pages, notes, and toolkit metadata'], ['svg', 'image', 'SVG snapshot', 'Canvas image with embedded HTML'], ...[...this.registry.adapters.keys()].map((name) => [name, 'export', name, 'Registered export adapter'])].map(([id, ico, name, desc]) => `<button class="export-option ${id === 'xaml' ? 'active' : ''}" data-export-format="${id}">${icon(ico)}<span>${name}<small>${desc}</small></span></button>`).join('')}</div><label for="export-name">File name</label><input id="export-name" value="${esc(this.doc.name)}"><p id="export-note" style="font-size:11px">${esc(this.doc.framework)} markup. Review diagnostics and verify in the target framework.</p>`,
-      [
-        {
-          label: 'Export file',
-          primary: true,
-          run: async () => {
-            const base =
-              $('#export-name').value.replace(/\.(xaml|html|json|svg)$/i, '') || 'design';
-            let content, mime, ext;
-            if (!['xaml', 'project'].includes(format) && !this.prepareEdit()) return;
-            if (this.registry.adapters.has(format)) {
-              const result = await this.registry.adapters.get(format).serialize(clone(this.doc));
-              content = typeof result === 'string' ? result : result.content;
-              mime = result.mimeType || 'text/plain';
-              ext = result.extension || 'txt';
-              if (typeof content !== 'string')
-                throw Error('Adapter must return text or an object containing content.');
-            } else if (format === 'xaml') {
-              content = this.store.session?.source ?? serializeXaml(this.doc);
-              mime = 'application/xml';
-              ext = 'xaml';
-            } else if (format === 'html') {
-              content = exportHTML(this.doc, this.registry, this.features?.context(), {
-                resourceResolver: this.solution?.resolverFor(this.doc),
-              });
-              mime = 'text/html';
-              ext = 'html';
-            } else if (format === 'project') {
-              content = JSON.stringify(this.workspaceData(), null, 2);
-              mime = 'application/json';
-              ext = 'json';
-            } else {
-              content = this.svgSnapshot();
-              mime = 'image/svg+xml';
-              ext = 'svg';
-            }
-            download(base + '.' + ext, content, mime);
-            this.closeModal();
-            toast('Design exported');
-          },
-        },
-      ],
-    );
-    $$('[data-export-format]').forEach(
-      (b) =>
-        (b.onclick = () => {
-          format = b.dataset.exportFormat;
-          $$('[data-export-format]').forEach((n) => n.classList.toggle('active', n === b));
-          $('#export-note').textContent =
-            {
-              xaml: `${this.doc.framework} markup. Review diagnostics and verify in the target framework.`,
-              html: 'Standalone HTML includes browser controls and inline layout. .NET bindings and event handlers require application integration.',
-              project:
-                'Editable project with all documents, resources, annotations, and declarative toolkit descriptors.',
-              svg: 'ForeignObject SVG snapshot for browser use. External images and fonts remain external; some vector tools do not support embedded HTML.',
-            }[format] || 'Export through the registered ' + format + ' adapter.';
-        }),
-    );
+    return exportDialog(this);
   }
   svgSnapshot() {
-    const host = $('#artboard').cloneNode(true);
-    host.removeAttribute('id');
-    host.querySelectorAll('[data-node-id]').forEach((n) => n.removeAttribute('data-node-id'));
-    const w = this.artSize.width,
-      h = this.artSize.height;
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:system-ui;font-size:14px;color:#292834;background:white">${host.innerHTML}</div></foreignObject></svg>`;
+    return svgSnapshot(this);
   }
   async copyXaml() {
     const text = this.selected[0] ? serializeNode(this.selected[0]) : serializeXaml(this.doc);
@@ -2540,45 +2319,7 @@ export class Studio {
     );
   }
   installToolkitDialog() {
-    const example = {
-      name: 'Acme Controls',
-      version: '1.0.0',
-      controls: [
-        {
-          type: 'acme:StatusCard',
-          category: 'Acme toolkit',
-          namespace: 'clr-namespace:Acme.Controls;assembly=Acme.Controls',
-          container: true,
-          singleChild: true,
-          defaults: { Width: '240', Height: '120', Background: '#EEF6F1' },
-          properties: [{ name: 'Status', type: 'enum', values: ['Active', 'Paused', 'Done'] }],
-        },
-      ],
-    };
-    this.modal(
-      'Extend your toolkit',
-      `<p>Install declarative control metadata as JSON. Code integrations can register custom renderers and exporters through <code>window.xamora.registry</code>.</p><textarea id="toolkit-manifest" style="height:275px">${esc(JSON.stringify(example, null, 2))}</textarea><p style="font-size:11px">Metadata describes controls and properties. Native .NET assemblies are not executed by the browser.</p><button class="button" id="load-toolkit-file">${icon('upload')}Load JSON file</button>`,
-      [
-        {
-          label: 'Install toolkit',
-          primary: true,
-          run: () => {
-            const manifest = JSON.parse($('#toolkit-manifest').value);
-            this.registry.install(manifest);
-            this.save();
-            this.leftTab = 'toolkit';
-            this.renderLeft();
-            this.closeModal();
-            toast(manifest.name + ' installed');
-          },
-        },
-      ],
-      true,
-    );
-    $('#load-toolkit-file').onclick = () =>
-      this.chooseFile('.json', async (f) => {
-        $('#toolkit-manifest').value = await f.text();
-      });
+    return installToolkitDialog(this);
   }
   async insertImage(file) {
     if (file.size > 3_000_000) throw Error('Choose an image under 3 MB.');
@@ -2695,196 +2436,25 @@ export class Studio {
     );
   }
   problemsDialog() {
-    const issues = diagnostics(this.doc, this.registry);
-    this.modal(
-      'Document diagnostics',
-      `<p>${issues.length ? `${issues.length} item${issues.length === 1 ? '' : 's'} to review.` : 'No errors in the supported validation rules.'} Native framework compilation is a separate validation step.</p><div class="problems-list">${issues.map((d, i) => `<button class="problem ${d.severity}" data-problem="${i}" style="width:100%;text-align:left"><span>${icon(d.severity === 'error' ? 'code' : d.severity === 'warning' ? 'bolt' : 'help')}</span><span><strong>${esc(d.severity)} · line ${d.line}</strong><br>${esc(d.message)}</span></button>`).join('')}</div>`,
-      [],
-      true,
-    );
-    $$('[data-problem]').forEach(
-      (b) =>
-        (b.onclick = () => {
-          const issue = issues[Number(b.dataset.problem)];
-          this.store.select([issue.id]);
-          this.closeModal();
-          this.setView('split');
-        }),
-    );
+    return problemsDialog(this);
   }
   symbolsDialog() {
-    const items = [];
-    walk(this.doc.root, (n) => {
-      if (isElement(n) && (n.props['x:Name'] || n.props.Name || n.props['x:Key'])) items.push(n);
-    });
-    this.modal(
-      'Document symbols',
-      `<p>Jump to a named element, template, or resource.</p><div class="command-list">${items.map((n) => `<button class="command-item" data-symbol-id="${n.id}">${icon('diamond')}<span>${esc(label(n))}</span><kbd>${esc(n.type)}</kbd></button>`).join('') || '<p>No named elements.</p>'}</div>`,
-    );
-    $$('[data-symbol-id]').forEach(
-      (b) =>
-        (b.onclick = () => {
-          this.closeModal();
-          this.store.select([b.dataset.symbolId]);
-          this.setView('split');
-          const n = find(this.doc.root, b.dataset.symbolId);
-          this.editor.revealName(label(n));
-          this.focusSelection();
-        }),
-    );
+    return symbolsDialog(this);
   }
   historyDialog() {
-    this.modal(
-      'Undo history',
-      `<p>Up to 100 document edits are retained in this session. Saved project files contain the latest document state.</p>${
-        this.store.history.length
-          ? `<button class="button" id="history-undo">${icon('undo')}Undo latest edit</button><div style="margin-top:15px">${[
-              ...this.store.history,
-            ]
-              .reverse()
-              .map(
-                (h, i) =>
-                  `<div class="history-item"><span style="color:var(--muted);margin-right:12px">${this.store.history.length - i}</span>${esc(h.label)}</div>`,
-              )
-              .join('')}</div>`
-          : '<p>Make your first edit to start the history.</p>'
-      }`,
-    );
-    $('#history-undo')?.addEventListener('click', () => {
-      this.store.undo();
-      this.historyDialog();
-    });
+    return historyDialog(this);
   }
   projectMenu() {
-    this.modal(
-      'Workspace',
-      `<div class="command-list">${[
-        ['new-document', 'New design', 'plus'],
-        ['rename-document', 'Rename current page', 'file'],
-        ['import', 'Import XAML or project', 'upload'],
-        ['save-project', 'Save workspace as JSON', 'download'],
-        ['install-toolkit', 'Install toolkit', 'grid'],
-        ['sample-data', 'Edit sample data', 'binding'],
-        ['focus-mode', 'Toggle focus mode', 'fit'],
-        ['reset-demo', 'Open fresh sample pages', 'layers'],
-        ['help', 'Help and architecture', 'help'],
-      ]
-        .map(
-          ([action, name, i]) =>
-            `<button class="command-item" data-menu-command="${action}">${icon(i)}${name}</button>`,
-        )
-        .join('')}</div>`,
-    );
-    $$('[data-menu-command]').forEach(
-      (b) =>
-        (b.onclick = () => {
-          this.closeModal();
-          this.command(b.dataset.menuCommand);
-        }),
-    );
+    return projectMenu(this);
   }
   commandPalette() {
-    const commands = [
-      ['Window layout manager', 'window-layouts', ''],
-      ['Reset window layout', 'layout-reset', ''],
-      ['Window navigator', 'window-navigator', 'Ctrl Q'],
-      ['Motion timeline', 'motion', ''],
-      ['Open motion example', 'motion-example', ''],
-      ['Visual states', 'visual-states', ''],
-      ['Brush designer', 'edit-brush', ''],
-      ['Transform designer', 'edit-transforms', ''],
-      ['Effects and clipping', 'edit-effects', ''],
-      ['Style designer', 'style-designer', ''],
-      ['Design-time values', 'design-values', ''],
-      ['Vector path editor', 'path-designer', ''],
-      ['Native event trigger', 'native-trigger', ''],
-      ['Visual data editor', 'database', ''],
-      ['All views & connections', 'views-board', ''],
-      ['Visual grid editor', 'grid-editor', ''],
-      ['Raw properties', 'raw-properties', ''],
-      ['Connect preview interaction', 'flow-add', ''],
-      ['Connect data binding', 'data-binding', ''],
-      ['Isolate selection', 'isolate', ''],
-      ['Lock / unlock selection', 'lock-selection', ''],
-      ['Distribute horizontally', 'distribute-h', ''],
-      ['Distribute vertically', 'distribute-v', ''],
-      ['New design', 'new-document', ''],
-      ['Import XAML / project', 'import', 'Ctrl O'],
-      ['Export design', 'export', ''],
-      ['Save project', 'save-project', 'Ctrl S'],
-      ['Preview design', 'preview', ''],
-      ['Insert control', 'add', ''],
-      ['Edit template', 'edit-template', ''],
-      ['Theme & resources', 'edit-resources', ''],
-      ['Install toolkit', 'install-toolkit', ''],
-      ['Fit artboard', 'fit', 'Shift 1'],
-      ['Focus mode', 'focus-mode', ''],
-      ['Undo', 'undo', 'Ctrl Z'],
-      ['Redo', 'redo', 'Ctrl Shift Z'],
-      ['Duplicate selection', 'duplicate', 'Ctrl D'],
-      ['Wrap in Grid', 'group', 'Ctrl G'],
-      ['Wrap in StackPanel', 'wrap-stack', ''],
-      ['Move to container', 'reparent', ''],
-      ['Document diagnostics', 'problems', ''],
-      ['Find / replace XAML', 'find-code', 'Ctrl F'],
-      ['Document symbols', 'symbols', ''],
-      ['Format XAML', 'format', 'Alt Shift F'],
-      ['Synchronize source', 'apply-code', 'Ctrl Enter'],
-      ['Toggle theme', 'theme', ''],
-      ['Keyboard shortcuts', 'help', ''],
-    ];
-    this.modal(
-      'Command palette',
-      `<div class="command-search"><input id="command-query" placeholder="What would you like to do?" aria-label="Search commands"></div><div class="command-list" id="command-list"></div>`,
-    );
-    const render = () => {
-      const q = $('#command-query').value.toLowerCase();
-      $('#command-list').innerHTML = commands
-        .filter(([name]) => name.toLowerCase().includes(q))
-        .map(
-          ([name, action, key]) =>
-            `<button class="command-item" data-command="${action}">${icon('bolt')}${name}<kbd>${key}</kbd></button>`,
-        )
-        .join('');
-      $$('[data-command]').forEach(
-        (b) =>
-          (b.onclick = () => {
-            this.closeModal();
-            this.command(b.dataset.command);
-          }),
-      );
-    };
-    $('#command-query').oninput = render;
-    $('#command-query').onkeydown = (e) => {
-      if (e.key === 'Enter') $('[data-command]')?.click();
-    };
-    render();
+    return commandPalette(this);
   }
   helpDialog() {
-    this.modal(
-      'Design with Xamora',
-      `<p>Use the toolkit to add controls, the layer tree to organize them, and the inspector to edit their authored properties. Double-click text to edit it.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px"><div><strong>Canvas</strong><p>V — Select<br>H / Space — Pan<br>F — Draw a Canvas<br>R — Draw a rectangle<br>T — Add text<br>C — Add annotation<br>Shift+1 — Fit artboard<br>Shift+2 — Focus selection<br>Ctrl/⌘ + wheel — Zoom<br>Arrow keys — Nudge; Shift for 10 px</p></div><div><strong>Editing</strong><p>Ctrl/⌘ Z — Undo<br>Ctrl/⌘ Shift Z — Redo<br>Ctrl/⌘ D — Duplicate<br>Ctrl/⌘ G — Wrap in Grid<br>Ctrl/⌘ Shift G — Ungroup<br>Ctrl/⌘ K — Command palette<br>Ctrl/⌘ Enter — Apply XAML<br>Ctrl/⌘ Space — Code completion<br>Alt Shift F — Format XAML<br>Ctrl/⌘ F — Find and replace</p></div></div><p><strong>Layout behavior.</strong> Canvas dragging edits absolute coordinates. Grid dragging uses measured track sizes. Drag within stacks to reorder or over another container to reparent. Colored cues show the destination before you release. Hold Shift to keep the current container. Alt-click cycles overlapping layers; Ctrl/⌘-click selects deeply nested content. Enter selects a child, Shift+Enter a parent, and Tab cycles siblings.</p><p><strong>Extensions.</strong> Register descriptors, renderers, and serializers with <code>window.xamora.registry</code>. Unknown elements and properties stay in the document. Native .NET controls require a framework preview integration.</p><p><strong>Storage.</strong> This is a local workspace. Export a project JSON to back up all pages and embedded assets. XAML export excludes design annotations and sample data.</p><a href="./docs/ARCHITECTURE.md" target="_blank" rel="noopener" style="color:var(--accent)">Read architecture documentation</a>`,
-      [],
-      true,
-    );
+    return helpDialog(this);
   }
   resetDemoDialog() {
-    this.modal(
-      'Open sample project',
-      `<p>Open fresh Lumio sample pages alongside your current work.</p>`,
-      [
-        {
-          label: 'Open sample pages',
-          primary: true,
-          run: () => {
-            const start = this.stores.length;
-            samples().forEach((d) => this.addStore(d));
-            this.closeModal();
-            this.switchDocument(start);
-          },
-        },
-      ],
-    );
+    return resetDemoDialog(this);
   }
   registerAgentTools() {
     const ctx = document.modelContext;
