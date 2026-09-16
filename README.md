@@ -265,3 +265,5 @@ constructors. Extraction does not publish npm packages.
 Canvas, XAML motion/states, HTML motion/states, resources/brushes, solution and data editor implementations are independently packaged. They share the existing document and renderer APIs through explicit host contracts; old Studio paths preserve constructor identity. See [Workspace components](docs/WORKSPACE-COMPONENTS.md) and the [standalone Workspace Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/WorkspaceLab/). No npm publication is triggered by extraction.
 
 Nested object control example: [NestedPropertiesLab](https://wieslawsoltes.github.io/XamoraStudio/examples/NestedPropertiesLab/).
+
+Standalone large-document editor example: [VirtualEditorLab](https://wieslawsoltes.github.io/XamoraStudio/examples/VirtualEditorLab/).

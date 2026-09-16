@@ -1,5 +1,10 @@
+import {
+  EditorLineIndex,
+  indexEditorTokens,
+  renderEditorTokens,
+  editorVirtualization,
+} from './code-viewport.js';
 /** Standalone text editing surface. Language semantics belong to injected providers. */
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 export class CodeEditor {
   constructor(
     host,
@@ -10,9 +15,15 @@ export class CodeEditor {
       onSelection,
       onChange,
       readOnly = false,
+      virtualization = {},
     } = {},
   ) {
     if (!host?.ownerDocument) throw new TypeError('CodeEditor requires a DOM host.');
+    this.virtualization = editorVirtualization(virtualization);
+    this.paintRevision = 0;
+    this.tokenRevision = -1;
+    this.paintFrame = null;
+    this.window = host.ownerDocument.defaultView;
     this.languageProvider = languageProvider;
     this.onChange = onChange;
     this.disposed = false;
@@ -47,9 +58,7 @@ export class CodeEditor {
         this.complete();
     });
     this.listen(this.input, 'scroll', () => {
-      this.highlight.scrollTop = this.input.scrollTop;
-      this.highlight.scrollLeft = this.input.scrollLeft;
-      this.lines.scrollTop = this.input.scrollTop;
+      this.schedulePaint();
       this.hideCompletions();
     });
     this.listen(this.input, 'click', () => {
@@ -93,6 +102,15 @@ export class CodeEditor {
     this.setLanguage(language);
     this.setReadOnly(readOnly);
     this.message.textContent = language;
+    if (this.window.ResizeObserver) {
+      this.resizeObserver = new this.window.ResizeObserver(() => this.schedulePaint());
+      this.resizeObserver.observe(this.input);
+    }
+    this.listen(this.window, 'resize', () => this.schedulePaint());
+    host.ownerDocument.fonts?.ready.then(() => {
+      if (!this.disposed) this.refreshLayout();
+    });
+    this.paint();
   }
   listen(target, type, listener) {
     target.addEventListener(type, listener);
@@ -122,6 +140,10 @@ export class CodeEditor {
     if (this.disposed) return;
     this.disposed = true;
     clearTimeout(this.timer);
+    this.resizeObserver?.disconnect();
+    if (this.paintFrame !== null) this.window.cancelAnimationFrame(this.paintFrame);
+    this.paintFrame = null;
+    this.lineIndex = this.tokenIndex = this.paintSource = null;
     for (const remove of this.listeners) remove();
     this.listeners.length = 0;
     this.completions.replaceChildren();
@@ -132,6 +154,7 @@ export class CodeEditor {
     this.onUndo = this.onRedo = this.onSemanticCommand = null;
   }
   setLanguage(language = 'Text') {
+    this.tokenRevision = -1;
     this.language = language;
     this.input.setAttribute('aria-label', language + ' code editor');
     this.host.querySelectorAll('.editor-find input').forEach((el, i) => {
@@ -214,37 +237,114 @@ export class CodeEditor {
     return true;
   }
 
-  paint() {
-    const v = this.input.value;
-    let tokens;
-    try {
-      tokens = this.getLanguageProvider().tokenize?.(v);
-    } catch {
-      /* Keep the buffer visible. */
+  schedulePaint() {
+    if (this.disposed || this.paintFrame !== null) return;
+    this.paintFrame = this.window.requestAnimationFrame(() => {
+      this.paintFrame = null;
+      this.paint();
+    });
+  }
+  setVirtualization(value = {}) {
+    if (this.disposed) return;
+    this.virtualization = editorVirtualization(value);
+    this.renderSignature = null;
+    this.paint();
+  }
+  refreshLayout() {
+    if (!this.disposed) this.paint();
+  }
+  ensureIndex() {
+    const source = this.input.value;
+    if (source !== this.paintSource || !this.lineIndex) {
+      this.paintSource = source;
+      this.lineIndex = new EditorLineIndex(source);
+      this.paintRevision++;
     }
-    const kinds = new Set(['comment', 'string', 'tag', 'attr', 'keyword', 'number']);
-    this.highlight.innerHTML =
-      (Array.isArray(tokens) &&
-      tokens.every((token) => token && typeof token.text === 'string') &&
-      tokens.map((token) => token.text).join('') === v
-        ? tokens
-            .map((token) =>
-              kinds.has(token.kind)
-                ? `<span class="syntax-${token.kind}">${esc(token.text)}</span>`
-                : esc(token.text),
-            )
-            .join('')
-        : esc(v)) + '\n';
-    this.lines.textContent = Array.from({ length: v.split('\n').length }, (_, i) => i + 1).join(
-      '\n',
-    );
+    return this.lineIndex;
+  }
+  paint() {
+    if (this.disposed) return;
+    const index = this.ensureIndex(),
+      source = index.source;
+    if (this.tokenRevision !== this.paintRevision) {
+      this.tokenIndex = indexEditorTokens(source, this.getLanguageProvider());
+      this.tokenRevision = this.paintRevision;
+      this.renderSignature = null;
+    }
+    const style = this.window.getComputedStyle(this.input),
+      gutter = this.window.getComputedStyle(this.lines);
+    const numeric = (value, fallback = 0) =>
+      Number.isFinite(parseFloat(value)) ? parseFloat(value) : fallback;
+    const lineHeight = Math.max(1, numeric(style.lineHeight, 21)),
+      topPadding = numeric(style.paddingTop, 12);
+    const virtualized = index.length >= this.virtualization.threshold;
+    this.highlight.classList.toggle('is-virtual', virtualized);
+    this.lines.classList.toggle('is-virtual', virtualized);
+    const range = virtualized
+      ? index.visibleRange(
+          this.input.scrollTop - topPadding,
+          this.input.clientHeight,
+          lineHeight,
+          this.virtualization.overscan,
+        )
+      : { startLine: 0, endLine: index.length, start: 0, end: source.length };
+    const signature = `${this.paintRevision}:${this.tokenRevision}:${virtualized}:${range.startLine}:${range.endLine}`;
+    if (this.renderSignature !== signature) {
+      const html = renderEditorTokens(source, this.tokenIndex, range.start, range.end);
+      const numbers = Array.from(
+        { length: range.endLine - range.startLine },
+        (_, i) => range.startLine + i + 1,
+      ).join('\n');
+      if (virtualized) {
+        if (!this.codeWindow || this.codeWindow.parentElement !== this.highlight) {
+          this.codeWindow = this.host.ownerDocument.createElement('span');
+          this.codeWindow.className = 'code-paint-window';
+          this.highlight.replaceChildren(this.codeWindow);
+          this.lineWindow = this.host.ownerDocument.createElement('span');
+          this.lineWindow.className = 'code-line-window';
+          this.lines.replaceChildren(this.lineWindow);
+        }
+        this.codeWindow.innerHTML = html + (html.endsWith('\n') ? '' : '\n');
+        this.lineWindow.textContent = numbers;
+      } else {
+        this.highlight.innerHTML = html + '\n';
+        this.lines.textContent = numbers;
+        this.codeWindow = this.lineWindow = null;
+      }
+      this.renderSignature = signature;
+    }
+    if (virtualized) {
+      const top = topPadding + range.startLine * lineHeight - this.input.scrollTop;
+      this.codeWindow.style.top = `${top}px`;
+      this.codeWindow.style.left = `${numeric(style.paddingLeft) - this.input.scrollLeft}px`;
+      this.codeWindow.style.lineHeight = this.lineWindow.style.lineHeight = `${lineHeight}px`;
+      this.lineWindow.style.top = `${top}px`;
+      this.lineWindow.style.paddingLeft = gutter.paddingLeft;
+      this.lineWindow.style.paddingRight = gutter.paddingRight;
+      this.lines.style.minWidth = `calc(${Math.max(3, String(index.length).length)}ch + ${numeric(gutter.paddingLeft) + numeric(gutter.paddingRight)}px)`;
+      this.highlight.scrollTop = this.highlight.scrollLeft = this.lines.scrollTop = 0;
+    } else {
+      this.lines.style.minWidth = '';
+      this.highlight.scrollTop = this.input.scrollTop;
+      this.highlight.scrollLeft = this.input.scrollLeft;
+      this.lines.scrollTop = this.input.scrollTop;
+    }
+    this.viewport = Object.freeze({
+      virtualized,
+      lineCount: index.length,
+      startLine: range.startLine,
+      endLine: range.endLine,
+      renderedLines: range.endLine - range.startLine,
+    });
     this.cursor();
   }
   cursor(notify = false) {
-    const before = this.input.value.slice(0, this.input.selectionStart);
-    this.position.textContent = `Ln ${before.split('\n').length}, Col ${before.length - before.lastIndexOf('\n')}`;
-    if (notify)
-      this.onSelection?.({ start: this.input.selectionStart, end: this.input.selectionEnd });
+    if (this.disposed) return;
+    const index = this.ensureIndex(),
+      caret = this.input.selectionStart,
+      line = index.lineAt(caret);
+    this.position.textContent = `Ln ${line + 1}, Col ${caret - index.offsetAt(line) + 1}`;
+    if (notify) this.onSelection?.({ start: caret, end: this.input.selectionEnd });
   }
   validate() {
     if (this.disposed) return false;
@@ -297,15 +397,15 @@ export class CodeEditor {
     this.host.querySelector('.editor-find').hidden = false;
     this.host.querySelector('.editor-find input').focus();
   }
-  reveal(index) {
-    const line = this.input.value.slice(0, index).split('\n').length;
-    const measured =
-      typeof getComputedStyle === 'function'
-        ? parseFloat(getComputedStyle(this.input).lineHeight)
-        : NaN;
-    this.input.scrollTop = Math.max(0, (line - 4) * (Number.isFinite(measured) ? measured : 21));
-    this.highlight.scrollTop = this.input.scrollTop;
-    this.lines.scrollTop = this.input.scrollTop;
+  reveal(offset) {
+    if (this.disposed) return;
+    const line = this.ensureIndex().lineAt(offset);
+    const measured = parseFloat(this.window.getComputedStyle(this.input).lineHeight);
+    this.input.scrollTop = Math.max(
+      0,
+      (line - 3) * (Number.isFinite(measured) && measured > 0 ? measured : 21),
+    );
+    this.paint();
   }
   revealName(name) {
     const at = this.input.value.indexOf(`="${name}"`);

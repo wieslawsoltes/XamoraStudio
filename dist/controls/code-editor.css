@@ -176,3 +176,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* The native textarea remains the single scroll/input authority. Overlays paint only logical viewport rows. */
+.xamora-code-editor .code-highlight.is-virtual {
+  overflow: hidden;
+  padding: 0;
+}
+.xamora-code-editor .line-numbers.is-virtual {
+  position: relative;
+}
+.xamora-code-editor .code-paint-window,
+.xamora-code-editor .code-line-window {
+  position: absolute;
+  display: block;
+  margin: 0;
+  white-space: pre;
+}
+.xamora-code-editor .code-line-window {
+  left: 0;
+  right: 0;
+  text-align: right;
+}

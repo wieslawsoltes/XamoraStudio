@@ -3,6 +3,9 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 const base = process.env.PAGES_URL || 'https://wieslawsoltes.github.io/XamoraStudio/';
 const files = [
+  'controls/code-viewport.js',
+  'examples/VirtualEditorLab/index.html',
+  'examples/VirtualEditorLab/lab.js',
   'index.html',
   'app.js',
   'studio/html-workspace.js',

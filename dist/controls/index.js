@@ -10,3 +10,5 @@ export * from './dialog-host.js';
 
 export * from './object-properties.js';
 export * from './object-property-grid.js';
+
+export * from './code-viewport.js';

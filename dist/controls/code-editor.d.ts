@@ -1,3 +1,4 @@
+import type { EditorVirtualizationOptions, EditorViewportState } from './code-viewport.js';
 export interface CodeCompletion {
   label: string;
   detail?: string;
@@ -27,6 +28,8 @@ export interface CodeEditorOptions {
   language?: string;
   languageProvider?: CodeLanguageProvider;
   readOnly?: boolean;
+  /** Default: virtualize at 1000 logical lines, with eight overscan lines. */
+  virtualization?: boolean | EditorVirtualizationOptions;
   onApply?: (source: string) => void | boolean;
   onSelection?: (selection: CodeSelection) => void;
   onChange?: (source: string, options: { defer: boolean; composing: boolean }) => void;
@@ -64,6 +67,9 @@ export declare class CodeEditor {
   setReadOnly(value: boolean): void;
   focus(): void;
   changed(options?: { defer?: boolean; composing?: boolean }): void;
+  readonly viewport: EditorViewportState;
+  setVirtualization(value?: boolean | EditorVirtualizationOptions): void;
+  refreshLayout(): void;
   paint(): void;
   cursor(notify?: boolean): void;
   validate(): boolean;
