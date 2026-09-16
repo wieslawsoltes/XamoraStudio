@@ -1,0 +1,56 @@
+name: Prepare responsive compiler implementation
+on:
+  push:
+    branches: [feat/responsive-compiler]
+    paths: [.github/workflows/prepare-responsive-compiler.yml]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply reviewed source patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/feat/responsive-compiler
+          for sha in b1b10dbd3a3145be493594958949b89b9f01fdc2 03d68fc70b0e9c02ccfaed25fdbb3d49343f78d2 1ceef950b947a20b238da40393538c57b349146f e90dc213cd4e1a82f53d93b73abfebfe08a62f56 6e8efddfd93d67427e739d5c49ba9b135884db75; do
+            gh api "repos/$GITHUB_REPOSITORY/git/blobs/$sha" --jq .content | base64 --decode >> "$RUNNER_TEMP/responsive.patch.gz"
+          done
+          gzip -dc "$RUNNER_TEMP/responsive.patch.gz" > "$RUNNER_TEMP/responsive.patch"
+          echo "4de9fcc21a1518e895627b041b8e2b164ec1217aba2c1f182be819f782e60afc  $RUNNER_TEMP/responsive.patch" | sha256sum --check
+          git apply --check "$RUNNER_TEMP/responsive.patch"
+          git apply "$RUNNER_TEMP/responsive.patch"
+          rm .github/workflows/prepare-responsive-compiler.yml
+      - run: npm ci
+      - name: Validate exact source tree
+        run: |
+          npm run format:check
+          npm run check
+          npm test
+          npm run build
+          npm run release:check
+          git add --all
+          test "$(git write-tree)" = 9ba79feca20a1788f9d6561c9cfcfc634f382138
+      - name: Commit validated implementation on the task branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/feat/responsive-compiler
+          git restore --source=HEAD --staged --worktree .github/workflows
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'feat: add conditional CSS, selectors, stylesheet loading and measured responsive conversion'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/feat/responsive-compiler
