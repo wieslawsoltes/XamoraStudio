@@ -33,3 +33,16 @@ Line-number and syntax overlays are line-virtualized automatically at 1,000 line
 A cached UTF-16 line index and token index let scrolling paint only visible logical lines plus overscan. Token providers run on a changed text/provider revision, not on scrolling. Partial views of multi-line tokens retain their token kind. Native textarea input, selection, clipboard, IME, find/replace and application-owned undo remain authoritative. Paint is coalesced to animation frames; resizing and font loading refresh the overlay.
 
 This virtualizes the visual overlays, **not the text storage, parser, undo snapshots or the native textarea**. Those operations can still be proportional to the full document. Fixed-height, non-wrapping logical lines are required. Very long individual lines are not horizontally virtualized. This is not an arbitrary-size editor performance guarantee. The source/packed browser tests exercise 100,000 lines. See `dist/examples/VirtualEditorLab/`.
+
+### Large-buffer text insertion
+
+In virtualized mode, cancelable, non-composing `beforeinput` events with type
+`insertText` use the textarea's `setRangeText` API to avoid a native editing stall on
+large multiline values. The control dispatches one bubbling, composed `input` event
+with the same data and input type through its existing history and validation path;
+that replacement notification is synthetic (`isTrusted` is false). Selection
+replacement, UTF-16 caret offsets and scroll position are retained. Already-canceled,
+read-only, disabled, composing and noncancelable events are not intercepted. Small
+nonvirtualized buffers and other input types retain the native event path. This is a
+targeted insertion fix, not lazy text storage or a guarantee about every browser's
+large-buffer clipboard, deletion or IME performance.
