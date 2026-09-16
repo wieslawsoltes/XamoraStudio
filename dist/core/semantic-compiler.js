@@ -73,6 +73,11 @@ const controls = {
   ScrollViewer: 'div',
   TextBlock: 'span',
   Run: 'span',
+  Span: 'span',
+  Bold: 'strong',
+  Italic: 'em',
+  Underline: 'u',
+  LineBreak: 'br',
   Label: 'label',
   Button: 'button',
   RepeatButton: 'button',
@@ -130,6 +135,7 @@ const cssProperties = {
   HorizontalAlignment: 'justify-self',
   VerticalAlignment: 'align-self',
   TextWrapping: 'white-space',
+  TextDecorations: 'text-decoration-line',
   Cursor: 'cursor',
   ClipToBounds: 'overflow',
   Fill: 'background-color',
@@ -147,6 +153,8 @@ const attrProperties = {
   NavigateUri: 'href',
   IsEnabled: 'disabled',
   IsChecked: 'checked',
+  IsSelected: 'selected',
+  GroupName: 'name',
   IsReadOnly: 'readonly',
   MaxLength: 'maxlength',
   TabIndex: 'tabindex',
@@ -209,6 +217,16 @@ const textContent = (n) =>
     .filter((c) => ['text', 'cdata'].includes(c.kind))
     .map((c) => c.text)
     .join('');
+const inlineXamlTypes = new Set([
+  'Run',
+  'Span',
+  'Bold',
+  'Italic',
+  'Underline',
+  'Hyperlink',
+  'LineBreak',
+]);
+const inlineHtmlTypes = new Set(['span', 'strong', 'b', 'em', 'i', 'u', 'a', 'br']);
 const isVisual = (n) =>
   n.kind !== 'element' || (!isProperty(n) && !ignoredVisual.has(localName(n.type)));
 const safeName = (value) => String(value).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -216,24 +234,391 @@ const literal = (value) =>
   String(value).startsWith('{}') ? String(value).slice(2) : String(value);
 const unit = (v) =>
   /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(v) ? v + 'px' : /^Auto$/i.test(v) ? 'auto' : v;
-const number = (v) =>
-  /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:px)?$/i.test(v)
-    ? String(Number(v.replace(/px$/i, '')))
-    : /^auto$/i.test(v)
-      ? 'Auto'
-      : null;
+function number(value) {
+  const v = String(value).trim();
+  if (/^auto$/i.test(v)) return 'Auto';
+  const match = v.match(/^([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?)(px|in|cm|mm|q|pt|pc)?$/i);
+  if (!match) return null;
+  const units = { px: 1, in: 96, cm: 96 / 2.54, mm: 96 / 25.4, q: 96 / 101.6, pt: 96 / 72, pc: 16 };
+  const result = Number(match[1]) * (units[match[2]?.toLowerCase()] || 1);
+  return Number.isFinite(result) ? String(Number(result.toPrecision(15))) : null;
+}
 const has = (o, k) => Object.hasOwn(o, k);
 const put = (o, k, v) =>
   Object.defineProperty(o, k, { value: v, writable: true, enumerable: true, configurable: true });
-function styleObject(source = '') {
-  const result = {};
-  for (const part of cssDeclarations(source)) {
-    const match = part
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .match(/^\s*([\w-]+)\s*:\s*([\s\S]*?)\s*;?\s*$/);
-    if (match) put(result, match[1].toLowerCase(), match[2]);
+// Keep declarations ordered: a later normal value must not erase an earlier !important one.
+function stripCssComments(source) {
+  let result = '',
+    quote = '';
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i];
+    if (c === '\\') {
+      result += c + (source[++i] || '');
+      continue;
+    }
+    if (quote) {
+      result += c;
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      result += c;
+      continue;
+    }
+    if (source.startsWith('/*', i)) {
+      const end = source.indexOf('*/', i + 2);
+      if (end < 0) break;
+      i = end + 1;
+      continue;
+    }
+    result += c;
   }
   return result;
+}
+function styleEntries(source = '') {
+  return cssDeclarations(source).flatMap((raw) => {
+    const match = stripCssComments(raw).match(/^\s*([\w-]+)\s*:\s*([\s\S]*?)\s*;?\s*$/);
+    if (!match) return [];
+    const key = match[1].startsWith('--') ? match[1] : match[1].toLowerCase();
+    return [[key, match[2]]];
+  });
+}
+function styleObject(source = '') {
+  const result = {};
+  for (const [key, value] of styleEntries(source)) {
+    if (/!\s*important\s*$/i.test(result[key] || '') && !/!\s*important\s*$/i.test(value)) continue;
+    put(result, key, value);
+  }
+  return result;
+}
+const inheritedCss = new Set(
+  'color font-family font-size font-weight font-style line-height text-align white-space visibility cursor'.split(
+    ' ',
+  ),
+);
+const initialCss = {
+  color: 'black',
+  'font-weight': 'normal',
+  'font-style': 'normal',
+  'text-align': 'start',
+  'white-space': 'normal',
+  visibility: 'visible',
+  opacity: '1',
+  width: 'auto',
+  height: 'auto',
+  'background-color': 'transparent',
+  'min-width': '0',
+  'min-height': '0',
+};
+const boxCss = {
+  margin: ['margin-top', 'margin-right', 'margin-bottom', 'margin-left'],
+  padding: ['padding-top', 'padding-right', 'padding-bottom', 'padding-left'],
+  'border-width': [
+    'border-top-width',
+    'border-right-width',
+    'border-bottom-width',
+    'border-left-width',
+  ],
+};
+function cssBoxValues(value) {
+  const parts = splitCssList(value, ' ');
+  if (!parts.length || parts.length > 4) return null;
+  const [a, b = a, c = a, d = b] = parts;
+  return [a, b, c, d];
+}
+function compareCssPriority(a, b) {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
+  return 0;
+}
+function cssIdentifier(source, start) {
+  let at = start,
+    value = '';
+  while (at < source.length) {
+    const c = source[at];
+    if (/[\w-]/.test(c) || c.charCodeAt(0) >= 128) {
+      value += c;
+      at++;
+    } else if (c === '\\' && at + 1 < source.length && !/[\r\n\f]/.test(source[at + 1])) {
+      const hex = source.slice(at + 1).match(/^[\da-f]{1,6}/i)?.[0];
+      if (hex) {
+        const code = parseInt(hex, 16);
+        value += String.fromCodePoint(
+          !code || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ? 0xfffd : code,
+        );
+        at += hex.length + 1;
+        if (/\s/.test(source[at] || '')) at++;
+      } else {
+        value += source[at + 1];
+        at += 2;
+      }
+    } else break;
+  }
+  return value ? { value, end: at } : null;
+}
+// Compile supported selectors once. Quotes and escapes are not combinators or specificity.
+function compileStaticSelector(source) {
+  source = stripCssComments(source).trim();
+  if (!source || source.length > 4096) return null;
+  const parts = [],
+    combinators = [],
+    specificity = [0, 0, 0];
+  let at = 0;
+  while (at < source.length) {
+    const tests = [];
+    if (source[at] === '*') at++;
+    else if (!'.#[:'.includes(source[at])) {
+      const id = cssIdentifier(source, at);
+      if (!id) return null;
+      tests.push(['tag', id.value.toLowerCase()]);
+      specificity[2]++;
+      at = id.end;
+    }
+    while (at < source.length && !/[\s>+~]/.test(source[at])) {
+      const token = source[at++];
+      if (token === '.' || token === '#') {
+        const id = cssIdentifier(source, at);
+        if (!id) return null;
+        tests.push([token, id.value]);
+        specificity[token === '#' ? 0 : 1]++;
+        at = id.end;
+      } else if (token === '[') {
+        let end = at,
+          quote = '';
+        for (; end < source.length; end++) {
+          const c = source[end];
+          if (c === '\\') {
+            end++;
+            continue;
+          }
+          if (quote) {
+            if (c === quote) quote = '';
+            continue;
+          }
+          if (c === '"' || c === "'") quote = c;
+          else if (c === ']') break;
+        }
+        if (end === source.length) return null;
+        const value = source.slice(at, end).trim();
+        const match = value.match(
+          /^([\w-]+)\s*(?:([~|^$*]?=)\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([\w-]+))\s*([is])?)?$/i,
+        );
+        if (!match) return null;
+        tests.push([
+          'attr',
+          match[1].toLowerCase(),
+          match[2],
+          match[3] ?? match[4] ?? match[5],
+          match[6]?.toLowerCase(),
+        ]);
+        specificity[1]++;
+        at = end + 1;
+      } else if (token === ':' && source.slice(at).match(/^root(?![\w-])/i)) {
+        tests.push(['root']);
+        specificity[1]++;
+        at += 4;
+      } else return null;
+    }
+    parts.push(tests);
+    if (parts.length > 128) return null;
+    const before = at;
+    while (/\s/.test(source[at] || '')) at++;
+    if (at === source.length) break;
+    let combinator = ' ';
+    if (/[>+~]/.test(source[at])) {
+      combinator = source[at++];
+      while (/\s/.test(source[at] || '')) at++;
+    } else if (before === at) return null;
+    if (at === source.length) return null;
+    combinators.push(combinator);
+  }
+  return { parts, combinators, specificity };
+}
+function matchesStaticPart(node, tests, ctx) {
+  if (node?.kind !== 'element') return false;
+  for (const [kind, name, op, expected, flag] of tests) {
+    if (kind === 'tag' && node.type.toLowerCase() !== name) return false;
+    if (kind === '#' && node.props.id !== name) return false;
+    if (
+      kind === '.' &&
+      !String(node.props.class || '')
+        .split(/\s+/)
+        .includes(name)
+    )
+      return false;
+    if (kind === 'root' && ctx.parents.has(node.id)) return false;
+    if (kind !== 'attr') continue;
+    if (!has(node.props, name)) return false;
+    if (!op) continue;
+    let actual = String(node.props[name]),
+      value = expected.replace(/\\(.)/g, '$1');
+    if (flag === 'i') {
+      actual = actual.replace(/[A-Z]/g, (c) => c.toLowerCase());
+      value = value.replace(/[A-Z]/g, (c) => c.toLowerCase());
+    }
+    if (op === '=' && actual !== value) return false;
+    if (op === '~=' && (!value || /\s/.test(value) || !actual.split(/\s+/).includes(value)))
+      return false;
+    if (op === '|=' && actual !== value && !actual.startsWith(value + '-')) return false;
+    if (op === '^=' && (!value || !actual.startsWith(value))) return false;
+    if (op === '$=' && (!value || !actual.endsWith(value))) return false;
+    if (op === '*=' && (!value || !actual.includes(value))) return false;
+  }
+  return true;
+}
+function selectorMatches(node, plan, ctx) {
+  const cache = new Map();
+  const match = (current, index) => {
+    if (!current) return false;
+    const key = current.id + ':' + index;
+    if (cache.has(key)) return cache.get(key);
+    let result = false;
+    if (matchesStaticPart(current, plan.parts[index], ctx)) {
+      if (!index) result = true;
+      else {
+        const combinator = plan.combinators[index - 1],
+          previous = (n) =>
+            combinator === '+' || combinator === '~'
+              ? ctx.previousElements.get(n.id)
+              : ctx.parents.get(n.id);
+        for (let n = previous(current); n; n = previous(n)) {
+          if (match(n, index - 1)) {
+            result = true;
+            break;
+          }
+          if (combinator === '>' || combinator === '+') break;
+        }
+      }
+    }
+    cache.set(key, result);
+    return result;
+  };
+  return match(node, plan.parts.length - 1);
+}
+// Balanced var() substitution, including nested fallback values and case-sensitive names.
+function substituteCssVariables(source, lookup, depth = 0, inspectFallback = false) {
+  if (depth > 64 || source.length > 65536) return null;
+  let out = '',
+    quote = '';
+  for (let i = 0; i < source.length;) {
+    const c = source[i];
+    if (c === '\\') {
+      out += source.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+    if (quote) {
+      out += c;
+      i++;
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      out += c;
+      i++;
+      continue;
+    }
+    if (source.slice(i, i + 4).toLowerCase() !== 'var(' || (i && /[\w-]/.test(source[i - 1]))) {
+      out += c;
+      i++;
+      continue;
+    }
+    let end = i + 4,
+      nesting = 1,
+      comma = -1,
+      innerQuote = '';
+    for (; end < source.length; end++) {
+      const ch = source[end];
+      if (ch === '\\') {
+        end++;
+        continue;
+      }
+      if (innerQuote) {
+        if (ch === innerQuote) innerQuote = '';
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        innerQuote = ch;
+        continue;
+      }
+      if (ch === '(') nesting++;
+      if (ch === ')') {
+        nesting--;
+        if (!nesting) break;
+      }
+      if (ch === ',' && nesting === 1 && comma < 0) comma = end;
+    }
+    if (nesting) return null;
+    const name = source.slice(i + 4, comma < 0 ? end : comma).trim();
+    if (!/^--[\w-]+$/.test(name)) return null;
+    let value = lookup(name);
+    if ((value == null || inspectFallback) && comma >= 0) {
+      const fallback = substituteCssVariables(
+        source.slice(comma + 1, end).trim(),
+        lookup,
+        depth + 1,
+        inspectFallback,
+      );
+      if (value == null) value = fallback;
+    }
+    if (value == null) return null;
+    // A substitution cannot merge number/identifier tokens into a new CSS dimension.
+    const token = (c) => !!c && /[\w-]/.test(c);
+    if (token(out.at(-1)) && token(value[0])) out += '/**/';
+    out += value;
+    if (token(value.at(-1)) && token(source[end + 1])) out += '/**/';
+    if (out.length > 65536) return null;
+    i = end + 1;
+  }
+  return out;
+}
+function computedCssVariables(values) {
+  const dependencies = new Map(),
+    cyclic = new Set(),
+    active = [],
+    visited = new Set(),
+    resolved = new Map();
+  for (const [name, value] of Object.entries(values)) {
+    const refs = new Set();
+    // Unused fallbacks also contribute edges to the custom-property dependency graph.
+    substituteCssVariables(
+      value,
+      (ref) => {
+        refs.add(ref);
+        return '';
+      },
+      0,
+      true,
+    );
+    dependencies.set(name, refs);
+  }
+  const visit = (name) => {
+    const index = active.indexOf(name);
+    if (index >= 0) {
+      for (const key of active.slice(index)) cyclic.add(key);
+      return;
+    }
+    if (visited.has(name) || !dependencies.has(name)) return;
+    if (active.length >= 64) {
+      cyclic.add(name);
+      return;
+    }
+    active.push(name);
+    for (const ref of dependencies.get(name)) visit(ref);
+    active.pop();
+    visited.add(name);
+  };
+  for (const name of dependencies.keys()) visit(name);
+  const lookup = (name, depth = 0) => {
+    if (resolved.has(name)) return resolved.get(name);
+    if (cyclic.has(name) || !has(values, name) || depth > 64) return null;
+    const result = substituteCssVariables(values[name], (ref) => lookup(ref, depth + 1));
+    resolved.set(name, result);
+    return result;
+  };
+  for (const name of dependencies.keys()) lookup(name);
+  return lookup;
 }
 function styleText(values) {
   return Object.entries(values)
@@ -348,6 +733,34 @@ function toCssColor(value) {
       : value;
 }
 function toXamlColor(value) {
+  const rgb = value.match(/^rgba?\((.*)\)$/i);
+  if (rgb) {
+    const body = rgb[1].trim(),
+      legacy = body.includes(','),
+      parts = legacy ? splitCssList(body) : body.split(/\s*\/\s*|\s+/),
+      component = (part, scale) => {
+        const match = part?.match(/^([-+]?(?:\d+(?:\.\d*)?|\.\d+))(%?)$/);
+        if (!match) return null;
+        const v = match[2] ? Number(match[1]) / 100 : Number(match[1]) / scale;
+        return Math.round(Math.max(0, Math.min(1, v)) * 255)
+          .toString(16)
+          .padStart(2, '0')
+          .toUpperCase();
+      };
+    if (
+      (!legacy &&
+        ((parts.length === 4 && !body.includes('/')) || (body.match(/\//g) || []).length > 1)) ||
+      ![3, 4].includes(parts.length) ||
+      (legacy &&
+        parts.slice(0, 3).some((p) => p.endsWith('%')) &&
+        !parts.slice(0, 3).every((p) => p.endsWith('%')))
+    )
+      return null;
+    const channels = parts.slice(0, 3).map((p) => component(p, 255)),
+      alpha = component(parts[3] ?? '1', 1);
+    return channels.includes(null) || alpha === null ? null : '#' + alpha + channels.join('');
+  }
+  if (/[()]/.test(value)) return null;
   return /^#[\da-f]{8}$/i.test(value)
     ? '#' + value.slice(7) + value.slice(1, 7)
     : /^#[\da-f]{4}$/i.test(value)
@@ -371,7 +784,11 @@ function cssThickness(value) {
   const values = value.trim().split(/\s+/).map(number);
   if (values.some((v) => v === null) || !values.length || values.length > 4) return null;
   const [top, right = top, bottom = top, left = right] = values;
-  return values.length === 1 ? top : [left, top, right, bottom].join(',');
+  // Cascading expands shorthands to four sides. Preserve the established compact
+  // XAML spelling for uniform boxes after unit conversion and longhand overrides.
+  return [right, bottom, left].every((value) => value === top)
+    ? top
+    : [left, top, right, bottom].join(',');
 }
 function cssValue(key, value, ctx, node) {
   value = literal(value);
@@ -386,6 +803,12 @@ function cssValue(key, value, ctx, node) {
   if (/Alignment$/.test(key) && key !== 'TextAlignment') return align[value] || value.toLowerCase();
   if (key === 'TextAlignment') return value.toLowerCase();
   if (key === 'TextWrapping') return value === 'NoWrap' ? 'nowrap' : 'normal';
+  if (key === 'TextDecorations')
+    return (
+      { Underline: 'underline', Strikethrough: 'line-through', OverLine: 'overline', None: 'none' }[
+        value
+      ] ?? null
+    );
   if (key === 'ClipToBounds') return /^true$/i.test(value) ? 'hidden' : 'visible';
   return value;
 }
@@ -412,7 +835,21 @@ function xamlValue(key, value) {
       }[value] || null
     );
   if (key === 'TextAlignment') return value.charAt(0).toUpperCase() + value.slice(1);
-  if (key === 'TextWrapping') return value === 'nowrap' ? 'NoWrap' : 'Wrap';
+  if (key === 'TextWrapping')
+    return ['nowrap', 'pre'].includes(value)
+      ? 'NoWrap'
+      : ['normal', 'pre-wrap', 'pre-line', 'break-spaces'].includes(value)
+        ? 'Wrap'
+        : null;
+  if (key === 'TextDecorations')
+    return (
+      {
+        underline: 'Underline',
+        'line-through': 'Strikethrough',
+        overline: 'OverLine',
+        none: 'None',
+      }[value] ?? null
+    );
   if (key === 'ClipToBounds') return value === 'hidden' ? 'True' : 'False';
   return value;
 }
@@ -606,7 +1043,7 @@ function collectResources(ctx) {
   });
 }
 
-function xamlToHtmlNode(node, ctx, parentType = '') {
+function xamlToHtmlNode(node, ctx, parentType = '', preserveSpace = false) {
   if (node.kind !== 'element') {
     if (node.kind === 'pi') {
       ctx.report(
@@ -622,9 +1059,17 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
   }
   const custom = plugins(node, 'xamlToHtml', ctx);
   if (custom) return custom;
+  preserveSpace =
+    node.props['xml:space'] === 'preserve' ||
+    (preserveSpace && node.props['xml:space'] !== 'default');
   const type = localName(node.type),
-    htmlMeta = decodeMeta(webMetadata(node, ctx), ctx, node),
-    tag = htmlMeta?.type || controls[type] || 'div';
+    htmlMeta = decodeMeta(webMetadata(node, ctx), ctx, node);
+  let tag =
+    htmlMeta?.type ||
+    (type === 'TextBox' && /^true$/i.test(node.props.AcceptsReturn || '')
+      ? 'textarea'
+      : controls[type]) ||
+    'div';
   if (!controls[type] && !htmlMeta)
     ctx.report(
       'warning',
@@ -672,6 +1117,8 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
     const resolved = resolveLiteral(value, key, node, ctx);
     if (resolved !== null) put(literalProps, key, resolved);
   }
+  if (!htmlMeta && type === 'TextBox' && /^true$/i.test(literalProps.AcceptsReturn || ''))
+    tag = n.type = 'textarea';
   if (type === 'Canvas') {
     css.position = 'relative';
     css.display = 'block';
@@ -705,6 +1152,8 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
     }
   }
   if (type === 'DockPanel') css.display = 'grid';
+  if (type === 'Bold') css['font-weight'] = 'bold';
+  if (type === 'Italic') css['font-style'] = 'italic';
   if (type === 'ScrollViewer') css.overflow = 'auto';
   if (type === 'Ellipse') css['border-radius'] = '50%';
   if (type === 'Border' || type === 'Rectangle' || type === 'Ellipse') {
@@ -737,7 +1186,7 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
       const attr = attrProperties[key];
       if (key === 'IsEnabled') {
         if (/^false$/i.test(value)) props.disabled = '';
-      } else if (['IsChecked', 'IsReadOnly'].includes(key)) {
+      } else if (['IsChecked', 'IsReadOnly', 'IsSelected'].includes(key)) {
         if (/^true$/i.test(value)) props[attr] = '';
       } else props[attr] = value;
     } else if (has(eventNames, key)) {
@@ -770,6 +1219,8 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
         'Content',
         'Header',
         'IsExpanded',
+        'AcceptsReturn',
+        'SelectedIndex',
         'x:Class',
         'x:Key',
         'xml:space',
@@ -784,7 +1235,12 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
         true,
       );
   }
-  if (type === 'TextBox') props.type = 'text';
+  if (type === 'TextBox' && tag === 'input') props.type = 'text';
+  if (
+    preserveSpace &&
+    ['TextBlock', 'Run', 'Span', 'Bold', 'Italic', 'Underline', 'Hyperlink'].includes(type)
+  )
+    css['white-space'] = literalProps.TextWrapping === 'NoWrap' ? 'pre' : 'pre-wrap';
   if (type === 'PasswordBox') props.type = 'password';
   if (type === 'CheckBox') props.type = 'checkbox';
   if (type === 'RadioButton') props.type = 'radio';
@@ -811,12 +1267,23 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
     if (
       childType.endsWith('.Content') ||
       childType.endsWith('.Child') ||
-      childType.endsWith('.Children')
+      childType.endsWith('.Children') ||
+      childType.endsWith('.Inlines') ||
+      childType.endsWith('.Items')
     ) {
       for (const inner of child.children) {
-        const converted = xamlToHtmlNode(inner, ctx, type);
-        if (converted) n.children.push(converted);
+        const converted = xamlToHtmlNode(inner, ctx, type, preserveSpace);
+        if (converted) appendConverted(n, converted, ctx);
       }
+    } else if (childType.endsWith('.Header') && ['Expander', 'GroupBox'].includes(type)) {
+      const header = element(type === 'Expander' ? 'summary' : 'legend');
+      for (const inner of child.children) {
+        const converted = xamlToHtmlNode(inner, ctx, type, preserveSpace);
+        if (converted) header.children.push(converted);
+      }
+      if (header.children.length === 1 && header.children[0].type === header.type)
+        n.children.unshift(header.children[0]);
+      else n.children.unshift(header);
     } else if (
       !childType.endsWith('.RowDefinitions') &&
       !childType.endsWith('.ColumnDefinitions') &&
@@ -831,8 +1298,25 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
       );
   }
   for (const child of node.children.filter(isVisual)) {
-    const converted = xamlToHtmlNode(child, ctx, type);
-    if (converted) n.children.push(converted);
+    const converted = xamlToHtmlNode(child, ctx, type, preserveSpace);
+    if (converted) appendConverted(n, converted, ctx);
+  }
+  if (type === 'ComboBox' && literalProps.SelectedIndex !== undefined) {
+    const index = Number(literalProps.SelectedIndex),
+      items = n.children.filter((c) => c.type === 'option');
+    if (Number.isInteger(index) && index >= 0 && index < items.length) {
+      items.forEach((item, i) => {
+        if (i === index) item.props.selected = '';
+        else delete item.props.selected;
+      });
+    } else
+      ctx.report(
+        'warning',
+        'SELECTION_INDEX',
+        'SelectedIndex cannot be represented by this HTML select; no-selection and out-of-range indices require an interaction adapter.',
+        node,
+        true,
+      );
   }
   if (type === 'DockPanel') {
     n.props.style = styleText(css);
@@ -859,7 +1343,19 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
   }
   if (css['border-width'] && !css['border-style']) css['border-style'] = 'solid';
   props.style = styleText(css);
-  if (htmlMeta) restoreHtmlMetadata(n, node, htmlMeta, ctx);
+  if (htmlMeta) {
+    restoreHtmlMetadata(n, node, htmlMeta, ctx);
+    if (
+      htmlMeta.syntheticInlineHost === true &&
+      Object.keys(node.props).every(
+        (key) =>
+          key.endsWith(':Source.Metadata') ||
+          key.startsWith('xmlns') ||
+          node.props[key] === htmlMeta.generated[key],
+      )
+    )
+      n.compilerTransparent = true;
+  }
   if (['CheckBox', 'RadioButton'].includes(type) && !htmlMeta) {
     const inputProps = { type: props.type, 'data-xamora-control-part': 'input' };
     for (const key of Object.keys(props))
@@ -892,6 +1388,12 @@ function xamlToHtmlNode(node, ctx, parentType = '') {
   }
   n.props = props;
   return n;
+}
+function appendConverted(parent, child, ctx) {
+  if (child.compilerTransparent) {
+    parent.children.push(...child.children);
+    for (const pair of ctx.pairs) if (pair[1] === child.id) pair[1] = parent.id;
+  } else parent.children.push(child);
 }
 function layoutDock(source, target, ctx) {
   const sourceChildren = source.children.filter((c) => c.kind === 'element' && isVisual(c)),
@@ -943,9 +1445,36 @@ function layoutDock(source, target, ctx) {
   });
 }
 
+function patchInlineCss(source, before, after) {
+  const changes = new Set(
+    [...Object.keys(before), ...Object.keys(after)].filter((key) => before[key] !== after[key]),
+  );
+  if (!changes.size) return source;
+  const declarations = cssDeclarations(source),
+    replacement = [];
+  for (const part of declarations) {
+    const key = styleEntries(part)[0]?.[0];
+    if (!changes.has(key)) replacement.push(part);
+    else {
+      // Preserve comments that were outside strings on a replaced declaration.
+      const leading = part.match(/^\s*(?:\/\*[\s\S]*?\*\/\s*)+/)?.[0];
+      if (leading) replacement.push(leading);
+    }
+  }
+  let result = replacement.join('');
+  for (const key of changes)
+    if (after[key] !== undefined && after[key] !== null && after[key] !== '') {
+      if (result.trim() && !result.trimEnd().endsWith(';')) result += ';';
+      const important =
+        /!\s*important\s*$/i.test(before[key] || '') && !/!\s*important\s*$/i.test(after[key]);
+      result += `${result ? ' ' : ''}${key}: ${after[key]}${important ? ' !important' : ''};`;
+    }
+  return result;
+}
 function restoreHtmlMetadata(target, source, meta, ctx) {
   const original = { ...meta.props },
     originalCss = styleObject(original.style),
+    beforeCss = { ...originalCss },
     freshCss = styleObject(target.props.style),
     generated = meta.generated;
   for (const [key, cssKey] of Object.entries(cssProperties)) {
@@ -979,7 +1508,7 @@ function restoreHtmlMetadata(target, source, meta, ctx) {
       ])
         if (has(freshCss, cssKey)) originalCss[cssKey] = freshCss[cssKey];
     }
-  original.style = styleText(originalCss);
+  original.style = patchInlineCss(original.style || '', beforeCss, originalCss);
   if (!original.style) delete original.style;
   Object.assign(target.props, original);
   if (!original.style) delete target.props.style;
@@ -995,61 +1524,17 @@ function restoreHtmlMetadata(target, source, meta, ctx) {
   }
 }
 
-function selectorMatches(node, selector, parents) {
-  const pieces = selector.trim().split(/\s+(?![^[]*\])/);
-  if (!pieces.length || /[+~:]/.test(selector)) return false;
-  let current = node;
-  for (let i = pieces.length - 1; i >= 0; i--) {
-    const part = pieces[i];
-    if (part === '>') {
-      current = parents.get(current.id);
-      i--;
-      if (!current || !simpleSelector(current, pieces[i])) return false;
-      continue;
-    }
-    if (i === pieces.length - 1) {
-      if (!simpleSelector(current, part)) return false;
-    } else {
-      let parent = parents.get(current.id);
-      while (parent && !simpleSelector(parent, part)) parent = parents.get(parent.id);
-      if (!parent) return false;
-      current = parent;
-    }
-  }
-  return true;
-}
-function simpleSelector(node, selector) {
-  if (node.kind !== 'element') return false;
-  let rest = selector;
-  const type = rest.match(/^(\*|[\w-]+)/);
-  if (type) {
-    if (type[1] !== '*' && node.type !== type[1].toLowerCase()) return false;
-    rest = rest.slice(type[0].length);
-  }
-  while (rest) {
-    const token = rest.match(/^(?:([.#])([\w-]+)|\[([\w-]+)(?:\s*=\s*["']?([^\]"']+)["']?)?\])/);
-    if (!token) return false;
-    if (token[1] === '#' && node.props.id !== token[2]) return false;
-    if (
-      token[1] === '.' &&
-      !String(node.props.class || '')
-        .split(/\s+/)
-        .includes(token[2])
-    )
-      return false;
-    if (
-      token[3] &&
-      (!has(node.props, token[3]) || (token[4] !== undefined && node.props[token[3]] !== token[4]))
-    )
-      return false;
-    rest = rest.slice(token[0].length);
-  }
-  return true;
-}
 function collectCss(ctx) {
   ctx.parents = new Map();
+  ctx.previousElements = new Map();
   walk(ctx.input.root, (n, p) => {
     if (p) ctx.parents.set(n.id, p);
+    let previous;
+    for (const child of n.children || [])
+      if (child.kind === 'element') {
+        if (previous) ctx.previousElements.set(child.id, previous);
+        previous = child;
+      }
     if (n.type === 'style') {
       const ast = parseCssAnimationStylesheet(textContent(n));
       for (const rule of ast.rules) {
@@ -1064,28 +1549,25 @@ function collectCss(ctx) {
           );
           continue;
         }
-        for (const selector of rule.header.split(',')) {
-          if (/[+~:]/.test(selector)) {
-            ctx.report(
-              'warning',
-              'DYNAMIC_SELECTOR',
-              `Selector ${selector.trim()} requires a browser selector/state adapter.`,
-              n,
-              true,
-            );
-            continue;
-          }
-          ctx.cssRules.push({
-            selector: selector.trim(),
-            specificity:
-              (selector.match(/#/g) || []).length * 100 +
-              (selector.match(/[.[]/g) || []).length * 10 +
-              (selector.match(/(?:^|\s|>)\s*[a-z]/g) || []).length,
-            values: Object.fromEntries(
-              rule.declarations.filter((d) => d.property).map((d) => [d.property, d.value]),
-            ),
-          });
+        const selectors = splitCssList(rule.header).map(compileStaticSelector);
+        // CSS rejects an entire non-forgiving selector list when one selector is invalid.
+        if (selectors.some((plan) => !plan)) {
+          ctx.report(
+            'warning',
+            'DYNAMIC_SELECTOR',
+            `Selector list ${rule.header.trim()} requires a browser selector/state adapter.`,
+            n,
+            true,
+          );
+          continue;
         }
+        const values = rule.declarations
+          .filter((d) => d.property)
+          .map((d) => [
+            d.property.startsWith('--') ? d.property : d.property.toLowerCase(),
+            d.value,
+          ]);
+        for (const plan of selectors) ctx.cssRules.push({ plan, values });
       }
     }
     if (n.type === 'link' && /stylesheet/i.test(n.props.rel || ''))
@@ -1104,55 +1586,120 @@ function resolvedCss(node, ctx) {
   const parent = ctx.parents?.get(node.id),
     inherited = parent ? resolvedCss(parent, ctx) : {},
     values = Object.fromEntries(
-      Object.entries(inherited).filter(
-        ([key]) =>
-          key.startsWith('--') ||
-          [
-            'color',
-            'font-family',
-            'font-size',
-            'font-weight',
-            'font-style',
-            'line-height',
-            'text-align',
-            'white-space',
-            'visibility',
-            'cursor',
-          ].includes(key),
-      ),
+      Object.entries(inherited).filter(([key]) => key.startsWith('--') || inheritedCss.has(key)),
     ),
-    priorities = {};
-  const add = (input, rank) => {
-    for (const [key, raw] of Object.entries(input)) {
-      const important = /\s*!important\s*$/i.test(raw),
-        priority = rank + (important ? 10_000_000 : 0);
-      if (priority >= (priorities[key] ?? -1)) {
-        put(values, key, String(raw).replace(/\s*!important\s*$/i, ''));
-        priorities[key] = priority;
-      }
+    winners = new Map();
+  const add = (entries, rank) => {
+    for (const [key, raw] of entries) {
+      const important = /!\s*important\s*$/i.test(raw),
+        priority = [important ? 1 : 0, ...rank],
+        value = String(raw).replace(/\s*!\s*important\s*$/i, '');
+      const assign = (property, component) => {
+        if (
+          !winners.has(property) ||
+          compareCssPriority(priority, winners.get(property).priority) >= 0
+        )
+          winners.set(property, { value, priority, component });
+      };
+      if (has(boxCss, key)) boxCss[key].forEach((property, index) => assign(property, index));
+      else assign(key);
     }
   };
-  ctx.cssRules.forEach((rule, index) => {
-    if (selectorMatches(node, rule.selector, ctx.parents))
-      add(rule.values, rule.specificity * 1000 + index);
-  });
-  add(styleObject(node.props.style), 1_000_000);
-  for (const [key, value] of Object.entries(values))
-    if (!key.startsWith('--')) {
-      if (['inherit', 'unset'].includes(value)) {
-        if (inherited[key] !== undefined) values[key] = inherited[key];
-        else delete values[key];
+  // These semantic inline defaults precede all author declarations, including '*'.
+  if (['strong', 'b'].includes(node.type)) add([['font-weight', 'bolder']], [0, 0, 0, 0]);
+  if (['em', 'i'].includes(node.type)) add([['font-style', 'italic']], [0, 0, 0, 0]);
+  for (const rule of ctx.cssRules)
+    if (selectorMatches(node, rule.plan, ctx)) add(rule.values, [0, ...rule.plan.specificity]);
+  add(styleEntries(node.props.style), [1, 0, 0, 0]);
+  const custom = Object.fromEntries(Object.entries(values).filter(([key]) => key.startsWith('--')));
+  for (const [key, { value }] of winners)
+    if (key.startsWith('--')) {
+      if (value === 'initial') delete custom[key];
+      else if (value === 'inherit' || value === 'unset') {
+        if (has(inherited, key)) put(custom, key, inherited[key]);
+        else delete custom[key];
+      } else put(custom, key, value);
+    }
+  const lookup = computedCssVariables(custom);
+  for (const key of Object.keys(values)) if (key.startsWith('--')) delete values[key];
+  for (const key of Object.keys(custom)) {
+    const value = lookup(key);
+    if (value != null) put(values, key, value);
+    else delete values[key];
+  }
+  const inheritedValue = (key) => {
+    if (has(inherited, key)) return inherited[key];
+    for (const [group, sides] of Object.entries(boxCss))
+      if (sides.includes(key) && inherited[group] !== undefined)
+        return cssBoxValues(inherited[group])?.[sides.indexOf(key)];
+    return undefined;
+  };
+  for (const [key, entry] of winners) {
+    if (key.startsWith('--')) continue;
+    let value = substituteCssVariables(entry.value, lookup);
+    if (value == null) {
+      ctx.report(
+        'warning',
+        'CSS_VARIABLE',
+        `${key} contains an unresolved, cyclic or over-limit CSS variable; its computed value uses unset semantics.`,
+        node,
+        true,
+      );
+      value = 'unset';
+    }
+    if (entry.component !== undefined) {
+      const components = cssBoxValues(value);
+      value = components?.[entry.component] ?? 'unset';
+    }
+    if (value === 'inherit' && entry.component !== undefined) {
+      const group = Object.entries(boxCss).find(([, sides]) => sides.includes(key));
+      if (group && inherited[group[0]] !== undefined) {
+        put(values, key, cssBoxValues(inherited[group[0]])?.[entry.component] ?? '0');
         continue;
       }
-      values[key] = value.replace(
-        /var\(\s*(--[\w-]+)\s*(?:,\s*([^()]+))?\)/g,
-        (raw, name, fallback) => values[name] ?? fallback ?? raw,
-      );
     }
+    if (value === 'inherit' || (value === 'unset' && inheritedCss.has(key))) {
+      if (inheritedValue(key) !== undefined) put(values, key, inheritedValue(key));
+      else if (has(initialCss, key)) put(values, key, initialCss[key]);
+      else delete values[key];
+    } else if (value === 'initial' || value === 'unset') {
+      if (has(initialCss, key)) put(values, key, initialCss[key]);
+      else if (/^(?:margin|padding)-/.test(key)) put(values, key, '0');
+      else delete values[key];
+    } else put(values, key, value);
+  }
+  for (const [key, sides] of Object.entries(boxCss))
+    if (sides.some((side) => has(values, side))) {
+      put(values, key, sides.map((side) => values[side] ?? '0').join(' '));
+      for (const side of sides) delete values[side];
+    }
+  if (['bolder', 'lighter'].includes(values['font-weight']?.toLowerCase())) {
+    const base =
+      { normal: 400, bold: 700 }[inherited['font-weight']?.toLowerCase()] ??
+      Number(inherited['font-weight'] || 400);
+    values['font-weight'] = String(
+      values['font-weight'].toLowerCase() === 'bolder'
+        ? base < 350
+          ? 400
+          : base < 550
+            ? 700
+            : Math.max(900, base)
+        : base < 100
+          ? base
+          : base < 550
+            ? 100
+            : base < 750
+              ? 400
+              : 700,
+    );
+  }
+  if (values.color?.toLowerCase() === 'currentcolor') values.color = inherited.color || 'black';
+  for (const key of ['background-color', 'border-color'])
+    if (values[key]?.toLowerCase() === 'currentcolor') values[key] = values.color || 'black';
   ctx.cssCache.set(node.id, values);
   return values;
 }
-function inferXamlType(node, css) {
+function inferXamlType(node, css, inlineContext = false) {
   if (node.type === 'input')
     return (
       { password: 'PasswordBox', checkbox: 'CheckBox', radio: 'RadioButton', range: 'Slider' }[
@@ -1160,7 +1707,16 @@ function inferXamlType(node, css) {
       ] || 'TextBox'
     );
   const map = {
-    span: 'TextBlock',
+    span: inlineContext ? 'Span' : 'TextBlock',
+    strong: 'Bold',
+    b: 'Bold',
+    em: 'Italic',
+    i: 'Italic',
+    u: 'Underline',
+    br: 'LineBreak',
+    pre: 'TextBlock',
+    summary: 'TextBlock',
+    legend: 'TextBlock',
     p: 'TextBlock',
     h1: 'TextBlock',
     h2: 'TextBlock',
@@ -1196,7 +1752,50 @@ function inferXamlType(node, css) {
     return 'Canvas';
   return 'StackPanel';
 }
-function htmlToXamlNode(node, ctx, parentCss = {}) {
+function normalizeInlineWhitespace(root, ctx) {
+  let pending = null,
+    atStart = true;
+  const flush = () => {
+    if (pending) {
+      pending.text += ' ';
+      pending = null;
+    }
+  };
+  const visit = (node, mode = 'normal') => {
+    if (node.kind === 'element') {
+      if (node.type === 'br') {
+        pending = null;
+        atStart = true;
+        return;
+      }
+      if (['script', 'style', 'link', 'meta'].includes(node.type)) return;
+      mode = resolvedCss(node, ctx)['white-space'] || (node.type === 'pre' ? 'pre' : mode);
+      for (const child of node.children) visit(child, mode);
+      return;
+    }
+    if (!['text', 'cdata'].includes(node.kind)) return;
+    const source = mode === 'pre-line' ? node.text.replace(/\r\n?|\f/g, '\n') : node.text;
+    node.text = '';
+    for (const c of source) {
+      if (mode === 'pre-line' && c === '\n') {
+        pending = null;
+        node.text += '\n';
+        atStart = true;
+      } else if (['normal', 'nowrap', 'pre-line'].includes(mode) && /[ \t\r\n\f]/.test(c)) {
+        if (!atStart && !pending) pending = node;
+      } else {
+        flush();
+        node.text += c;
+        atStart = c === '\n' && !['normal', 'nowrap'].includes(mode);
+      }
+    }
+  };
+  visit(root);
+  walk(root, (node) => {
+    if (node.children) node.children = node.children.filter((c) => c.kind !== 'text' || c.text);
+  });
+}
+function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   if (node.kind !== 'element') {
     if (node.kind === 'comment' && (node.text.includes('--') || node.text.endsWith('-'))) {
       ctx.report(
@@ -1226,7 +1825,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}) {
       };
   }
   const css = resolvedCss(node, ctx),
-    type = meta?.type || inferXamlType(node, css),
+    type = meta?.type || inferXamlType(node, css, inlineContext),
     local = localName(type),
     props = {},
     n = element(type, props);
@@ -1267,8 +1866,15 @@ function htmlToXamlNode(node, ctx, parentCss = {}) {
     )
       continue;
     if (!has(css, cssKey)) continue;
-    const value = xamlValue(key, css[cssKey]);
     usedCss.add(cssKey);
+    // Text layout inherited from the outer host is not a native Inline property.
+    if (
+      inlineXamlTypes.has(local) &&
+      ['TextWrapping', 'TextAlignment'].includes(key) &&
+      css[cssKey] === parentCss[cssKey]
+    )
+      continue;
+    const value = xamlValue(key, css[cssKey]);
     if (value !== null) props[key] = value;
     else
       ctx.report(
@@ -1284,6 +1890,8 @@ function htmlToXamlNode(node, ctx, parentCss = {}) {
       key === 'Name' ||
       key === 'AutomationId' ||
       key === 'Watermark' ||
+      (key === 'IsSelected' && local !== 'ComboBoxItem') ||
+      (key === 'GroupName' && local !== 'RadioButton') ||
       (key === 'Value' && ['TextBox', 'PasswordBox'].includes(local))
     )
       continue;
@@ -1292,7 +1900,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}) {
     props[key] =
       key === 'IsEnabled'
         ? 'False'
-        : ['IsChecked', 'IsReadOnly'].includes(key)
+        : ['IsChecked', 'IsReadOnly', 'IsSelected'].includes(key)
           ? 'True'
           : node.props[attr];
   }
@@ -1372,17 +1980,72 @@ function htmlToXamlNode(node, ctx, parentCss = {}) {
     );
   if (node.type === 'img' && node.props.alt !== undefined)
     props['AutomationProperties.Name'] = node.props.alt;
-  const contentKey = contentProperty(local),
-    content = node.type === 'input' ? node.props.value : textContent(node);
+  const isTextHost = [
+    'TextBlock',
+    'Run',
+    'Span',
+    'Bold',
+    'Italic',
+    'Underline',
+    'Hyperlink',
+  ].includes(local);
+  if (
+    !meta &&
+    !inlineContext &&
+    (isTextHost ||
+      (!!contentProperty(local) && node.children.some((c) => inlineHtmlTypes.has(c.type))))
+  )
+    normalizeInlineWhitespace(node, ctx);
+  const textHost = isTextHost,
+    contentKey = contentProperty(local),
+    mixed = node.children.some(
+      (c) =>
+        c.kind === 'element' &&
+        !['script', 'style', 'link', 'meta', 'title', 'base'].includes(c.type),
+    ),
+    content = node.type === 'input' ? node.props.value : textContent(node),
+    scalarContent = !!contentKey && !mixed,
+    wrapInlineContent =
+      mixed &&
+      !!contentKey &&
+      !textHost &&
+      !['TextBox', 'PasswordBox'].includes(local) &&
+      node.children.filter((c) => c.kind === 'element').every((c) => inlineHtmlTypes.has(c.type));
+  if (node.type === 'textarea') props.AcceptsReturn = 'True';
+  if (!meta && local === 'TextBlock' && props.TextWrapping === undefined)
+    props.TextWrapping = 'Wrap';
+  if (
+    node.type === 'pre' ||
+    ['pre', 'pre-wrap', 'pre-line', 'break-spaces'].includes(css['white-space'])
+  ) {
+    props['xml:space'] = 'preserve';
+    if (local === 'TextBlock')
+      props.TextWrapping = ['pre-wrap', 'pre-line', 'break-spaces'].includes(css['white-space'])
+        ? 'Wrap'
+        : 'NoWrap';
+  }
+  if (textHost && mixed) {
+    n.space = 'preserve';
+    props['xml:space'] = 'preserve';
+  }
+
   if (node.type === 'input' && contentKey) usedAttrs.add('value');
-  if (contentKey && content !== undefined && content !== '')
+  if (scalarContent && content !== undefined && content !== '')
     props[contentKey] = String(content).startsWith('{') ? '{}' + content : content;
   if (local === 'Expander') {
     props.IsExpanded = has(node.props, 'open') ? 'True' : 'False';
     usedAttrs.add('open');
   }
   const header = node.children.find((c) => ['summary', 'legend'].includes(c.type));
-  if (header && ['Expander', 'GroupBox'].includes(local)) props.Header = textContent(header);
+  if (header && ['Expander', 'GroupBox'].includes(local)) {
+    if (header.children.some((c) => c.kind === 'element') || Object.keys(header.props).length) {
+      const converted = htmlToXamlNode(header, ctx, css);
+      if (converted) n.children.push(element(local + '.Header', {}, [converted]));
+    } else {
+      const value = textContent(header);
+      props.Header = value.startsWith('{') ? '{}' + value : value;
+    }
+  }
   for (const [attr, value] of Object.entries(node.props)) {
     if (attr.startsWith('data-xamora-on-')) {
       const event = attr.slice(15),
@@ -1404,12 +2067,56 @@ function htmlToXamlNode(node, ctx, parentCss = {}) {
   for (const child of node.children) {
     if (
       child === header ||
-      (contentKey && ['text', 'cdata'].includes(child.kind)) ||
-      (child.kind === 'text' && !child.text.trim() && node.type !== 'pre')
+      (scalarContent && ['text', 'cdata'].includes(child.kind)) ||
+      (child.kind === 'text' && !child.text.trim() && !textHost && !mixed && node.type !== 'pre')
     )
       continue;
-    const converted = htmlToXamlNode(child, ctx, css);
-    if (converted) n.children.push(converted);
+    const converted = htmlToXamlNode(child, ctx, css, textHost || wrapInlineContent);
+    if (converted) {
+      if (
+        (textHost || wrapInlineContent) &&
+        converted.kind === 'element' &&
+        !inlineXamlTypes.has(localName(converted.type))
+      )
+        ctx.report(
+          'warning',
+          'INLINE_CONTENT',
+          'Block or control content inside native text requires an inline UI adapter.',
+          child,
+          true,
+        );
+      n.children.push(converted);
+    }
+  }
+  if (wrapInlineContent) {
+    const host = element('TextBlock', { 'xml:space': 'preserve' }, n.children);
+    host.space = 'preserve';
+    if (ctx.options.preserveMetadata !== false)
+      host.props[META_XAML] = encodeMeta({
+        type: 'span',
+        props: {},
+        children: [],
+        generated: { ...host.props },
+        syntheticInlineHost: true,
+      });
+    n.children = [host];
+  }
+  if (local === 'ComboBox') {
+    const options = n.children.filter((c) => localName(c.type) === 'ComboBoxItem');
+    if (has(node.props, 'multiple'))
+      ctx.report(
+        'warning',
+        'MULTIPLE_SELECTION',
+        'HTML multiple selection requires a native multi-select control adapter.',
+        node,
+        true,
+      );
+    else if (options.length) {
+      const selected = options.findLastIndex((c) => c.props.IsSelected === 'True');
+      props.SelectedIndex = String(
+        selected >= 0 ? selected : options.findIndex((c) => c.props.IsEnabled !== 'False'),
+      );
+    }
   }
   if (local === 'Grid') placeHtmlGrid(node, n, css, ctx);
   if (meta) restoreXamlMetadata(n, node, meta, css, ctx);
@@ -1433,7 +2140,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}) {
         true,
       );
   const structuralTags = new Set(
-    'html body div main section article header footer nav aside form span p h1 h2 h3 h4 h5 h6 label button input textarea select option ul ol li img progress hr a details fieldset'.split(
+    'html body div main section article header footer nav aside form span strong b em i u br pre p h1 h2 h3 h4 h5 h6 label button input textarea select option ul ol li img progress hr a details fieldset'.split(
       ' ',
     ),
   );
@@ -1485,9 +2192,26 @@ function diagnoseNativeProperties(node, ctx, source) {
       'Expander',
       'GroupBox',
     ]),
-    text = ['TextBlock', 'Run'].includes(type);
+    text = ['TextBlock', 'Run', 'Span', 'Bold', 'Italic', 'Underline', 'Hyperlink'].includes(type);
   for (const key of Object.keys(node.props)) {
     const incompatible =
+      (inlineXamlTypes.has(type) &&
+        [
+          'Width',
+          'Height',
+          'MinWidth',
+          'MinHeight',
+          'MaxWidth',
+          'MaxHeight',
+          'Margin',
+          'Padding',
+          'BorderThickness',
+          'BorderBrush',
+          'HorizontalAlignment',
+          'VerticalAlignment',
+          'TextWrapping',
+          'TextAlignment',
+        ].includes(key)) ||
       (ctx.options.framework === 'WPF' &&
         ['Spacing', 'RowSpacing', 'ColumnSpacing'].includes(key)) ||
       (['Foreground', 'FontFamily', 'FontSize', 'FontWeight', 'FontStyle'].includes(key) &&
@@ -1621,6 +2345,9 @@ function restoreXamlMetadata(target, source, meta, css, ctx) {
     baseline = meta.generated || {},
     baselineCss = styleObject(baseline.style),
     fresh = { ...target.props };
+  for (const key of Object.keys(boxCss))
+    if (baselineCss[key])
+      baselineCss[key] = cssBoxValues(baselineCss[key])?.join(' ') ?? baselineCss[key];
   delete original[META_XAML];
   for (const [key, cssKey] of Object.entries(cssProperties)) {
     if (css[cssKey] !== baselineCss[cssKey]) {
@@ -1650,10 +2377,20 @@ function restoreXamlMetadata(target, source, meta, css, ctx) {
     'Grid.ColumnSpan',
   ])
     if (has(fresh, key)) original[key] = fresh[key];
+  const header = source.children.find((child) => ['summary', 'legend'].includes(child.type));
+  if (header) {
+    delete original.Header;
+    if (fresh.Header !== undefined) original.Header = fresh.Header;
+  }
   const content = meta.contentKey;
   if (content) {
+    if (source.children.some((c) => c.kind === 'element' && !['script', 'style'].includes(c.type)))
+      delete original[content];
     const value = source.type === 'input' ? (source.props.value ?? '') : textContent(source);
-    if (value !== String(meta.content ?? '')) {
+    if (
+      !source.children.some((c) => c.kind === 'element' && !['script', 'style'].includes(c.type)) &&
+      value !== String(meta.content ?? '')
+    ) {
       if (value) original[content] = value.startsWith('{') ? '{}' + value : value;
       else delete original[content];
     }
@@ -1665,7 +2402,10 @@ function restoreXamlMetadata(target, source, meta, css, ctx) {
     if (has(meta.props, key) && !has(original, key)) delete target.props[key];
   const properties = (meta.children || [])
     .filter(
-      (child) => !['Content', 'Child', 'Children'].some((name) => child.type?.endsWith('.' + name)),
+      (child) =>
+        !['Content', 'Child', 'Children', 'Inlines', 'Items', 'Header'].some((name) =>
+          child.type?.endsWith('.' + name),
+        ),
     )
     .map((n) => restoreNode(n));
   for (const axis of ['Row', 'Column']) {
@@ -2089,6 +2829,18 @@ function findNode(root, id) {
   return found;
 }
 
+function finalizeHtmlMetadata(root) {
+  walk(root, (node) => {
+    if (!node.props?.[META_HTML]) return;
+    const meta = JSON.parse(node.props[META_HTML]);
+    const part = node.children.find(
+      (child) => child.props?.['data-xamora-control-part'] === 'input',
+    );
+    meta.generated = { ...node.props, ...(part?.props || {}) };
+    delete meta.generated[META_HTML];
+    node.props[META_HTML] = encodeMeta(meta);
+  });
+}
 function convertXaml(ctx) {
   collectResources(ctx);
   const bodyNode = xamlToHtmlNode(ctx.input.root, ctx),
@@ -2133,6 +2885,7 @@ function convertXaml(ctx) {
     );
   }
   if (ctx.options.allowScripts !== true) sanitizeCompiledHtml(root, ctx);
+  finalizeHtmlMetadata(root);
   doc.metadata.html = { doctype: '<!DOCTYPE html>' };
   doc.metadata.semanticCompiler = { version: 1, from: ctx.input.framework };
   return doc;

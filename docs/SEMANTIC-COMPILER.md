@@ -56,7 +56,60 @@ The compiler returns `success`, `source`, `document`, `diagnostics`, `losses`, `
 | WPF scalar/color/thickness and basic transform animation tracks                  | CSS keyframes and timing                                | Deterministic names, delays, repeat counts, auto-reverse cycles and supported segment interpolation. Standalone storyboards are initially paused for explicit activation. |
 | Local CSS keyframes with stylesheet or inline animation bindings                 | WPF Storyboards and Loaded activation                   | Numeric, color, thickness, rotate and single translate/scale transforms; repeats/direction/fill and supported cubic timing are mapped.                                    |
 
-The static CSS cascade supports type, ID, class, attribute, descendant and child selectors, specificity, source order, inline declarations, `!important`, inherited text properties, and literal custom-property substitution. Conditional media/container rules, pseudo selectors, external stylesheets, complex CSS functions and intrinsic/responsive layouts remain in portable metadata with diagnostics. Compilation never fetches a stylesheet or evaluates browser state.
+The static CSS cascade compiles selectors once and compares specificity as separate
+ID/class/type columns. Supported selectors are type, universal, ID, class, attribute
+presence/operators (including ASCII case flags), `:root`, descendant, child, adjacent
+sibling and general sibling selectors. Quotes, commas and escaped identifiers are
+parsed without treating their contents as combinators. Descendant matching backtracks
+when an intermediate ancestor does not satisfy a preceding relationship.
+
+Declarations stay ordered, including duplicates. Importance, inline precedence and
+source order are compared without numeric specificity overflow. Margin, padding and
+border-width shorthands participate as individual side declarations before conversion
+to native thickness. Custom properties are case-sensitive, inherit their computed
+values, support balanced nested fallbacks, and detect cycles including dependencies in
+unused fallbacks. Invalid variable substitution uses unset semantics, not an earlier
+cascaded declaration. Resolution is bounded to 64 levels and 65,536 characters;
+`CSS_VARIABLE` diagnostics make unresolved/cyclic/over-limit values visible to strict
+mode. This is a bounded static implementation, not a complete CSS tokenizer or grammar.
+
+Absolute lengths (`px`, `in`, `cm`, `mm`, `q`, `pt`, `pc`) become native device-independent
+numeric values. Legacy RGB/RGBA and modern space/slash RGB values, percentage channels
+and alpha become native ARGB colors. Unsupported functional color spaces are reported
+instead of copied as invalid native brush strings. Supported relative font weights are
+resolved numerically, and Bold/Italic defaults are not overwritten by an inherited
+normal weight/style.
+
+Conditional media/container/layer rules, pseudo selectors other than `:root`, external
+stylesheets, complex CSS functions, browser/user-agent default layouts and arbitrary
+intrinsic/responsive layouts still require adapters. Source-only constructs can remain
+in portable metadata without establishing native behavioral equivalence. Compilation
+never fetches a stylesheet or evaluates browser state.
+
+### Rich text and form controls
+
+Mixed text is lowered as an ordered inline stream: `span`, `strong`/`b`, `em`/`i`, `u`,
+`br` and WPF hyperlinks become Span, Bold, Italic, Underline, LineBreak and Hyperlink
+objects rather than losing their order in one scalar Text property. Nested spans stay
+inline. XAML `.Inlines`, `.Items` and rich `.Header` property syntax participate in
+conversion and are not duplicated from stale metadata on the return trip.
+
+Rich inline-only button/label content uses one native TextBlock content object. An
+unchanged compiler-created text host is transparent on reverse output, retaining the
+original HTML child-selector structure; an edited host is retained to preserve its new
+properties. Normal/nowrap whitespace collapses across inline boundaries; pre/pre-wrap
+and pre-line line breaks are retained. Text layout inherited from the containing text
+host does not become an invalid TextWrapping property on native Inline objects. Native
+inline UI/block embedding still reports `INLINE_CONTENT` and needs a control adapter.
+
+TextBox `AcceptsReturn` (including an effective style setter) emits a real textarea;
+HTML textarea content retains newlines and read-only state. Single-select option state
+maps to ComboBox SelectedIndex and ComboBoxItem IsSelected, with edited selection
+surviving subsequent trips. Radio group names map to GroupName. HTML multiple selection
+reports `MULTIPLE_SELECTION`; native no-selection/out-of-range indices report
+`SELECTION_INDEX` rather than claiming an HTML select can reproduce them without a
+runtime adapter. Input types outside the documented mappings and native toolkit-specific
+inline controls remain subject to target-adapter requirements.
 
 Native WPF and Avalonia have different property sets. The browser projection understands useful CSS-like properties beyond those native sets; `NATIVE_PROPERTY` reports cases requiring a wrapper or a target property adapter, such as Padding/Foreground on a native Grid or WPF StackPanel Spacing. Strict mode rejects those cases. This is a bounded semantic compiler with explicit extension points, not a proof of equivalence for arbitrary HTML/CSS/JavaScript or every native XAML toolkit.
 
@@ -64,7 +117,13 @@ Native WPF and Avalonia have different property sets. The browser projection und
 
 By default, generated HTML carries `data-xamora-xaml` metadata containing the original node type, properties, nonvisual property children, and the generated baseline. Generated XAML carries `web:Source.Metadata` in `urn:xamora:web`, retaining original HTML tags, attributes, unrepresented styles and nonvisual content. The root declares markup compatibility and makes the metadata namespace ignorable so a native loader does not treat preservation records as application properties.
 
-On reverse conversion the compiler compares current mapped values with the generated baseline. An edited width or caption wins over its earlier value; unchanged bindings, custom properties, types, and source-only children are restored. It does not replace the result with an old full-source snapshot. A node can be deleted or reordered in the designer without resurrecting the earlier visual tree.
+On reverse conversion the compiler compares current mapped values with the generated baseline. An edited width or caption wins over its earlier value; unchanged bindings, custom properties, types, and source-only children are restored. Inline HTML style strings remain byte-for-byte unchanged when their mapped values do
+not change. A mapped property edit patches its declarations while retaining unrelated
+fallback declarations, leading comments and importance. Generated HTML baselines are
+captured after parent layout/selection changes so those changes are not confused with
+subsequent user edits. This does not preserve arbitrary formatting of the complete document.
+
+It does not replace the result with an old full-source snapshot. A node can be deleted or reordered in the designer without resurrecting the earlier visual tree.
 
 Metadata makes source larger. Choose `preserveMetadata: false` for clean target markup when source-only constructs do not need to return. Loss diagnostics are still generated. Neither mode guarantees identical formatting after conversion; ordinary code/visual editing should continue through `DocumentSession` for exact local source patches.
 
@@ -133,3 +192,17 @@ Negative delays, scroll-driven timelines, unresolved custom-property animation v
 `tests/semantic-compiler.test.mjs` covers layout mappings, scoped resource shadowing, styles, CSS cascade, UTF-16 source-map ranges, strict failure, unknown metadata, two-way scalar/caption edits, visible checkbox/radio labels, input values, plugin controls, deterministic keyframes, inline CSS animation import, native rotation paths, inert HTML restoration and the explicit interaction bridge.
 
 `tests/browser-semantic-compiler.mjs` compares actual Chromium geometry against `PreviewRenderer` for Grid, Stack, Wrap, Canvas and Dock, tests caption edits, CSS auto placement and source-map ranges, and verifies that default restored HTML does not activate authored scripts/handlers/URLs. The IDE and CLI suites independently verify preview/commit behavior, collision handling, filesystem boundaries, dry runs and atomic failure.
+
+`tests/semantic-fidelity.test.mjs` adds independent cascade, variable, rich-inline,
+whitespace, form-state, color/unit, metadata-edit and input-immutability regressions.
+`tests/browser-compiler-fidelity.mjs` bundles both the canonical source entrypoint and
+the built package entrypoint, and compares conversion results with Chromium computed
+CSS, rendered inline text and edited form state. Both run by default in the existing
+browser gate. The source-only environment switch is for local development, not CI
+qualification. These checks do not substitute for native WPF/Avalonia runtime tests.
+
+Semantic references: [CSS cascade](https://www.w3.org/TR/css-cascade-3/),
+[custom properties](https://www.w3.org/TR/css-variables-1/),
+[absolute lengths](https://www.w3.org/TR/css-values-3/#absolute-lengths),
+[relative font weights](https://www.w3.org/TR/css-fonts-4/#relative-weights), and
+[WPF TextBlock inlines](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/textblock).
