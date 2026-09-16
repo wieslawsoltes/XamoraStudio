@@ -1,0 +1,46 @@
+name: Qualify native compiler output
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Native ${{ matrix.framework }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - framework: WPF
+            project: Wpf
+            os: windows-latest
+          - framework: Avalonia
+            project: Avalonia
+            os: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: npm ci
+      - run: npx playwright install --with-deps --only-shell chromium
+      - name: Generate source and measured browser fixtures
+        run: node tests/native/generate-fixtures.mjs --browser
+      - name: Load and assert actual native controls
+        run: dotnet run --project tests/native/${{ matrix.project }}/${{ matrix.project }}.csproj --configuration Release -- test-results/native/${{ matrix.framework }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-compiler-${{ matrix.framework }}
+          path: test-results/native/${{ matrix.framework }}/
+          if-no-files-found: error
