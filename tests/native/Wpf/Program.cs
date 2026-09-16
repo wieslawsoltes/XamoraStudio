@@ -53,7 +53,7 @@ internal static class Program
                 {
                     "Canvas.Left" => Canvas.GetLeft(target),
                     "Canvas.Top" => Canvas.GetTop(target),
-                    _ => target.GetType().GetProperty(property.Name)?.GetValue(target)
+                    _ => (target.GetType().GetProperty(property.Name) ?? throw new Exception($"Missing native property {target.GetType().Name}.{property.Name}")).GetValue(target)
                 };
                 var expectedValue = property.Value;
                 bool matches = expectedValue.ValueKind switch

@@ -1792,7 +1792,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
       key === 'Watermark' ||
       (key === 'IsSelected' && local !== 'ComboBoxItem') ||
       (key === 'GroupName' && local !== 'RadioButton') ||
-      (key === 'Value' && ['TextBox', 'PasswordBox'].includes(local))
+      (key === 'Value' && !['Slider', 'ProgressBar'].includes(local))
     )
       continue;
     if (!has(node.props, attr)) continue;
@@ -1903,7 +1903,12 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
         c.kind === 'element' &&
         !['script', 'style', 'link', 'meta', 'title', 'base'].includes(c.type),
     ),
-    content = node.type === 'input' ? node.props.value : textContent(node),
+    content =
+      node.type === 'input'
+        ? ['CheckBox', 'RadioButton'].includes(local)
+          ? undefined
+          : node.props.value
+        : textContent(node),
     scalarContent = !!contentKey && !mixed,
     wrapInlineContent =
       mixed &&
@@ -1929,7 +1934,8 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
     props['xml:space'] = 'preserve';
   }
 
-  if (node.type === 'input' && contentKey) usedAttrs.add('value');
+  if (node.type === 'input' && contentKey && !['CheckBox', 'RadioButton'].includes(local))
+    usedAttrs.add('value');
   if (scalarContent && content !== undefined && content !== '')
     props[contentKey] = String(content).startsWith('{') ? '{}' + content : content;
   if (local === 'Expander') {
@@ -2094,8 +2100,13 @@ function applyCapturedLayout(target, source, record, ctx) {
     ['CheckBox', 'RadioButton'].includes(localName(target.type)) &&
     record.checked !== undefined
   ) {
-    props.IsChecked = record.indeterminate ? '{x:Null}' : record.checked ? 'True' : 'False';
-    if (record.indeterminate) props.IsThreeState = 'True';
+    // Establish the native state mode before its nullable value, even when an
+    // authored checked attribute inserted IsChecked earlier in property order.
+    if (record.indeterminate) {
+      delete props.IsChecked;
+      props.IsThreeState = 'True';
+      props.IsChecked = '{x:Null}';
+    } else props.IsChecked = record.checked ? 'True' : 'False';
   }
   const round = (v) => String(Math.round(v * 10000) / 10000);
   const parent = ctx.parents.get(source.id),

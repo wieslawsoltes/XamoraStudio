@@ -28,6 +28,8 @@ internal static class Program
             Console.WriteLine($"Avalonia loading {name}");
             // Trusted compiler fixtures only. Runtime XAML loading is not a security sandbox.
             var root = AvaloniaRuntimeXamlLoader.Parse<Control>(File.ReadAllText(Path.Combine(directory, fixture.GetProperty("file").GetString()!)));
+            foreach (var check in root.GetLogicalDescendants().Prepend(root).OfType<CheckBox>())
+                Console.WriteLine($"{name}: loaded {check.Name}: IsThreeState={check.IsThreeState}, IsChecked={check.IsChecked?.ToString() ?? "null"}");
             var window = new Window { Content = root, Width = 1600, Height = 1200 };
             window.Show();
             try
@@ -47,7 +49,7 @@ internal static class Program
                         {
                             "Canvas.Left" => Canvas.GetLeft(target),
                             "Canvas.Top" => Canvas.GetTop(target),
-                            _ => target.GetType().GetProperty(property.Name)?.GetValue(target)
+                            _ => (target.GetType().GetProperty(property.Name) ?? throw new Exception($"Missing native property {target.GetType().Name}.{property.Name}")).GetValue(target)
                         };
                         var expected = property.Value;
                         bool matches = expected.ValueKind switch

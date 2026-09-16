@@ -92,6 +92,14 @@ for (const framework of ['WPF', 'Avalonia']) {
     assert.equal(named(result, 'choice').props.SelectedIndex, '-1');
     assert.equal(named(result, 'check').props.IsChecked, '{x:Null}');
     assert.equal(named(result, 'check').props.IsThreeState, 'True');
+    const checkbox = named(result, 'check');
+    assert.equal(checkbox.props.Value, undefined);
+    assert.equal(checkbox.props.Content, undefined);
+    assert(
+      Object.keys(checkbox.props).indexOf('IsThreeState') <
+        Object.keys(checkbox.props).indexOf('IsChecked'),
+    );
+    assert.match(result.source, /<CheckBox\b[^>]*IsThreeState="True"[^>]*IsChecked="\{x:Null\}"/s);
     root.querySelector('#check').indeterminate = false;
     assert.equal(
       named(compileRenderedDocument(root, { framework }), 'check').props.IsChecked,
@@ -230,3 +238,26 @@ test('reset, external scrolling, toggle and linked-sheet completion coalesce; di
   assert.equal(observer.refresh(), null);
   assert.equal(count, 5);
 });
+
+for (const framework of ['WPF', 'Avalonia']) {
+  test(`${framework} submission values are not native toggle properties or captions`, (t) => {
+    const { window } = fixture(t);
+    const source =
+      '<html><body><main><input id="check" type="checkbox" value="submitted" checked><input id="radio" type="radio" name="team" value="member"><select><option value="code">Label</option></select><button id="action">Click</button><input id="range" type="range" value="42"></main></body></html>';
+    const result = compileDocument(source, { from: 'html', Parser: window.DOMParser, framework });
+    assert(result.success);
+    for (const name of ['check', 'radio']) {
+      assert.equal(named(result, name).props.Value, undefined);
+      assert.equal(named(result, name).props.Content, undefined);
+    }
+    assert.equal(named(result, 'check').props.IsChecked, 'True');
+    assert.equal(named(result, 'radio').props.GroupName, 'team');
+    assert.equal(named(result, 'action').props.Content, 'Click');
+    assert.equal(named(result, 'range').props.Value, '42');
+    const back = compileDocument(result.document, { to: 'html' });
+    const dom = new window.DOMParser().parseFromString(back.source, 'text/html');
+    assert.equal(dom.getElementById('check').getAttribute('value'), 'submitted');
+    assert.equal(dom.getElementById('radio').getAttribute('value'), 'member');
+    assert.equal(dom.querySelector('option').getAttribute('value'), 'code');
+  });
+}
