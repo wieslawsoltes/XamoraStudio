@@ -784,7 +784,11 @@ function cssThickness(value) {
   const values = value.trim().split(/\s+/).map(number);
   if (values.some((v) => v === null) || !values.length || values.length > 4) return null;
   const [top, right = top, bottom = top, left = right] = values;
-  return values.length === 1 ? top : [left, top, right, bottom].join(',');
+  // Cascading expands shorthands to four sides. Preserve the established compact
+  // XAML spelling for uniform boxes after unit conversion and longhand overrides.
+  return [right, bottom, left].every((value) => value === top)
+    ? top
+    : [left, top, right, bottom].join(',');
 }
 function cssValue(key, value, ctx, node) {
   value = literal(value);
