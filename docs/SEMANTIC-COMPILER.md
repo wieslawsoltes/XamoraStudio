@@ -206,3 +206,148 @@ Semantic references: [CSS cascade](https://www.w3.org/TR/css-cascade-3/),
 [absolute lengths](https://www.w3.org/TR/css-values-3/#absolute-lengths),
 [relative font weights](https://www.w3.org/TR/css-fonts-4/#relative-weights), and
 [WPF TextBlock inlines](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/textblock).
+
+## Explicit CSS environments, supplied stylesheets and native output
+
+The static converter now accepts `environment`, `supports`, `evaluateCondition`,
+`selectorState`, `stylesheets`, `baseUrl`, and `nativeOutput`. Existing callers keep
+metadata-preserving behavior. `nativeOutput: true` defaults metadata preservation
+**off** and uses native panel wrappers and gap adapters; explicitly supplied options
+still take precedence.
+
+```js
+import { compileDocument, compileResponsiveVariants } from '@wieslawsoltes/xamora-compiler';
+
+const options = {
+  from: 'html',
+  framework: 'WPF',
+  nativeOutput: true,
+  environment: { type: 'screen', width: 900, height: 700, colorScheme: 'light' },
+  supports: { 'display:grid': true },
+  baseUrl: 'https://example.invalid/views/index.html',
+  stylesheets: new Map([
+    ['https://example.invalid/css/app.css', '.card { padding: 12px; }'],
+  ]),
+  // Explicit, reproducible pseudo state; omitted contextual states report a loss.
+  selectorState: { hover: [], focus: [] },
+};
+const result = compileDocument(htmlSource, options);
+const variants = compileResponsiveVariants(htmlSource, {
+  ...options,
+  variants: [
+    { name: 'mobile', width: 380, height: 700 },
+    { name: 'desktop', width: 900, height: 700 },
+  ],
+});
+```
+
+Media handling supports screen/print types, comma lists, nested `and`/`or`/`not`,
+width/height ranges (including chained comparisons), aspect ratio, orientation,
+resolution and explicit preference/device capabilities. Absolute and initial-font
+`em`/`rem` units are supported. Evaluation is three-valued: an unknown feature is
+not silently considered false or made true by negation. Unknown context generates
+`CONDITIONAL_CSS`. `@supports` takes an explicit callback or capability map; a
+browser caller may intentionally supply `(query) => CSS.supports(query)`.
+`@container` uses a per-source-node `evaluateCondition('container', query, node)`
+adapter. The core does not infer a container's intrinsic size from strings.
+
+Selectors include child/sibling combinators; `:is()`, `:where()`, `:not()`, relative
+`:has()`; first/last/only child/type; `:nth-child()` and `:nth-last-child()` with
+`of` lists; type-indexed `An+B`; `:root`, `:scope`, `:empty`, `:lang()`; and applicable
+form-state selectors. Logical pseudo specificity, zero-specificity `:where`, and
+forgiving `:is`/`:where` lists are retained. Interaction states use explicitly
+supplied ID sets rather than the ambient document. `hover`/`active` ancestry and
+`focus-within` are resolved from that snapshot. Pseudo-elements, unsupported
+selectors and unspecified contextual states produce diagnostics. Matching has
+bounded selector length/depth and a shared work budget.
+
+`<style media>`, `<link rel="stylesheet" media>`, nested grouping, supplied external
+stylesheets and recursive `@import` are visited in source order. Import URLs resolve
+relative to the containing sheet, not the document. Disabled/alternate/non-CSS
+sheets are not selected. `@layer` ordering includes nested layers, unlayered rules,
+inline precedence, and reversed important-layer precedence. The compiler never
+fetches resources or runs scripts. Missing imports, cycles and malformed/unsupported
+rules are diagnosed. Graph limits are 128 sheet visits, import depth 16, grouping
+depth 32 and 2,000,000 cumulative source characters. Imported CSS URLs and complete
+original HTML remain in optional round-trip metadata. `@scope`, CSS nesting,
+registered custom-property behavior and unsupported cascade keywords still need
+an adapter; this is not a complete CSS parser or cascade implementation.
+
+Native lowering creates `Border` wrappers for decorated/padded panels, keeps
+computed typography on text descendants, adds WPF Grid spacer tracks with adjusted
+indices/spans, and lowers nonwrapping StackPanel gaps to margins. Unsupported
+native layout/property combinations remain explicit losses. A variant represents
+one selected conditional environment, not an automatically resizing native CSS
+engine. Original files and the shared authoring AST are not mutated.
+
+Studio's conversion dialog exposes viewport dimensions, color preference, native
+output, explicit browser `@supports`, and a JSON URL-to-stylesheet-text map under
+**CSS environment and native output**. Existing conversion previews, original-file
+preservation and atomic solution undo remain in use.
+
+## Browser-measured intrinsic and responsive capture
+
+```js
+import { compileRenderedDocument, observeRenderedDocument } from '@wieslawsoltes/xamora-compiler';
+
+await document.fonts.ready;
+const root = document.querySelector('#view');
+const captured = compileRenderedDocument(root, { framework: 'WPF' });
+const observer = observeRenderedDocument(root, {
+  framework: 'Avalonia',
+  onResult(result) { output.value = result.source; },
+});
+// Application-owned CSSOM replacement can be followed by an explicit refresh.
+observer.refresh();
+observer.dispose();
+```
+
+This reads a **connected, already rendered DOM tree**, including the browser's
+loaded external sheets, real media/supports/container conditions, pseudo-state,
+intrinsic sizing, percentages, `calc`/`min`/`max`/`clamp`, wrapping, grid auto-fit and
+flex placement. It emits native Canvas/Border/TextBlock/control nodes with measured
+CSS-pixel boxes, current form state, target source ranges and a geometry report.
+It never mounts an untrusted document, fetches a URL, executes source JavaScript or
+reads cross-origin stylesheet rule lists. The hosting application controls source
+loading and sandbox policy. Password values are omitted unless explicitly enabled.
+
+The observer coalesces DOM, layout, interaction, scroll, font and selected media
+changes into animation-frame captures. Its explicit disposer removes listeners,
+observers and pending work. Capture is bounded to 10,000 nodes by default (maximum
+50,000), 128 levels, and finite geometry. This is a **measured state**, not live
+native CSS/JavaScript semantics. Responsive changes require recapture and a native
+host deciding how to apply the new document.
+
+Editable native text may differ in shaping, font fallback and line wrapping;
+native controls use their native themes. Generated content, replaced media,
+shadow-tree content, transforms, gradients, filters, masks, clipping paths,
+non-solid/per-side borders and unsupported paints have explicit adapter diagnostics.
+The current geometry can still be inspected, but strict mode rejects these losses
+(including unqualified native typography). No rasterized screenshot is presented
+as editable native semantics. See `examples/CompilerFidelityLab/` for a touch-friendly
+interactive sample that loads external sheets and recaptures viewport changes.
+
+## Native qualification gate
+
+The added CI configuration generates **actual compiler output** for WPF and Avalonia: semantic grid/padding,
+stack gaps, rich text, forms and conditional styles, plus browser-measured 380px and
+900px layouts. Windows WPF on .NET 10 and Avalonia 12.1.2's headless Skia platform
+load these outputs, measure/arrange native controls, check named geometry and form
+state, and render PNGs. JSON results, source fixtures and images are retained as CI
+artifacts. Pages deployment depends on both native jobs as well as the existing
+unit, installed-tarball, strict-TypeScript and Chromium gates.
+
+Generating fixtures is not native validation: native support is qualified only by
+successful results from the native jobs. These tests cover bounded fixtures, not
+exhaustive WPF/Avalonia API, browser engine, typography, accessibility or
+cross-platform parity. Source XAML fixtures
+are repository-generated; do not treat a native XAML loader as a sandbox for
+arbitrary untrusted input.
+
+Specification and runtime references:
+
+- CSS Media Queries Level 4: <https://www.w3.org/TR/mediaqueries-4/>
+- Selectors Level 4: <https://www.w3.org/TR/selectors-4/>
+- CSS Cascade Level 5: <https://www.w3.org/TR/css-cascade-5/>
+- WPF layout: <https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/layout>
+- Avalonia headless platform: <https://docs.avaloniaui.net/docs/testing/setting-up-the-headless-platform>
