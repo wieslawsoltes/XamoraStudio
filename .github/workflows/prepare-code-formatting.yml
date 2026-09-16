@@ -21,7 +21,7 @@ jobs:
         run: |
           npm install --save-dev --save-exact --ignore-scripts prettier@3.9.0
           node --input-type=module <<'JS'
-          import {readFile, writeFile, unlink} from 'node:fs/promises';
+          import {readFile, writeFile, unlink, appendFile} from 'node:fs/promises';
           const file = 'package.json';
           const manifest = JSON.parse(await readFile(file, 'utf8'));
           manifest.scripts.format = 'prettier . --write';
@@ -32,12 +32,14 @@ jobs:
           const anchor = '      - run: npm run check\n';
           if (!ci.includes(anchor)) throw Error('CI validation anchor changed');
           await writeFile(ciPath, ci.replace(anchor, '      - run: npm run format:check\n' + anchor));
+          await appendFile('.prettierignore', '\n# Local build, release and hosting workspaces.\n.artifacts/\n.package-build/\n.sites-runtime/\ndeliverables/\nupload/\n');
           await unlink('.github/workflows/prepare-code-formatting.yml');
           JS
-      - name: Check formatter stability and apply mechanical formatting
+      - name: Normalize source and verify formatter stability
         run: |
-          npx prettier . --debug-check > "$RUNNER_TEMP/format-debug.log"
           npm run format > "$RUNNER_TEMP/format-write.log"
+          npm run format > "$RUNNER_TEMP/format-normalize.log"
+          npx prettier . --debug-check > "$RUNNER_TEMP/format-debug.log"
           npm run format:check
           npm run check
           npm test
@@ -54,12 +56,3 @@ jobs:
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/chore/code-formatting
           git show --stat --oneline HEAD >> "$GITHUB_STEP_SUMMARY"
-      - name: Archive source and installed development tools for review
-        if: always()
-        run: tar -czf "$RUNNER_TEMP/xamora-review.tar.gz" --exclude='./.git' --exclude='./test-results' .
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: xamora-format-review
-          path: ${{ runner.temp }}/xamora-review.tar.gz
-          retention-days: 3
