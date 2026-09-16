@@ -1,0 +1,52 @@
+name: Prepare reusable dialog extraction
+on:
+  push:
+    branches: [refactor/reusable-dialogs]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply reviewed source patch
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/refactor/reusable-dialogs
+          cat .dialog-change/* > "$RUNNER_TEMP/change.patch.gz"
+          echo "07e2cedb020bb343f0d074b630b71c9aa0842add819139d3ce16f1d641711089  $RUNNER_TEMP/change.patch.gz" | sha256sum --check
+          gzip -dc "$RUNNER_TEMP/change.patch.gz" > "$RUNNER_TEMP/change.patch"
+          git apply --check "$RUNNER_TEMP/change.patch"
+          git apply "$RUNNER_TEMP/change.patch"
+          rm -rf .dialog-change
+          rm .github/workflows/prepare-dialogs.yml
+      - run: npm ci
+      - name: Validate extracted dialog library
+        run: |
+          npm run format:check
+          npm run check
+          npm test
+          npm run build
+          npm run release:check
+          git add --all
+          test "$(git write-tree)" = e5e49d540b0d67a72cfd6356f8ba7bff657621a3
+      - name: Commit validated source on the isolated task branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/refactor/reusable-dialogs
+          git restore --source=HEAD --staged --worktree .github/workflows
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'feat: extract reusable dialogs with standalone packaging and Studio adapter'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/refactor/reusable-dialogs
