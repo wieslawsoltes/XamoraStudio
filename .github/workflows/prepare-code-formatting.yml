@@ -1,0 +1,66 @@
+name: Prepare isolated formatting change
+on:
+  push:
+    branches: [chore/code-formatting]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.event.head_commit.message == 'chore: prepare reproducible source formatting'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install pinned formatter and add validation commands
+        run: |
+          npm install --save-dev --save-exact --ignore-scripts prettier@3.9.0
+          node --input-type=module <<'JS'
+          import {readFile, writeFile, unlink} from 'node:fs/promises';
+          const file = 'package.json';
+          const manifest = JSON.parse(await readFile(file, 'utf8'));
+          manifest.scripts.format = 'prettier . --write';
+          manifest.scripts['format:check'] = 'prettier . --check';
+          await writeFile(file, JSON.stringify(manifest, null, 2) + '\n');
+          const ciPath = '.github/workflows/ci.yml';
+          const ci = await readFile(ciPath, 'utf8');
+          const anchor = '      - run: npm run check\n';
+          if (!ci.includes(anchor)) throw Error('CI validation anchor changed');
+          await writeFile(ciPath, ci.replace(anchor, '      - run: npm run format:check\n' + anchor));
+          await unlink('.github/workflows/prepare-code-formatting.yml');
+          JS
+      - name: Check formatter stability and apply mechanical formatting
+        run: |
+          npx prettier . --debug-check > "$RUNNER_TEMP/format-debug.log"
+          npm run format > "$RUNNER_TEMP/format-write.log"
+          npm run format:check
+          npm run check
+          npm test
+      - name: Commit formatting only to the task branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/chore/code-formatting
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'style: format canonical source and enforce consistent conventions'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/chore/code-formatting
+          git show --stat --oneline HEAD >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive source and installed development tools for review
+        if: always()
+        run: tar -czf "$RUNNER_TEMP/xamora-review.tar.gz" --exclude='./.git' --exclude='./test-results' .
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xamora-format-review
+          path: ${{ runner.temp }}/xamora-review.tar.gz
+          retention-days: 3
