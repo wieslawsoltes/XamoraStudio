@@ -1,0 +1,51 @@
+name: Prepare standalone property grid extraction
+on:
+  push:
+    branches: [refactor/reusable-property-grid]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply verified source patch
+        run: |
+          set -euo pipefail
+          cat .library-change/* > "$RUNNER_TEMP/change.patch.gz"
+          gzip -dc "$RUNNER_TEMP/change.patch.gz" > "$RUNNER_TEMP/change.patch"
+          git apply --check "$RUNNER_TEMP/change.patch"
+          git apply "$RUNNER_TEMP/change.patch"
+          rm -rf .library-change
+          rm .github/workflows/prepare-libraries.yml
+      - run: npm ci
+      - name: Validate extracted property grid
+        run: |
+          npm run format:check
+          npm run check
+          npm test
+          npm run build
+          npm run release:check
+          git add --all
+          test "$(git write-tree)" = 578e6fa3a182aa8953a929c3f214354bfb92c81d
+      - name: Commit source only on isolated task branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/refactor/reusable-property-grid
+          git restore --source=HEAD --staged --worktree .github/workflows
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'feat: extract reusable PropertyGrid and integrate Studio inspector'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/refactor/reusable-property-grid
