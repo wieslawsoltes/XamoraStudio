@@ -1,6 +1,6 @@
 # npm packages and release engineering
 
-Xamora's packages are built from the same `dist/core` and `dist/controls` modules imported by the designer. The browser studio retains its existing buildless imports; packaging does not replace its parser, object model, renderer, controls, history, or editing tools. The private root workspace is not published. Sixteen base packages form the runtime, designer SDK and standalone controls; an optional seventeenth package adds the semantic compiler and CLI.
+Xamora's packages are built from the same `dist/core` and `dist/controls` modules imported by the designer. The browser studio retains its existing buildless imports; packaging does not replace its parser, object model, renderer, controls, history, or editing tools. The private root workspace is not published. Seventeen base packages form the runtime, designer SDK and standalone controls; an optional eighteenth package adds the semantic compiler and CLI.
 
 ## Package boundaries
 
@@ -19,7 +19,8 @@ All names use the `@wieslawsoltes/` scope and a coordinated version. Internal de
 | `xamora-docking`             | DOM-free docking model, live-DOM workspace and independent styles; depends only on primitives                                                |
 | `xamora-code-editor`         | Language-neutral source editor, buffer history, language-provider hooks and independent styles; no runtime dependencies                      |
 | `xamora-property-grid`       | Descriptor-based controlled property fields, grouping/filtering, validation/reset events and independent styles; no runtime dependencies     |
-| `xamora-controls`            | Compatibility/convenience reexports of canonical docking, editor, property grid and primitive controls; CSS assets                           |
+| `xamora-dialogs`             | Modal hosting, focus/inert ownership, controlled async actions and standalone CSS; no runtime dependencies                                   |
+| `xamora-controls`            | Compatibility/convenience reexports of canonical docking, editor, property grid, dialog and primitive controls; CSS assets                   |
 | `xamora-designer`            | Drop planning, layout editing, solution/resource authoring, prototypes, code editor, examples                                                |
 | `xamora-properties`          | Observable state and extensible runtime property metadata/value precedence                                                                   |
 | `xamora-runtime`             | Standalone application host, binding updates, commands, events, lifecycle, resources, animation, optional custom element                     |
@@ -76,7 +77,7 @@ const application = mountXaml(document.querySelector('#app'), `
 
 Use exported module subpaths to narrow imports, such as `@wieslawsoltes/xamora-model/model`, `@wieslawsoltes/xamora-markup/document-session`, or `@wieslawsoltes/xamora-runtime/runtime-element`. ESM and CommonJS have separate conditional declarations (`.d.ts` and `.d.cts`). Runtime, SDK and standalone control packages also export ESM `./browser` bundles with declarations. These optional bundles include their dependency graph and need no import map or bundler; use one standalone bundle per application to keep module identities consistent. Normal package imports keep shared dependencies external for bundler deduplication.
 
-The runtime injects its scoped base styles automatically. The same canonical stylesheet is available as `@wieslawsoltes/xamora-runtime/runtime.css`. Controls expose `./docking.css`, `./density.css`, and `./scroll-buttons.css`; designer code-editor styling is `@wieslawsoltes/xamora-designer/editor.css`. Standalone editor and property grid styles are `@wieslawsoltes/xamora-code-editor/code-editor.css` and `@wieslawsoltes/xamora-property-grid/property-grid.css`. See [reusable control boundaries and examples](REUSABLE-CONTROLS.md). CSS exports are marked as side effects so bundlers retain explicit stylesheet imports.
+The runtime injects its scoped base styles automatically. The same canonical stylesheet is available as `@wieslawsoltes/xamora-runtime/runtime.css`. Controls expose `./docking.css`, `./density.css`, and `./scroll-buttons.css`; designer code-editor styling is `@wieslawsoltes/xamora-designer/editor.css`. Standalone editor and property grid styles are `@wieslawsoltes/xamora-code-editor/code-editor.css` and `@wieslawsoltes/xamora-property-grid/property-grid.css`. Dialog styling is `@wieslawsoltes/xamora-dialogs/dialog-host.css`. See [reusable control boundaries and examples](REUSABLE-CONTROLS.md). CSS exports are marked as side effects so bundlers retain explicit stylesheet imports.
 
 To inspect an unpublished local release:
 

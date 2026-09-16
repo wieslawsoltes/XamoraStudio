@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Dialog Lab — Xamora</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="../../controls/dialog-host.css">
+    <link rel="stylesheet" href="./lab.css">
+  </head>
+  <body>
+    <main>
+      <h1>Dialog Lab</h1>
+      <p>The same live form moves into the dialog and returns here without losing edits.</p>
+      <section id="profile"><label>Profile name <input id="name" value="Ada"></label></section>
+      <p><button id="open">Edit profile in dialog</button></p>
+      <output id="result" aria-live="polite">No profile saved.</output>
+      <p>Try an empty name for validation. Details opens another independent dialog. Escape closes only the top dialog.</p>
+      <nav><a href="../ControlsLab/">Docking</a> · <a href="../EditorLab/">Code editor</a> · <a href="../PropertyGridLab/">Property grid</a> · <a href="../../">Studio</a></nav>
+    </main>
+    <div id="dialog-root"></div>
+    <div id="details-root"></div>
+    <script type="module" src="./lab.js"></script>
+  </body>
+</html>

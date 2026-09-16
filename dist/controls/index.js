@@ -5,3 +5,5 @@ export { WorkspaceDensity, DENSITY_MODES, DENSITY_KEY } from './workspace-densit
 
 export * from './code-editor.js';
 export * from './property-grid.js';
+
+export * from './dialog-host.js';

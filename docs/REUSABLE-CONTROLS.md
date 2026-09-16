@@ -28,6 +28,12 @@ The package README documents providers, dirty-buffer guards, read-only mode and 
 
 Studio now uses `PropertyGrid` for All Properties and the shared `renderPropertyField` renderer for standard inspector fields. Its adapter uses external event mode so existing property transactions, specialized brush/resource editors, invalid-draft guards and shared undo/redo remain unchanged. Framework semantics belong to the adapter, not the generic control.
 
+## Dialog hosting
+
+`@wieslawsoltes/xamora-dialogs` extracts the existing modal presentation/focus responsibilities from `dist/studio/dialog-host.js`. Studio keeps a small adapter for its trusted templates, close-button icon and legacy element IDs. Both consumers run the same `DialogHost` implementation; workspace actions and persistence remain application-owned.
+
+The package includes literal-text and live-element content, explicit trusted HTML, focus wrapping, inert-background restoration, nested host ownership, pending-action suppression, abort signals and stale-result guards. It supplies its own scoped CSS; Studio retains its existing presentation overrides. See `packages/dialogs/README.md` and `dist/examples/DialogLab/`. No npm release is performed.
+
 ## Choosing an entry point
 
 | Package                     | Responsibility                                      | Runtime dependency         |
@@ -36,8 +42,15 @@ Studio now uses `PropertyGrid` for All Properties and the shared `renderProperty
 | `xamora-docking`            | DockLayout and DockWorkspace                        | Control primitives         |
 | `xamora-code-editor`        | Language-neutral editor and provider hooks          | None                       |
 | `xamora-property-grid`      | Property descriptors, fields and controlled editing | None                       |
+| `xamora-dialogs`            | Modal lifecycle, focus and controlled async actions | None                       |
 | `xamora-controls`           | Compatibility and convenience reexports             | Canonical control packages |
 
 All names above use the `@wieslawsoltes/` scope. For existing XAML/HTML code-editor behavior use `XamlEditor` from `xamora-designer/editor`. Source examples import canonical files directly; installed-package tests verify the package dependency closures and constructor identity through ESM and CommonJS reexports. Browser tests exercise each standalone bundle and its own CSS without Studio/core requests.
 
 The editor is textarea-based with synchronous providers, not a Monaco-equivalent editor or a line-virtualized renderer. The property grid handles explicitly supplied scalar descriptors, not automatic reflection of arbitrary object graphs. Docking floats within the browser page, not native OS windows. Existing richer Studio features remain in their application adapters; this extraction does not claim they all became standalone controls.
+
+## Extraction status and remaining boundaries
+
+The named docking, primitive controls, code-editor and property-grid extractions are integrated into Studio. The property-grid integration gate also covers separate docked inspector hosts and disposal of replaced/shared hosts. Dialog presentation is a further reusable package, rather than an app-specific copy.
+
+The remaining large Studio modules (canvas controller, animation/state workspaces, resource/brush authoring, solution explorer and data editor) still coordinate document-specific commands. Their existing core models are packaged; their full UI workspaces are not generic standalone controls. Future extraction requires explicit model/command adapters and lifecycle coverage, rather than simply moving files. Automatic object reflection/nested property editing, line virtualization and native OS docking remain separate feature work, not completed by these extractions.

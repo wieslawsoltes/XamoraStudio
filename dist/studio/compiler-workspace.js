@@ -271,8 +271,10 @@ export class CompilerWorkspace {
         $('.compiler-files')?.querySelectorAll('[data-convert-include]:checked').length || 0,
       button = $('[data-modal-action="2"]');
     if (!button) return;
-    button.disabled =
+    const disabled =
       !this.plan || !ready || (!!this.plan.summary.failed && !$('[data-convert-partial]').checked);
+    // The reusable dialog keeps the pending-action lock separate from availability.
+    if (!this.s.dialogHost?.setActionDisabled?.(2, disabled)) button.disabled = disabled;
     button.textContent = 'Create ' + ready + ' converted file' + (ready === 1 ? '' : 's');
   }
   downloadPlan() {

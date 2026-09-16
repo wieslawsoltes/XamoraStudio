@@ -35,6 +35,20 @@ const files = [
   'core/conversion-project.js',
   'studio/compiler-workspace.js',
   'styles/compiler.css',
+  'controls/dock-workspace.js',
+  'controls/docking.css',
+  'controls/code-editor.js',
+  'controls/code-editor.css',
+  'controls/property-grid.js',
+  'controls/property-grid.css',
+  'controls/dialog-host.js',
+  'controls/dialog-host.css',
+  'studio/dialog-host.js',
+  'examples/ControlsLab/index.html',
+  'examples/EditorLab/index.html',
+  'examples/PropertyGridLab/index.html',
+  'examples/DialogLab/index.html',
+  'examples/DialogLab/lab.js',
 ];
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const expected = new Map(
