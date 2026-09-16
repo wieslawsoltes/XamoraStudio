@@ -156,6 +156,42 @@ try {
   assert.ok((await input.inputValue()).includes('<!-- keep authored formatting -->'));
   await page.evaluate(() => window.xamora.studio.command('undo'));
   assert.equal(await input.inputValue(), typed, 'undo inspector returns exact typed source');
+
+  // All Properties is the extracted grid, but edits still use Studio's shared transaction.
+  assert(
+    await page.evaluate(async () => {
+      const { PropertyGrid } = await import('./controls/property-grid.js');
+      return window.xamora.studio.propertyGrid instanceof PropertyGrid;
+    }),
+  );
+  await page.locator('details.expanded-props').evaluate((node) => {
+    node.open = true;
+  });
+  const allWidth = page.locator('#all-properties input[data-prop="Width"]');
+  await allWidth.fill('205');
+  await allWidth.dispatchEvent('change');
+  await page.waitForFunction(
+    () =>
+      window.xamora.studio.selected[0]?.props.Width === '205' &&
+      !window.xamora.studio.sync.renderFrame,
+  );
+  assert.match(await input.inputValue(), /Width='205'/);
+  await page.evaluate(() => window.xamora.studio.command('undo'));
+  assert.equal(
+    await input.inputValue(),
+    typed,
+    'extracted grid uses the same exact-source undo history',
+  );
+  await page.locator('details.expanded-props').evaluate((node) => {
+    node.open = true;
+  });
+  await page.locator('#property-search').fill('Width');
+  assert(await allWidth.isVisible());
+  assert.equal(await page.locator('#all-properties input[data-prop="Height"]').isVisible(), false);
+  await page.locator('#property-search').fill('');
+  await page.locator('details.expanded-props').evaluate((node) => {
+    node.open = false;
+  });
   await input.focus();
   await input.press('Control+z');
   await page.waitForFunction((id) => {

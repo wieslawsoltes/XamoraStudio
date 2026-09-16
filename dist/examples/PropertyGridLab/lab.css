@@ -1,0 +1,9 @@
+body { margin: 0; font: 15px/1.5 system-ui, sans-serif; color: #292834; background: #f3f4f8; }
+main { max-width: 1000px; margin: 30px auto; padding: 24px; }
+h1 { margin-top: 0; }
+h2 { font-size: 17px; }
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.panels > div { min-width: 0; padding: 20px; border: 1px solid #d0d0d8; border-radius: 8px; background: white; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+a { color: #0759a5; }
+@media (max-width: 700px) { .panels { grid-template-columns: 1fr; } main { margin: 0; padding: 16px; } }

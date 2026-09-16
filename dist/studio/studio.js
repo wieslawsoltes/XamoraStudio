@@ -1,3 +1,4 @@
+import { PropertyGrid, renderPropertyField } from '../controls/property-grid.js';
 import { modal, closeModal } from './dialog-host.js';
 import {
   chooseFile,
@@ -637,13 +638,32 @@ export class Studio {
       const property = descriptor?.properties?.find((p) => typeof p === 'object' && p.name === key);
       if (property?.values) options = property.values;
     }
-    return `<div class="prop-field ${full ? 'full' : ''}"><label title="${esc(key)}">${esc(title)}</label>${options ? `<select data-prop="${esc(key)}" aria-label="${esc(key)}"><option value="">Default</option>${options.map((o) => `<option value="${esc(o)}" ${String(value) === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<input data-prop="${esc(key)}" aria-label="${esc(key)}" value="${esc(value ?? '')}" placeholder="${['Width', 'Height'].includes(key) ? 'Auto' : '—'}">`}<button class="reset-prop" data-reset="${esc(key)}" title="Reset ${esc(key)}" aria-label="Reset ${esc(key)}">×</button></div>`;
+    return renderPropertyField(
+      {
+        name: key,
+        label: title,
+        value,
+        options: options || undefined,
+        full,
+        placeholder: ['Width', 'Height'].includes(key) ? 'Auto' : undefined,
+      },
+      { legacy: true },
+    );
   }
   renderInspector() {
+    const host = this.inspectorHost();
+    // Docking renders each inspector into a separate host. Only release the grid
+    // when its own panel is replaced, not when another inspector is refreshed.
+    if (
+      this.propertyGrid &&
+      (host.contains(this.propertyGrid.host) || !this.propertyGrid.host.isConnected)
+    ) {
+      this.propertyGrid.dispose();
+      this.propertyGrid = null;
+    }
     $$('[data-right]').forEach((b) =>
       b.classList.toggle('active', b.dataset.right === this.rightTab),
     );
-    const host = this.inspectorHost();
     if (this.rightTab === 'notes') {
       this.renderNotes();
       return;
@@ -686,27 +706,27 @@ export class Studio {
       <section class="panel-section"><div class="section-heading">Stroke</div>${this.colorField('BorderBrush', p.BorderBrush)}<div class="property-grid" style="margin-top:9px">${this.field('BorderThickness', 'Size', p.BorderThickness || '0')}${this.field('Visibility', 'Visible', p.Visibility, ['Visible', 'Hidden', 'Collapsed'])}</div></section>
       ${['TextBlock', 'TextBox', 'Label', 'Button', 'CheckBox', 'RadioButton', 'ContentPresenter'].includes(type) ? `<section class="panel-section"><div class="section-heading">Typography</div><div class="property-grid">${this.field(['TextBlock', 'TextBox'].includes(type) ? 'Text' : 'Content', 'Text', p.Text ?? p.Content, null, true)}${this.field('FontFamily', 'Aa', p.FontFamily, null, true)}${this.field('FontSize', 'Size', p.FontSize || '14')}${this.field('FontWeight', 'Weight', p.FontWeight, ['Normal', 'Medium', 'SemiBold', 'Bold'])}${this.field('TextAlignment', 'Align', p.TextAlignment, ['Left', 'Center', 'Right', 'Justify'])}${this.field('TextWrapping', 'Wrap', p.TextWrapping, ['NoWrap', 'Wrap'])}</div></section>` : ''}
       <section class="panel-section"><div class="section-heading">Data & interactions${button('binding', 'Add binding', 'binding')}</div><div class="property-grid">${this.field('DataContext', 'Data', p.DataContext, null, true)}${this.field('Command', 'Cmd', p.Command, null, true)}</div><div class="property-line"><span>Enabled</span><input type="checkbox" data-prop="IsEnabled" aria-label="IsEnabled" ${p.IsEnabled !== 'False' ? 'checked' : ''}></div></section>
-      <details class="expanded-props"><summary>All properties & attached properties</summary><div style="padding:10px 13px"><label class="search-box">${icon('search')}<input id="property-search" placeholder="Filter properties…"></label><div class="property-grid" id="all-properties">${[
-        ...new Set([
-          ...Object.values(propertyGroups).flat(),
-          ...Object.keys(p),
-          ...(descriptor?.properties || []).map((p) => (typeof p === 'string' ? p : p.name)),
-        ]),
-      ]
-        .filter((k) => k && !k.startsWith('xmlns'))
-        .map((k) => this.field(k, k, p[k], null, true))
-        .join(
-          '',
-        )}</div><button class="button" data-action="custom-property" style="margin-top:12px">${icon('plus')}Custom property</button></div></details><section class="panel-section"><button class="button" data-action="edit-template" style="width:100%">${icon('diamond')}Edit control template</button><button class="button quiet" data-action="extract-control" style="width:100%;margin-top:7px">Create user control</button></section>`;
-    $('#property-search')?.addEventListener('input', (e) => {
-      $$('#all-properties .prop-field').forEach(
-        (f) =>
-          (f.hidden = !f
-            .querySelector('[data-prop]')
-            .dataset.prop.toLowerCase()
-            .includes(e.target.value.toLowerCase())),
-      );
+      <details class="expanded-props"><summary>All properties & attached properties</summary><div style="padding:10px 13px"><label class="search-box">${icon('search')}<input id="property-search" placeholder="Filter properties…"></label><div class="property-grid" id="all-properties"></div><button class="button" data-action="custom-property" style="margin-top:12px">${icon('plus')}Custom property</button></div></details><section class="panel-section"><button class="button" data-action="edit-template" style="width:100%">${icon('diamond')}Edit control template</button><button class="button quiet" data-action="extract-control" style="width:100%;margin-top:7px">Create user control</button></section>`;
+    const names = [
+      ...new Set([
+        ...Object.values(propertyGroups).flat(),
+        ...Object.keys(p),
+        ...(descriptor?.properties || []).map((property) =>
+          typeof property === 'string' ? property : property.name,
+        ),
+      ]),
+    ].filter((name) => name && !name.startsWith('xmlns'));
+    this.propertyGrid = new PropertyGrid($('#all-properties', host), {
+      searchable: false,
+      eventMode: 'external',
+      properties: names.map((name) => ({ name, value: p[name] })),
+      fieldRenderer: (property) =>
+        this.field(property.name, property.name, property.value, null, true),
     });
+    const grid = this.propertyGrid;
+    $('#property-search', host)?.addEventListener('input', (event) =>
+      grid.setFilter(event.target.value),
+    );
   }
   colorField(key, value) {
     const c = color(value) || '#ffffff';

@@ -1,14 +1,14 @@
 {
-  "name": "@wieslawsoltes/xamora",
+  "name": "@wieslawsoltes/xamora-property-grid",
   "version": "0.8.0",
-  "description": "Xamora universal UI framework and reusable designer SDK",
+  "description": "Standalone controlled property grid with validation, grouping and custom fields",
   "type": "module",
   "license": "MIT",
   "author": "Xamora contributors",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
-    "directory": "packages/xamora"
+    "directory": "packages/property-grid"
   },
   "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
   "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
@@ -27,6 +27,17 @@
       }
     },
     "./package.json": "./package.json",
+    "./property-grid": {
+      "import": {
+        "types": "./dist/esm/property-grid.d.ts",
+        "default": "./dist/esm/property-grid.js"
+      },
+      "require": {
+        "types": "./dist/cjs/property-grid.d.cts",
+        "default": "./dist/cjs/property-grid.cjs"
+      }
+    },
+    "./property-grid.css": "./dist/assets/property-grid.css",
     "./browser": {
       "types": "./dist/esm/index.d.ts",
       "default": "./dist/browser/index.js"
@@ -49,23 +60,5 @@
   },
   "scripts": {
     "prepack": "node ../../scripts/build-packages.mjs"
-  },
-  "dependencies": {
-    "@wieslawsoltes/xamora-animation": "0.8.0",
-    "@wieslawsoltes/xamora-code-editor": "0.8.0",
-    "@wieslawsoltes/xamora-compiler": "0.8.0",
-    "@wieslawsoltes/xamora-contracts": "0.8.0",
-    "@wieslawsoltes/xamora-control-primitives": "0.8.0",
-    "@wieslawsoltes/xamora-controls": "0.8.0",
-    "@wieslawsoltes/xamora-data": "0.8.0",
-    "@wieslawsoltes/xamora-designer": "0.8.0",
-    "@wieslawsoltes/xamora-docking": "0.8.0",
-    "@wieslawsoltes/xamora-markup": "0.8.0",
-    "@wieslawsoltes/xamora-model": "0.8.0",
-    "@wieslawsoltes/xamora-properties": "0.8.0",
-    "@wieslawsoltes/xamora-property-grid": "0.8.0",
-    "@wieslawsoltes/xamora-renderer": "0.8.0",
-    "@wieslawsoltes/xamora-runtime": "0.8.0",
-    "@wieslawsoltes/xamora-styling": "0.8.0"
   }
 }

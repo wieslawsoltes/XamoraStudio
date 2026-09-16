@@ -76,12 +76,22 @@ export const packageLayout = [
     standalone: true,
   },
   {
+    id: 'property-grid',
+    description: 'Standalone controlled property grid with validation, grouping and custom fields',
+    modules: [],
+    controls: ['property-grid'],
+    assets: ['dist/controls/property-grid.css'],
+    typeContracts: false,
+    standalone: true,
+  },
+  {
     id: 'controls',
     description: 'Reusable IDE docking, menus, scroll buttons, and density controls',
     modules: [],
     reexports: [
       { name: 'docking', source: 'dist/core/docking.js' },
       { name: 'code-editor', source: 'dist/controls/code-editor.js' },
+      { name: 'property-grid', source: 'dist/controls/property-grid.js' },
       ...['dock-workspace', 'menu-bar', 'scroll-buttons', 'workspace-density'].map((name) => ({
         name,
         source: `dist/controls/${name}.js`,

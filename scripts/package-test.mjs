@@ -206,8 +206,8 @@ try {
   for (const mode of ['esm', 'cjs']) {
     const script =
       mode === 'esm'
-        ? `import * as old from '@wieslawsoltes/xamora-controls'; import * as dock from '@wieslawsoltes/xamora-docking'; import * as primitives from '@wieslawsoltes/xamora-control-primitives';`
-        : `const old = require('@wieslawsoltes/xamora-controls'), dock = require('@wieslawsoltes/xamora-docking'), primitives = require('@wieslawsoltes/xamora-control-primitives');`;
+        ? `import * as old from '@wieslawsoltes/xamora-controls'; import * as dock from '@wieslawsoltes/xamora-docking'; import * as primitives from '@wieslawsoltes/xamora-control-primitives'; import * as editor from '@wieslawsoltes/xamora-code-editor'; import * as properties from '@wieslawsoltes/xamora-property-grid';`
+        : `const old = require('@wieslawsoltes/xamora-controls'), dock = require('@wieslawsoltes/xamora-docking'), primitives = require('@wieslawsoltes/xamora-control-primitives'), editor = require('@wieslawsoltes/xamora-code-editor'), properties = require('@wieslawsoltes/xamora-property-grid');`;
     run(
       process.execPath,
       [
@@ -215,7 +215,7 @@ try {
         '-e',
         script +
           `
-      if (old.DockLayout !== dock.DockLayout || old.DockWorkspace !== dock.DockWorkspace || old.ScrollButtons !== primitives.ScrollButtons) throw Error('Compatibility facade duplicated a constructor');
+      if (old.DockLayout !== dock.DockLayout || old.DockWorkspace !== dock.DockWorkspace || old.ScrollButtons !== primitives.ScrollButtons || old.CodeEditor !== editor.CodeEditor || old.PropertyGrid !== properties.PropertyGrid) throw Error('Compatibility facade duplicated a constructor');
       const layout = new dock.DockLayout(['first', 'second']); layout.float('first'); layout.undo();
     `,
       ],
@@ -243,7 +243,15 @@ try {
       ),
     );
   }
-  const typeConsumer = `import { CodeEditor, type CodeLanguageProvider } from '@wieslawsoltes/xamora-code-editor';
+  const typeConsumer = `import { PropertyGrid, type PropertyGridField } from '@wieslawsoltes/xamora-property-grid';
+import { PropertyGrid as CompatibleGrid, CodeEditor as CompatibleEditor } from '@wieslawsoltes/xamora-controls';
+const fields: PropertyGridField[] = [{ name: 'Width', type: 'number', value: 100, min: 0, validate(value) { return typeof value === 'number'; } }];
+const grid: CompatibleGrid = new PropertyGrid(globalThis.document.createElement('div'), { properties: fields, onChange(change) { void [change.name, change.value, change.reset]; return true; } });
+grid.setValue('Width', 120); grid.dispose();
+// @ts-expect-error PropertyGrid fields use scalar values, not arbitrary objects.
+const invalidField: PropertyGridField = { name: 'Width', value: {} };
+void [grid, CompatibleEditor];
+import { CodeEditor, type CodeLanguageProvider } from '@wieslawsoltes/xamora-code-editor';
 import { XamlEditor } from '@wieslawsoltes/xamora-designer/editor';
 const languageProvider: CodeLanguageProvider = { validate(source) { JSON.parse(source); }, format: source => JSON.stringify(JSON.parse(source), null, 2) };
 const editorHost = globalThis.document.createElement('div');
@@ -255,7 +263,7 @@ import {DocumentStore,createDocument,element,type DesignDocument} from '@wieslaw
   await writeFile(join(consumer, 'consumer.ts'), typeConsumer);
   await writeFile(
     join(consumer, 'consumer.cts'),
-    `import model=require('@wieslawsoltes/xamora-model');import runtime=require('@wieslawsoltes/xamora-runtime');const document:model.DesignDocument=model.createDocument(model.element('Grid'));const store=new model.DocumentStore(document);void[store,runtime.mountXaml];\n`,
+    `import controls=require('@wieslawsoltes/xamora-controls');import propertyGrid=require('@wieslawsoltes/xamora-property-grid');const grid:controls.PropertyGrid=new propertyGrid.PropertyGrid(globalThis.document.createElement('div'),{properties:[{name:'Flag',type:'boolean',value:false}]});grid.dispose();import model=require('@wieslawsoltes/xamora-model');import runtime=require('@wieslawsoltes/xamora-runtime');const document:model.DesignDocument=model.createDocument(model.element('Grid'));const store=new model.DocumentStore(document);void[store,runtime.mountXaml];\n`,
   );
   run(
     process.execPath,
