@@ -26,6 +26,8 @@ import { listStoryboards, storyboardTracks, parseTime, formatTime } from './anim
 import { findResource, resolveStyle, selectStyles } from './styling.js';
 import { ensureTransformPath } from './property-path.js';
 import { parseCssAnimationStylesheet, splitCssList } from './html-animation.js';
+import { cssClosing, collectCompilerCss, matchesCssConditions } from './compiler-css.js';
+import { lowerNativeHtmlNode } from './compiler-native.js';
 
 export const SEMANTIC_COMPILER_VERSION = 1;
 export const WEB_NAMESPACE = 'urn:xamora:web';
@@ -357,12 +359,13 @@ function cssIdentifier(source, start) {
   return value ? { value, end: at } : null;
 }
 // Compile supported selectors once. Quotes and escapes are not combinators or specificity.
-function compileStaticSelector(source) {
+function compileStaticSelector(source, depth = 0, inHas = false) {
   source = stripCssComments(source).trim();
-  if (!source || source.length > 4096) return null;
+  if (!source || source.length > 4096 || depth > 16) return null;
   const parts = [],
     combinators = [],
-    specificity = [0, 0, 0];
+    specificity = [0, 0, 0],
+    states = new Set();
   let at = 0;
   while (at < source.length) {
     const tests = [];
@@ -413,10 +416,23 @@ function compileStaticSelector(source) {
         ]);
         specificity[1]++;
         at = end + 1;
-      } else if (token === ':' && source.slice(at).match(/^root(?![\w-])/i)) {
-        tests.push(['root']);
-        specificity[1]++;
-        at += 4;
+      } else if (token === ':') {
+        const id = cssIdentifier(source, at);
+        if (!id) return null;
+        const name = id.value.toLowerCase();
+        at = id.end;
+        let argument = null;
+        if (source[at] === '(') {
+          const end = cssClosing(source, at);
+          if (end < 0) return null;
+          argument = source.slice(at + 1, end).trim();
+          at = end + 1;
+        }
+        const pseudo = compilePseudo(name, argument, depth, inHas);
+        if (!pseudo) return null;
+        tests.push(['pseudo', name, pseudo]);
+        pseudo.specificity.forEach((value, index) => (specificity[index] += value));
+        for (const state of pseudo.states) states.add(state);
       } else return null;
     }
     parts.push(tests);
@@ -432,11 +448,229 @@ function compileStaticSelector(source) {
     if (at === source.length) return null;
     combinators.push(combinator);
   }
-  return { parts, combinators, specificity };
+  return { parts, combinators, specificity, states: [...states] };
+}
+const structuralPseudos = new Set(
+  'root scope empty first-child last-child only-child first-of-type last-of-type only-of-type checked disabled enabled required optional read-only read-write link any-link'.split(
+    ' ',
+  ),
+);
+const environmentPseudos = new Set(
+  'hover active focus focus-visible focus-within target target-within indeterminate valid invalid in-range out-of-range placeholder-shown user-valid user-invalid default defined open modal fullscreen'.split(
+    ' ',
+  ),
+);
+function compilePseudo(name, argument, depth, inHas) {
+  const base = { specificity: [0, 1, 0], states: [] };
+  if (argument === null) {
+    if (structuralPseudos.has(name)) return base;
+    if (environmentPseudos.has(name)) return { ...base, states: [name] };
+    return null;
+  }
+  if (['is', 'where', 'not', 'has'].includes(name)) {
+    if (name === 'has' && inHas) return null;
+    let plans = splitCssList(argument).map((part) =>
+      compileStaticSelector(
+        name === 'has' ? ':scope ' + part : part,
+        depth + 1,
+        inHas || name === 'has',
+      ),
+    );
+    if (['not', 'has'].includes(name) && (!plans.length || plans.some((plan) => !plan)))
+      return null;
+    plans = plans.filter(Boolean);
+    const ranks = plans.map((plan) =>
+      plan.specificity.map((value, i) => value - (name === 'has' && i === 1 ? 1 : 0)),
+    );
+    return {
+      plans,
+      specificity:
+        name === 'where' ? [0, 0, 0] : ranks.sort(compareCssPriority).at(-1) || [0, 0, 0],
+      states: [...new Set(plans.flatMap((plan) => plan.states))],
+    };
+  }
+  if (/^nth-(?:last-)?(?:child|of-type)$/.test(name)) {
+    const match = argument.match(/^([\s\S]*?)(?:\s+of\s+([\s\S]+))?$/i);
+    const formula = match[1].trim().toLowerCase();
+    let a = 0,
+      b;
+    if (['even', 'odd'].includes(formula)) {
+      a = 2;
+      b = formula === 'odd' ? 1 : 0;
+    } else if (/^[+-]?\d+$/.test(formula)) b = Number(formula);
+    else {
+      const n = formula.match(/^([+-]?\d*)n(?:\s*([+-])\s*(\d+))?$/);
+      if (!n) return null;
+      a = n[1] === '-' ? -1 : ['', '+'].includes(n[1]) ? 1 : Number(n[1]);
+      b = n[3] ? Number(n[3]) * (n[2] === '-' ? -1 : 1) : 0;
+    }
+    if (!Number.isSafeInteger(a) || !Number.isSafeInteger(b)) return null;
+    const plans = match[2]
+      ? splitCssList(match[2]).map((part) => compileStaticSelector(part, depth + 1, inHas))
+      : [];
+    if (plans.some((plan) => !plan) || (match[2] && name.endsWith('of-type'))) return null;
+    const rank = plans
+      .map((plan) => plan.specificity)
+      .sort(compareCssPriority)
+      .at(-1) || [0, 0, 0];
+    return {
+      a,
+      b,
+      plans,
+      specificity: [rank[0], rank[1] + 1, rank[2]],
+      states: [...new Set(plans.flatMap((plan) => plan.states))],
+    };
+  }
+  if (name === 'lang') {
+    const languages = splitCssList(argument).map((part) =>
+      part.replace(/^(['"])([\s\S]*)\1$/, '$2').toLowerCase(),
+    );
+    if (!languages.length || languages.some((lang) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(lang)))
+      return null;
+    return { ...base, languages };
+  }
+  return null;
+}
+function matchesPseudo(node, name, pseudo, ctx) {
+  const parent = (n) => ctx.parents.get(n.id);
+  const state = (key, n = node) =>
+    (ctx.options.selectorState?.[key] || []).some((id) => id === n.id || id === n.props.id);
+  if (environmentPseudos.has(name)) {
+    if (['hover', 'active', 'focus-within', 'target-within'].includes(name)) {
+      const key =
+        name === 'focus-within' && !ctx.options.selectorState?.[name]
+          ? 'focus'
+          : name === 'target-within' && !ctx.options.selectorState?.[name]
+            ? 'target'
+            : name;
+      return ctx.elements.some((candidate) => {
+        if (!state(key, candidate)) return false;
+        for (let n = candidate; n; n = parent(n)) if (n === node) return true;
+        return false;
+      });
+    }
+    return state(name);
+  }
+  if (name === 'root') return !parent(node);
+  if (name === 'scope') return node === (ctx.scopeNode || ctx.input.root);
+  if (name === 'empty')
+    return !node.children.some(
+      (child) =>
+        child.kind === 'element' || (['text', 'cdata'].includes(child.kind) && child.text.length),
+    );
+  if (['is', 'where', 'not'].includes(name)) {
+    const match = pseudo.plans.some((plan) => selectorMatches(node, plan, ctx));
+    return name === 'not' ? !match : match;
+  }
+  if (name === 'has')
+    return ctx.elements.some((candidate) =>
+      pseudo.plans.some((plan) => selectorMatches(candidate, plan, { ...ctx, scopeNode: node })),
+    );
+  if (name === 'lang') {
+    let lang = '';
+    for (let n = node; n; n = parent(n))
+      if (has(n.props, 'lang') || has(n.props, 'xml:lang')) {
+        lang = String(n.props.lang ?? n.props['xml:lang']).toLowerCase();
+        break;
+      }
+    return pseudo.languages.some((value) => lang === value || lang.startsWith(value + '-'));
+  }
+  if (['link', 'any-link'].includes(name))
+    return ['a', 'area', 'link'].includes(node.type) && has(node.props, 'href');
+  if (name === 'checked')
+    return (
+      (node.type === 'input' &&
+        ['checkbox', 'radio'].includes(String(node.props.type).toLowerCase()) &&
+        has(node.props, 'checked')) ||
+      (node.type === 'option' && has(node.props, 'selected'))
+    );
+  const canDisable = [
+    'button',
+    'input',
+    'select',
+    'textarea',
+    'fieldset',
+    'optgroup',
+    'option',
+  ].includes(node.type);
+  const disabled = () => {
+    if (has(node.props, 'disabled')) return true;
+    if (
+      node.type === 'option' &&
+      parent(node)?.type === 'optgroup' &&
+      has(parent(node).props, 'disabled')
+    )
+      return true;
+    if (['option', 'optgroup'].includes(node.type)) return false;
+    for (let n = node, p; (p = parent(n)); n = p)
+      if (
+        p.type === 'fieldset' &&
+        has(p.props, 'disabled') &&
+        p.children.find((c) => c.type === 'legend') !== n
+      )
+        return true;
+    return false;
+  };
+  if (name === 'disabled') return canDisable && disabled();
+  if (name === 'enabled') return canDisable && !disabled();
+  const inputType = String(node.props.type || 'text').toLowerCase();
+  const canRequire =
+    ['select', 'textarea'].includes(node.type) ||
+    (node.type === 'input' &&
+      !['hidden', 'button', 'submit', 'reset', 'image', 'range', 'color'].includes(inputType));
+  if (name === 'required') return canRequire && has(node.props, 'required');
+  if (name === 'optional') return canRequire && !has(node.props, 'required');
+  if (['read-only', 'read-write'].includes(name)) {
+    let editable = false;
+    if (
+      node.type === 'textarea' ||
+      (node.type === 'input' &&
+        [
+          'text',
+          'search',
+          'url',
+          'tel',
+          'email',
+          'password',
+          'number',
+          'date',
+          'month',
+          'week',
+          'time',
+          'datetime-local',
+        ].includes(inputType))
+    )
+      editable = !disabled() && !has(node.props, 'readonly');
+    else
+      for (let n = node; n; n = parent(n)) {
+        const value = n.props.contenteditable?.toLowerCase();
+        if (value === 'false') break;
+        if (['', 'true', 'plaintext-only'].includes(value)) {
+          editable = true;
+          break;
+        }
+      }
+    return name === 'read-write' ? editable : !editable;
+  }
+  let siblings = (parent(node)?.children || [node]).filter((child) => child.kind === 'element');
+  if (name.endsWith('of-type')) siblings = siblings.filter((child) => child.type === node.type);
+  if (pseudo.plans?.length)
+    siblings = siblings.filter((child) =>
+      pseudo.plans.some((plan) => selectorMatches(child, plan, ctx)),
+    );
+  const index = siblings.indexOf(node);
+  if (index < 0) return false;
+  if (name.startsWith('first-')) return index === 0;
+  if (name.startsWith('last-')) return index === siblings.length - 1;
+  if (name.startsWith('only-')) return siblings.length === 1;
+  const position = name.startsWith('nth-last-') ? siblings.length - index : index + 1;
+  const step = (position - pseudo.b) / pseudo.a;
+  return pseudo.a === 0 ? position === pseudo.b : step >= 0 && Number.isInteger(step);
 }
 function matchesStaticPart(node, tests, ctx) {
   if (node?.kind !== 'element') return false;
   for (const [kind, name, op, expected, flag] of tests) {
+    if (kind === 'pseudo' && !matchesPseudo(node, name, op, ctx)) return false;
     if (kind === 'tag' && node.type.toLowerCase() !== name) return false;
     if (kind === '#' && node.props.id !== name) return false;
     if (
@@ -470,6 +704,8 @@ function selectorMatches(node, plan, ctx) {
   const cache = new Map();
   const match = (current, index) => {
     if (!current) return false;
+    if (++ctx.selectorBudget.count > 2_000_000)
+      throw Error('CSS selector matching exceeds the 2,000,000-operation budget.');
     const key = current.id + ':' + index;
     if (cache.has(key)) return cache.get(key);
     let result = false;
@@ -1527,58 +1763,38 @@ function restoreHtmlMetadata(target, source, meta, ctx) {
 function collectCss(ctx) {
   ctx.parents = new Map();
   ctx.previousElements = new Map();
+  ctx.elements = [];
+  ctx.selectorBudget = { count: 0 };
   walk(ctx.input.root, (n, p) => {
     if (p) ctx.parents.set(n.id, p);
+    if (n.kind === 'element') ctx.elements.push(n);
     let previous;
     for (const child of n.children || [])
       if (child.kind === 'element') {
         if (previous) ctx.previousElements.set(child.id, previous);
         previous = child;
       }
-    if (n.type === 'style') {
-      const ast = parseCssAnimationStylesheet(textContent(n));
-      for (const rule of ast.rules) {
-        if (rule.kind !== 'rule' || !rule.declarations) continue;
-        if (rule.parent) {
-          ctx.report(
-            'warning',
-            'CONDITIONAL_CSS',
-            'Conditional CSS remains in portable metadata; static XAML cannot reproduce responsive conditions.',
-            n,
-            true,
-          );
-          continue;
-        }
-        const selectors = splitCssList(rule.header).map(compileStaticSelector);
-        // CSS rejects an entire non-forgiving selector list when one selector is invalid.
-        if (selectors.some((plan) => !plan)) {
-          ctx.report(
-            'warning',
-            'DYNAMIC_SELECTOR',
-            `Selector list ${rule.header.trim()} requires a browser selector/state adapter.`,
-            n,
-            true,
-          );
-          continue;
-        }
-        const values = rule.declarations
-          .filter((d) => d.property)
-          .map((d) => [
-            d.property.startsWith('--') ? d.property : d.property.toLowerCase(),
-            d.value,
-          ]);
-        for (const plan of selectors) ctx.cssRules.push({ plan, values });
-      }
-    }
-    if (n.type === 'link' && /stylesheet/i.test(n.props.rel || ''))
+  });
+  const collected = collectCompilerCss(ctx.input, ctx.options, ctx.report.bind(ctx));
+  ctx.stylesheetDependencies = collected.dependencies;
+  for (const rule of collected.rules) {
+    const selectors = splitCssList(rule.header).map((source) => compileStaticSelector(source));
+    const stateKnown = (name) =>
+      has(ctx.options.selectorState || {}, name) ||
+      (name === 'focus-within' && has(ctx.options.selectorState || {}, 'focus')) ||
+      (name === 'target-within' && has(ctx.options.selectorState || {}, 'target'));
+    if (selectors.some((plan) => !plan || plan.states.some((name) => !stateKnown(name)))) {
       ctx.report(
         'warning',
-        'EXTERNAL_CSS',
-        `External stylesheet ${n.props.href || ''} is preserved but not fetched during compilation.`,
-        n,
+        'DYNAMIC_SELECTOR',
+        `Selector list ${rule.header.trim()} requires an explicit selectorState or a browser capture.`,
+        rule.node,
         true,
       );
-  });
+      continue;
+    }
+    for (const plan of selectors) ctx.cssRules.push({ ...rule, plan });
+  }
 }
 function resolvedCss(node, ctx) {
   ctx.cssCache ??= new Map();
@@ -1589,10 +1805,10 @@ function resolvedCss(node, ctx) {
       Object.entries(inherited).filter(([key]) => key.startsWith('--') || inheritedCss.has(key)),
     ),
     winners = new Map();
-  const add = (entries, rank) => {
+  const add = (entries, rank, layer = 0) => {
     for (const [key, raw] of entries) {
       const important = /!\s*important\s*$/i.test(raw),
-        priority = [important ? 1 : 0, ...rank],
+        priority = [important ? 1 : 0, rank[0], important ? -layer : layer, ...rank.slice(1)],
         value = String(raw).replace(/\s*!\s*important\s*$/i, '');
       const assign = (property, component) => {
         if (
@@ -1608,8 +1824,33 @@ function resolvedCss(node, ctx) {
   // These semantic inline defaults precede all author declarations, including '*'.
   if (['strong', 'b'].includes(node.type)) add([['font-weight', 'bolder']], [0, 0, 0, 0]);
   if (['em', 'i'].includes(node.type)) add([['font-style', 'italic']], [0, 0, 0, 0]);
-  for (const rule of ctx.cssRules)
-    if (selectorMatches(node, rule.plan, ctx)) add(rule.values, [0, ...rule.plan.specificity]);
+  for (const rule of ctx.cssRules) {
+    const active = matchesCssConditions(rule, ctx.options, node);
+    if (active === null) {
+      if (!rule.conditionReported) {
+        ctx.report(
+          'warning',
+          'CONDITIONAL_CSS',
+          `Conditions ${rule.conditions.map((c) => '@' + c.kind + ' ' + c.query).join(' / ')} need an explicit environment/capability or browser adapter.`,
+          rule.node,
+          true,
+        );
+        rule.conditionReported = true;
+      }
+      continue;
+    }
+    if (rule.conditions.length && !ctx.conditionSnapshotReported) {
+      ctx.report(
+        'info',
+        'CSS_ENVIRONMENT_SNAPSHOT',
+        'Conditional rules were evaluated for the supplied environment. Recompile on environment changes; this output is not a live CSS engine.',
+        rule.node,
+      );
+      ctx.conditionSnapshotReported = true;
+    }
+    if (active && selectorMatches(node, rule.plan, ctx))
+      add(rule.values, [0, ...rule.plan.specificity], rule.layer.order + 1);
+  }
   add(styleEntries(node.props.style), [1, 0, 0, 0]);
   const custom = Object.fromEntries(Object.entries(values).filter(([key]) => key.startsWith('--')));
   for (const [key, { value }] of winners)
@@ -2120,7 +2361,12 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   }
   if (local === 'Grid') placeHtmlGrid(node, n, css, ctx);
   if (meta) restoreXamlMetadata(n, node, meta, css, ctx);
-  diagnoseNativeProperties(n, ctx, node);
+  const native = ctx.options.nativeOutput
+    ? lowerNativeHtmlNode(n, css, ctx.options.framework, (severity, code, message, loss) =>
+        ctx.report(severity, code, message, node, loss),
+      )
+    : n;
+  diagnoseNativeProperties(native, ctx, node);
   for (const [key] of Object.entries(node.props))
     if (!usedAttrs.has(key) && !key.startsWith('data-xamora-') && !['open', 'alt'].includes(key))
       ctx.report(
@@ -2166,7 +2412,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
     });
   }
   n.props = props;
-  return n;
+  return native;
 }
 function diagnoseNativeProperties(node, ctx, source) {
   const type = localName(node.type),
@@ -2978,7 +3224,14 @@ export function compileDocument(input, options = {}) {
       options.from || (typeof input === 'object' && input.framework === 'HTML' ? 'html' : 'xaml'),
     ).toLowerCase(),
     to = String(options.to || (from === 'xaml' ? 'html' : 'xaml')).toLowerCase(),
-    settings = { preserveMetadata: true, strict: false, framework: 'WPF', ...options, from, to };
+    settings = {
+      preserveMetadata: !options.nativeOutput,
+      strict: false,
+      framework: 'WPF',
+      ...options,
+      from,
+      to,
+    };
   let ctx;
   try {
     if (!['xaml', 'html'].includes(from) || !['xaml', 'html'].includes(to))
@@ -3040,6 +3293,10 @@ export function compileDocument(input, options = {}) {
         preserved: settings.preserveMetadata !== false,
         sourceNodeCount: countNodes(doc.root),
         targetNodeCount: countNodes(output.root),
+        ...(ctx.stylesheetDependencies
+          ? { stylesheetDependencies: ctx.stylesheetDependencies }
+          : {}),
+        ...(settings.environment ? { environment: { ...settings.environment } } : {}),
       },
     };
   } catch (error) {

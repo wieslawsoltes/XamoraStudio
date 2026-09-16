@@ -163,3 +163,26 @@
     grid-template-columns: minmax(125px, 30%) minmax(0, 1fr);
   }
 }
+
+.compiler-advanced {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 7px;
+}
+.compiler-advanced summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.compiler-advanced[open] > :not(summary) {
+  margin-top: 8px;
+}
+.compiler-advanced textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  font: 12px/1.4 monospace;
+}
+.compiler-advanced p {
+  font-size: 11px;
+  color: var(--muted);
+}

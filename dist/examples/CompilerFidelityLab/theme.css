@@ -1,0 +1,23 @@
+@import "base.css" layer(base);
+@layer base, theme;
+@layer theme {
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 Arial, sans-serif; }
+  #surface { padding: 12px; background-color: rgb(245 248 250); }
+  .layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 9px; }
+  .card { min-height: 64px; padding: 8px; background-color: white; border: 1px solid #456; border-radius: 4px; }
+  .card:nth-child(2n) { background-color: rgb(224 240 255); }
+  .card:has(strong) { border-color: rgb(180 20 30); }
+  .container { container-type: inline-size; width: 60%; margin-top: 8px; }
+  #container_child { height: 24px; background-color: rgb(240 200 100); }
+  @container (width > 400px) { #container_child { height: 40px; } }
+  .form { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+  input:not([type]), select, button { height: 30px; width: 100px; }
+  #check { width: 18px; height: 18px; }
+  #action:hover { background-color: rgb(10 120 180); }
+  #action:focus { border: 3px solid rgb(210 20 60); }
+  #conditional { width: clamp(100px, 40vw, 500px); height: 20px; background-color: rgb(20 30 40); }
+  @supports (display: grid) { #conditional { height: 32px; } }
+  @media (width < 500px) { #surface { padding: 6px; } .layout { grid-template-columns: 1fr; } }
+  @media (prefers-color-scheme: dark) { #conditional { background-color: rgb(90 100 110); } }
+}

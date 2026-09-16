@@ -1,4 +1,5 @@
 import type { DesignDocument } from './index.js';
+import type { CompilerOptions } from './semantic-compiler.js';
 export interface ProjectConversionInput {
   id?: string;
   path: string;
@@ -7,7 +8,7 @@ export interface ProjectConversionInput {
   framework?: string;
   diagnostics?: Array<{ severity: string; message: string }>;
 }
-export interface ProjectConversionOptions {
+export interface ProjectConversionOptions extends Omit<CompilerOptions, 'Parser' | 'plugins'> {
   to?: 'html' | 'xaml';
   framework?: 'WPF' | 'Avalonia';
   scope?: 'document' | 'folder' | 'solution';

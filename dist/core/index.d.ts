@@ -764,3 +764,9 @@ export * from './history.js';
 export * from './language-service.js';
 
 export * from './html-states.js';
+
+export * from './semantic-compiler.js';
+export * from './conversion-project.js';
+export * from './compiler-css.js';
+export * from './compiler-native.js';
+export * from './compiler-browser.js';

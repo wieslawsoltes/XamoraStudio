@@ -40,7 +40,40 @@ export interface SemanticCompilerPlugin {
   xamlToHtml?(node: DesignNode, context: CompilerPluginContext): DesignNode | null | undefined;
   htmlToXaml?(node: DesignNode, context: CompilerPluginContext): DesignNode | null | undefined;
 }
+export interface CompilerEnvironment {
+  type?: 'screen' | 'print' | 'speech';
+  width?: number;
+  height?: number;
+  /** Initial font size used for media-query em/rem units, not the element font size. */
+  fontSize?: number;
+  resolution?: number;
+  colorScheme?: 'light' | 'dark';
+  reducedMotion?: 'reduce' | 'no-preference';
+  pointer?: 'none' | 'fine' | 'coarse';
+  hover?: 'none' | 'hover';
+  anyPointer?: 'none' | 'fine' | 'coarse';
+  anyHover?: 'none' | 'hover';
+  forcedColors?: 'none' | 'active';
+  features?: Record<string, string | number | boolean>;
+}
+export type CompilerSupports =
+  Record<string, boolean> | ((condition: string) => boolean | null | undefined);
 export interface CompilerOptions {
+  /** Explicit environment. Absent/unknown conditions diagnose a loss rather than guessing. */
+  environment?: CompilerEnvironment;
+  supports?: CompilerSupports;
+  evaluateCondition?: (
+    kind: 'media' | 'supports' | 'container',
+    query: string,
+    node: DesignNode,
+  ) => boolean | null | undefined;
+  /** Pseudo-state names to HTML IDs/shared AST IDs. Never reads ambient browser interaction. */
+  selectorState?: Record<string, readonly string[]>;
+  /** Supplied UTF-8 stylesheet text keyed by canonical URL or authored href. Never fetched. */
+  stylesheets?: ReadonlyMap<string, string> | Record<string, string>;
+  baseUrl?: string;
+  /** Emit native property/layout adapters. Also defaults preserveMetadata to false. */
+  nativeOutput?: boolean;
   from?: CompilerLanguage;
   to?: CompilerLanguage;
   framework?: 'WPF' | 'Avalonia';
@@ -48,7 +81,7 @@ export interface CompilerOptions {
   name?: string;
   /** Name used when importing source text. */
   sourceName?: string;
-  /** Defaults to true. Preserves source-only authoring semantics as inert metadata. */
+  /** Defaults to !nativeOutput. Preserves source-only authoring semantics as inert metadata. */
   preserveMetadata?: boolean;
   /** Reject any conversion carrying a behavioral loss. Preview output remains available. */
   strict?: boolean;
@@ -76,6 +109,20 @@ export interface CompilerResult {
     preserved: boolean;
     sourceNodeCount?: number;
     targetNodeCount?: number;
+    stylesheetDependencies?: string[];
+    environment?: CompilerEnvironment;
+    browserCapture?: {
+      viewport: { width: number; height: number };
+      root: { x: number; y: number; width: number; height: number };
+      mode: 'measured';
+      live: false;
+    };
+    geometry?: Array<{
+      sourceElementId: string | null;
+      targetNodeId: string;
+      targetName: string | null;
+      rect: { x: number; y: number; width: number; height: number };
+    }>;
   };
 }
 /** Synchronous and side-effect free; no input mutation, resource fetching, or code execution. */
