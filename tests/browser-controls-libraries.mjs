@@ -10,6 +10,14 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 const server = createServer(async (request, response) => {
   try {
     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+    if (pathname === '/packed-editor/') {
+      response
+        .writeHead(200, { 'Content-Type': 'text/html' })
+        .end(
+          `<!doctype html><link rel="icon" href="data:,"><link rel="stylesheet" href="/packages/code-editor/dist/assets/code-editor.css"><main id="host" style="height:400px"></main>`,
+        );
+      return;
+    }
     if (pathname === '/packed/') {
       response
         .writeHead(200, { 'Content-Type': 'text/html' })
@@ -64,6 +72,16 @@ try {
     'Live content survives layout changes',
   );
 
+  await page.goto(base + '/examples/EditorLab/');
+  await page.waitForFunction(() => !!window.editorLab);
+  await page.getByLabel('JSON code editor').fill('{"value":42}');
+  await page.locator('#format').click();
+  assert.match(await page.getByLabel('JSON code editor').inputValue(), /\n  "value": 42/);
+  await page.locator('#apply').click();
+  assert.match(await page.locator('#result').textContent(), /Applied/);
+  await page.locator('#readonly').check();
+  assert(await page.getByLabel('JSON code editor').evaluate((node) => node.readOnly));
+
   const requests = [];
   page.on('request', (request) => requests.push(new URL(request.url()).pathname));
   await page.goto(base + '/packed/');
@@ -85,9 +103,27 @@ try {
   assert(result.retained && result.returned);
   assert(result.height > 100, 'packaged CSS lays out the control without Studio CSS');
   assert(!requests.some((path) => path.startsWith('/core/') || path.startsWith('/studio/')));
+  await page.goto(base + '/packed-editor/');
+  const editorResult = await page.evaluate(async () => {
+    const { CodeEditor } = await import('/packages/code-editor/dist/browser/index.js');
+    const host = document.querySelector('#host');
+    const editor = new CodeEditor(host);
+    editor.setValue('<not-a-tag>');
+    const visible = editor.input.getBoundingClientRect().height > 100;
+    const escaped = editor.highlight.querySelector('not-a-tag') === null;
+    editor.input.setSelectionRange(4, 4);
+    editor.setValue('X<not-a-tag>', { force: true });
+    const caret = editor.input.selectionStart;
+    editor.dispose();
+    return { visible, escaped, caret, cleared: host.children.length === 0 };
+  });
+  assert.deepEqual(editorResult, { visible: true, escaped: true, caret: 5, cleared: true });
+  assert(!requests.some((path) => path.startsWith('/core/') || path.startsWith('/studio/')));
   assert.deepEqual(errors, []);
   assert.deepEqual(failed, []);
-  console.log('Standalone docking example and self-contained package browser bundle passed.');
+  console.log(
+    'Standalone docking and code editor examples and isolated package browser bundles passed.',
+  );
 } catch (error) {
   await mkdir(resolve(root, 'test-results'), { recursive: true });
   await page

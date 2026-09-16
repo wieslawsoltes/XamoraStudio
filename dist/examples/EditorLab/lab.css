@@ -1,0 +1,1 @@
+body { font: 15px system-ui; margin: 24px; color: #242634; } nav { display: flex; gap: 8px; margin: 12px 0; } main { height: 420px; border: 1px solid #ccc; } output { display: block; margin-top: 12px; }

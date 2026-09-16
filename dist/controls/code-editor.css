@@ -1,0 +1,178 @@
+.xamora-code-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.xamora-code-editor .editor-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.xamora-code-editor .line-numbers {
+  color: #b8b4c6;
+  background: var(--code, #f7f7f9);
+  padding: 12px 12px 12px 16px;
+  text-align: right;
+  white-space: pre;
+  overflow: hidden;
+  min-width: 45px;
+  user-select: none;
+  font:
+    11px/21px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+.xamora-code-editor .code-viewport {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.xamora-code-editor .code-input,
+.xamora-code-editor .code-highlight {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 12px 15px 40px 0;
+  border: 0;
+  white-space: pre;
+  font:
+    11px/21px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  tab-size: 4;
+  background: none;
+  resize: none;
+  outline: none;
+  overflow: auto;
+  text-align: left;
+  letter-spacing: 0;
+}
+.xamora-code-editor .code-highlight {
+  pointer-events: none;
+  color: #747181;
+}
+.xamora-code-editor .code-input {
+  color: transparent;
+  caret-color: var(--text, #292834);
+  -webkit-text-fill-color: transparent;
+}
+.xamora-code-editor .code-input::selection {
+  background: #8056e835;
+}
+.xamora-code-editor .code-input:focus-visible {
+  outline: 0;
+}
+.xamora-code-editor .syntax-tag {
+  color: #9365c1;
+}
+.xamora-code-editor .syntax-attr {
+  color: #ba7f57;
+}
+.xamora-code-editor .syntax-string {
+  color: #6b9b77;
+}
+.xamora-code-editor .syntax-comment {
+  color: #aaa6b3;
+}
+.xamora-code-editor .editor-status {
+  height: 20px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--muted, #777);
+  background: var(--panel, #fff);
+  border-top: 1px solid var(--border, #c8c8cf);
+}
+.xamora-code-editor .editor-status .error {
+  color: #d96a73;
+}
+.xamora-code-editor .editor-find {
+  display: flex;
+  gap: 5px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border, #c8c8cf);
+}
+.xamora-code-editor .editor-find input {
+  width: 150px;
+  border: 1px solid var(--border, #c8c8cf);
+  border-radius: 3px;
+  font-size: 11px;
+  padding: 5px;
+}
+.xamora-code-editor .editor-find button {
+  font-size: 11px;
+}
+.xamora-code-editor .completions {
+  position: absolute;
+  top: 20px;
+  left: 40px;
+  min-width: 230px;
+  max-height: 200px;
+  overflow: auto;
+  background: var(--panel, #fff);
+  border: 1px solid var(--border, #c8c8cf);
+  box-shadow: var(--shadow, 0 4px 20px #0002);
+  z-index: 15;
+  border-radius: 5px;
+  padding: 4px;
+}
+.xamora-code-editor .completions button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font:
+    12px/23px ui-monospace,
+    monospace;
+  padding: 0 9px;
+}
+.xamora-code-editor .completions button.active {
+  background: var(--accent-soft, #007acc25);
+  color: var(--accent, #007acc);
+}
+
+.xamora-code-editor {
+  min-width: 0;
+  height: 100%;
+  color: var(--text, #292834);
+  background: var(--code, #f7f7f9);
+}
+.xamora-code-editor,
+.xamora-code-editor * {
+  box-sizing: border-box;
+}
+.xamora-code-editor [hidden] {
+  display: none !important;
+}
+.xamora-code-editor button {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.xamora-code-editor .code-input {
+  width: 100%;
+  height: 100%;
+}
+.xamora-code-editor .syntax-keyword {
+  color: #9365c1;
+}
+.xamora-code-editor .syntax-number {
+  color: #ba7f57;
+}
+.xamora-code-editor .completions button {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+.xamora-code-editor .completions small {
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

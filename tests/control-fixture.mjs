@@ -7,6 +7,7 @@ export function controlDOM(t) {
   const globals = {
     window,
     document: window.document,
+    DOMParser: window.DOMParser,
     HTMLElement: window.HTMLElement,
     MouseEvent: window.MouseEvent,
     ResizeObserver: window.ResizeObserver,

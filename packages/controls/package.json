@@ -37,6 +37,16 @@
         "default": "./dist/cjs/docking.cjs"
       }
     },
+    "./code-editor": {
+      "import": {
+        "types": "./dist/esm/code-editor.d.ts",
+        "default": "./dist/esm/code-editor.js"
+      },
+      "require": {
+        "types": "./dist/cjs/code-editor.d.cts",
+        "default": "./dist/cjs/code-editor.cjs"
+      }
+    },
     "./dock-workspace": {
       "import": {
         "types": "./dist/esm/dock-workspace.d.ts",
@@ -100,6 +110,7 @@
     "prepack": "node ../../scripts/build-packages.mjs"
   },
   "dependencies": {
+    "@wieslawsoltes/xamora-code-editor": "0.8.0",
     "@wieslawsoltes/xamora-contracts": "0.8.0",
     "@wieslawsoltes/xamora-control-primitives": "0.8.0",
     "@wieslawsoltes/xamora-docking": "0.8.0"

@@ -15,3 +15,9 @@ Create a `DockLayout`, construct a `DockWorkspace` with a sized host, mount your
 Shortcuts are scoped to the owning workspace by default, allowing two independent workspaces in one page. Studio explicitly selects document-wide keyboard routing to retain its original behavior. Dialogs and another workspace's content are excluded from routing.
 
 See `packages/docking/README.md`, `packages/control-primitives/README.md` and the runnable `dist/examples/ControlsLab/` example. APIs, CSS, ESM/CommonJS entry points and TypeScript declarations are included in package artifacts. No npm publication is performed by extraction or validation.
+
+## Code editor
+
+`@wieslawsoltes/xamora-code-editor` owns the editing surface, buffer history, find/replace, selection mapping, completion UI and lifecycle. A synchronous language provider supplies language semantics; the default is plain text with no parser dependency. `dist/core/editor.js` now keeps only the compatible XAML/HTML adapter and imports the same control used by standalone consumers. Existing Studio document-session hooks remain authoritative for shared undo/redo and validation.
+
+The package README documents providers, dirty-buffer guards, read-only mode and disposal. `dist/examples/EditorLab/` runs a JSON editor without Studio. Browser tests also load the generated standalone bundle and CSS with no core/Studio requests.
