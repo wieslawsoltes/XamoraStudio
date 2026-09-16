@@ -45,3 +45,7 @@ npm run test:browser
 Keep mechanical formatting separate from behavior changes and structural refactoring. Open one focused pull request per task, add regression coverage for moved responsibilities, and wait for syntax, unit, package-consumer and browser validation before merging. Preserve existing source synchronization, undo history, serialization and standalone package contracts.
 
 A cleanup does not establish additional framework compatibility, renderer qualification or npm publication. Releases remain a separate explicit operation.
+
+## Internal organization
+
+See [Code organization and maintenance](docs/CODE-ORGANIZATION.md) for Studio ownership and the package-build module boundaries. Keep public import paths, CLI isolation, type-only contracts and the separate browser-bundle phase stable when changing the build.
