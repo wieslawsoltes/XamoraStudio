@@ -209,7 +209,7 @@ const xaml = serializeXaml(store.document);
 ```text
 dist/
   index.html                  Static application entrypoint
-  app.js                      Studio orchestration and interactions
+  app.js                      Application startup and workspace recovery
   styles/studio.css           Light/dark UI and responsive layouts
   core/
     model.js                  Document AST, IDs, transactions, undo/redo
