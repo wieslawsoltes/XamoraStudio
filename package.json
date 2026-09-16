@@ -15,16 +15,19 @@
     "release:check": "node scripts/package-release.mjs check",
     "release:dry-run": "node scripts/package-release.mjs dry-run",
     "version:packages": "node scripts/package-version.mjs",
-    "release:verify": "node scripts/package-release.mjs verify"
+    "release:verify": "node scripts/package-release.mjs verify",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
-    "typescript": "7.0.2",
     "happy-dom": "20.14.3",
-    "playwright": "1.62.1"
+    "playwright": "1.62.1",
+    "prettier": "3.9.0",
+    "typescript": "7.0.2"
   },
   "workspaces": [
     "packages/*"

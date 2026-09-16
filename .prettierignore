@@ -1,0 +1,22 @@
+# dist/ is canonical browser source, NOT generated output. Keep it included.
+node_modules/
+packages/*/dist/
+artifacts/
+test-results/
+coverage/
+**/package-lock.json
+
+# Preserve authored round-trip fixtures and examples byte for byte.
+tests/fixtures/
+examples/
+dist/examples/
+**/*.xaml
+docs/benchmarks/
+dist/docs/benchmarks/
+
+# Local build, release and hosting workspaces.
+.artifacts/
+.package-build/
+.sites-runtime/
+deliverables/
+upload/

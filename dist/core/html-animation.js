@@ -1,146 +1,1425 @@
 /** CSS animations live in the HTML document. Editors only patch the affected source ranges. */
-import {element,textNode,find,walk} from './model.js';
-import {htmlHead} from './html.js';
+import { element, textNode, find, walk } from './model.js';
+import { htmlHead } from './html.js';
 
-const TIMING = {duration:'animation-duration',delay:'animation-delay',easing:'animation-timing-function',iterations:'animation-iteration-count',direction:'animation-direction',fill:'animation-fill-mode',playState:'animation-play-state'};
-const EXTRA_PROPERTIES = ['animation-composition','animation-timeline','animation-range-start','animation-range-end'];
-const DEFAULTS = {duration:1000,delay:0,easing:'ease',iterations:1,direction:'normal',fill:'both',playState:'running'};
-const CASCADE_DEFAULTS = {...DEFAULTS,duration:0,fill:'none'};
-const DIRECTIONS = ['normal','reverse','alternate','alternate-reverse'];
-const FILLS = ['none','forwards','backwards','both'];
-const EASINGS = ['linear','ease','ease-in','ease-out','ease-in-out','step-start','step-end'];
+const TIMING = {
+  duration: 'animation-duration',
+  delay: 'animation-delay',
+  easing: 'animation-timing-function',
+  iterations: 'animation-iteration-count',
+  direction: 'animation-direction',
+  fill: 'animation-fill-mode',
+  playState: 'animation-play-state',
+};
+const EXTRA_PROPERTIES = [
+  'animation-composition',
+  'animation-timeline',
+  'animation-range-start',
+  'animation-range-end',
+];
+const DEFAULTS = {
+  duration: 1000,
+  delay: 0,
+  easing: 'ease',
+  iterations: 1,
+  direction: 'normal',
+  fill: 'both',
+  playState: 'running',
+};
+const CASCADE_DEFAULTS = { ...DEFAULTS, duration: 0, fill: 'none' };
+const DIRECTIONS = ['normal', 'reverse', 'alternate', 'alternate-reverse'];
+const FILLS = ['none', 'forwards', 'backwards', 'both'];
+const EASINGS = ['linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'step-start', 'step-end'];
 const GROUPS = /^@(media|supports|container|layer|scope|document|starting-style)\b/i;
-function stripComments(source){let result='',quote='';for(let i=0;i<source.length;i++){const c=source[i];if(quote){result+=c;if(c==='\\'&&i+1<source.length){result+=source[++i];continue;}if(c===quote)quote='';continue;}if(c==='\"'||c==="'"){quote=c;result+=c;continue;}if(c==='/'&&source[i+1]==='*'){const end=source.indexOf('*/',i+2);result+=' ';if(end<0)break;i=end+1;continue;}result+=c;}return result;}
-const styleText = n => n.children.filter(c=>c.kind==='text').map(c=>c.text).join('');
-const setStyleText = (n,source) => {if(styleText(n)===source)return;const existing=n.children.find(child=>child.kind==='text');n.children=[existing?{...existing,text:source}:textNode(source)];};
-const number = n => Number(Number(n).toFixed(6));
-function requireHtml(doc){if(doc?.framework!=='HTML')throw Error('CSS animation editing requires an HTML document.');}
-
-function cssEscapeEnd(source,index){let p=index+1;if(/[\da-f]/i.test(source[p]||'')){let count=0;while(p<source.length&&/[\da-f]/i.test(source[p])&&count++<6)p++;if(/\s/.test(source[p]||''))p++;return p-1;}return Math.min(source.length-1,p);}
-/** Split only at top-level separators, retaining commas in functions, strings and comments. */
-export function splitCssList(source,delimiter=','){
- const result=[];let start=0,quote='',comment=false,depth=0;
- for(let i=0;i<source.length;i++){const c=source[i],next=source[i+1];if(comment){if(c==='*'&&next==='/'){comment=false;i++;}continue;}if(quote){if(c==='\\'){i=cssEscapeEnd(source,i);continue;}if(c===quote)quote='';continue;}if(c==='/'&&next==='*'){comment=true;i++;continue;}if(c==='"'||c==="'"){quote=c;continue;}if(c==='\\'){i=cssEscapeEnd(source,i);continue;}if(c==='('||c==='[')depth++;if(c===')'||c===']')depth--;if(!depth&&(delimiter===' ' ? /\s/.test(c):c===delimiter)){if(source.slice(start,i).trim())result.push(source.slice(start,i).trim());start=i+1;}}
- if(source.slice(start).trim())result.push(source.slice(start).trim());return result;
-}
-function rawDeclarations(source){const parts=[];let start=0,quote='',comment=false,depth=0;for(let i=0;i<source.length;i++){const c=source[i],next=source[i+1];if(comment){if(c==='*'&&next==='/'){comment=false;i++;}continue;}if(quote){if(c==='\\'){i=cssEscapeEnd(source,i);continue;}if(c===quote)quote='';continue;}if(c==='/'&&next==='*'){comment=true;i++;continue;}if(c==='"'||c==="'"){quote=c;continue;}if(c==='\\'){i=cssEscapeEnd(source,i);continue;}if('([{'.includes(c))depth++;if(')]}'.includes(c))depth--;if(c===';'&&!depth){parts.push(source.slice(start,i+1));start=i+1;}}if(start<source.length)parts.push(source.slice(start));return parts;}
-function declarations(source,offset=0){let position=0;return rawDeclarations(source).map(raw=>{const start=offset+position;position+=raw.length;const clean=stripComments(raw),match=clean.match(/^\s*([\w-]+)\s*:\s*([\s\S]*?)\s*;?\s*$/);return {start,end:offset+position,raw,property:match?.[1]||'',value:match?.[2]||''};});}
-function skipTrivia(source,at,end){while(at<end){if(/\s/.test(source[at])){at++;continue;}if(source.startsWith('/*',at)){const close=source.indexOf('*/',at+2);if(close<0)return end;at=close+2;continue;}break;}return at;}
-function boundary(source,start,end){let quote='',comment=false,depth=0;for(let i=start;i<end;i++){const c=source[i],next=source[i+1];if(comment){if(c==='*'&&next==='/'){comment=false;i++;}continue;}if(quote){if(c==='\\'){i=cssEscapeEnd(source,i);continue;}if(c===quote)quote='';continue;}if(c==='/'&&next==='*'){comment=true;i++;continue;}if(c==='"'||c==="'"){quote=c;continue;}if(c==='\\'){i=cssEscapeEnd(source,i);continue;}if(c==='('||c==='[')depth++;if(c===')'||c===']')depth--;if(!depth&&(c==='{'||c===';'||c==='}'))return i;}return end;}
-function closeBlock(source,open,end){let quote='',comment=false,depth=1;for(let i=open+1;i<end;i++){const c=source[i],next=source[i+1];if(comment){if(c==='*'&&next==='/'){comment=false;i++;}continue;}if(quote){if(c==='\\'){i=cssEscapeEnd(source,i);continue;}if(c===quote)quote='';continue;}if(c==='/'&&next==='*'){comment=true;i++;continue;}if(c==='"'||c==="'"){quote=c;continue;}if(c==='\\'){i=cssEscapeEnd(source,i);continue;}if(c==='{')depth++;if(c==='}'&&!--depth)return i;}return end;}
-function cssName(name){return /^[a-zA-Z_][\w-]*$/.test(name)&&!['none','initial','inherit','unset','revert','revert-layer'].includes(name)?name:'\"'+String(name).replace(/[\\\"\u0000-\u001f\u007f]/g,c=>'\\'+c.codePointAt(0).toString(16)+' ')+'\"';}
-function decodeName(raw){if(/^['"]/.test(raw))raw=raw.slice(1,-1);return raw.replace(/\\([\da-f]{1,6}\s?|[^\r\n])/gi,(_,v)=>/^[\da-f]/i.test(v)?String.fromCodePoint(parseInt(v.trim(),16)||0xfffd):v);}
-function parseOffsets(selector){return splitCssList(stripComments(selector)).map(s=>s==='from'?0:s==='to'?1:/^(?:\d+(?:\.\d*)?|\.\d+)%$/.test(s)?Number(s.slice(0,-1))/100:NaN);}
-/** Lossless range AST: unknown rules remain raw source; nested grouping rules are traversed. */
-export function parseCssAnimationStylesheet(source){
- if(typeof source!=='string')throw TypeError('CSS source must be text.');
- const diagnostics=[],keyframes=[],rules=[];
- const parseRules=(start,end,parent=null,depth=0)=>{const list=[];if(depth>128){diagnostics.push({severity:'error',message:'CSS nesting exceeds the 128-level editing limit; source is preserved.',start});return list;}let cursor=start;while(cursor<end){const at=skipTrivia(source,cursor,end);if(at>=end)break;const edge=boundary(source,at,end),token=source[edge];if(token==='}'){diagnostics.push({severity:'error',message:'Unexpected closing CSS brace.',start:edge});break;}if(token!== '{'){const stop=token===';'?edge+1:end;list.push({kind:'raw',start:at,end:stop,raw:source.slice(at,stop),parent});cursor=stop;continue;}const close=closeBlock(source,edge,end),header=source.slice(at,edge).trim(),rule={kind:'rule',start:at,end:Math.min(close+1,end),header,bodyStart:edge+1,bodyEnd:close,parent};if(close===end)diagnostics.push({severity:'error',message:'Unclosed CSS rule.',start:at});const key=stripComments(header).match(/^@(?:-webkit-)?keyframes\s+([\s\S]+)$/i);
- if(key){rule.kind='keyframes';rule.rawName=key[1].trim();rule.name=decodeName(rule.rawName);rule.frames=[];let p=edge+1;while(p<close){const fstart=skipTrivia(source,p,close);if(fstart>=close)break;const fopen=boundary(source,fstart,close);if(source[fopen]!=='{'){diagnostics.push({severity:'warning',message:'Unsupported keyframe source preserved.',start:fstart});break;}const fclose=closeBlock(source,fopen,close),selector=source.slice(fstart,fopen).trim(),offsets=parseOffsets(selector),decls=declarations(source.slice(fopen+1,fclose),fopen+1),values={};for(const d of decls)if(d.property&&!/!important\s*$/i.test(d.value))Object.defineProperty(values,d.property,{value:d.value,writable:true,enumerable:true,configurable:true});const frame={start:fstart,end:Math.min(fclose+1,close),bodyStart:fopen+1,bodyEnd:fclose,selector,offsets,values,declarations:decls};rule.frames.push(frame);if(offsets.some(o=>!Number.isFinite(o)||o<0||o>1))diagnostics.push({severity:'warning',message:'Named timeline range or invalid keyframe selector is preserved; edit it in CSS source.',start:fstart});p=frame.end;}keyframes.push(rule);
- }else if(GROUPS.test(header)){rule.children=parseRules(edge+1,close,rule,depth+1);}else rule.declarations=declarations(source.slice(edge+1,close),edge+1);
- list.push(rule);rules.push(rule);cursor=rule.end;}return list;};
- const children=parseRules(0,source.length);return {source,children,rules,keyframes,diagnostics};
-}
-function inspect(doc){requireHtml(doc);const definitions=[],styles=[],diagnostics=[];walk(doc.root,node=>{if(node.type==='link'&&/stylesheet/i.test(node.props.rel||''))diagnostics.push({severity:'info',message:'External stylesheet animations can be previewed; import their CSS into a style element to edit keyframes.',nodeId:node.id});if(node.type!=='style')return;const source=styleText(node),ast=parseCssAnimationStylesheet(source),entry={node,source,ast};styles.push(entry);if(ast.children.some(r=>r.kind==='raw'&&/^@import\b/i.test(r.raw)))diagnostics.push({severity:'info',nodeId:node.id,message:'Imported external CSS can be previewed; bring its source into a local style element to edit keyframes.'});diagnostics.push(...ast.diagnostics.map(d=>({...d,nodeId:node.id})));const occurrences=new Map();for(const rule of ast.keyframes){const occurrence=occurrences.get(rule.name)||0;occurrences.set(rule.name,occurrence+1);const id=node.id+':'+encodeURIComponent(rule.name)+':'+occurrence;definitions.push({id,name:rule.name,styleId:node.id,authored:Object.hasOwn(node.props,'data-xamora-animations'),frames:rule.frames.flatMap(frame=>frame.offsets.filter(Number.isFinite).map(offset=>({offset,values:{...frame.values},selector:frame.selector}))),rule,entry});}});return {definitions,styles,diagnostics};}
-function animationValue(value){return String(value).replace(/\s*!important\s*$/i,'').trim();}
-function parseTime(v){const m=String(v).match(/^(-?(?:\d+(?:\.\d*)?|\.\d+))(ms|s)$/i);return m?Number(m[1])*(m[2].toLowerCase()==='s'?1000:1):NaN;}
-function parseShorthand(source){return splitCssList(source).map(item=>{const result={name:'none',...CASCADE_DEFAULTS},tokens=splitCssList(stripComments(item),' ');let times=0,named=false;for(const t of tokens){if(/^(var|env)\(/i.test(t)||/^(inherit|initial|unset|revert|revert-layer)$/i.test(t))throw Error('Resolve variable-dependent or cascade animation values in the design preview before editing timing.');if(Number.isFinite(parseTime(t))){if(times>1)throw Error('Animation shorthand has too many time values.');result[times++?'delay':'duration']=parseTime(t);}else if(EASINGS.includes(t)||/^(cubic-bezier|steps|linear)\(/.test(t))result.easing=t;else if(t==='infinite'||/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(t))result.iterations=t==='infinite'?Infinity:Number(t);else if(DIRECTIONS.includes(t))result.direction=t;else if(FILLS.includes(t))result.fill=t;else if(['running','paused'].includes(t))result.playState=t;else if(!named){result.name=decodeName(t);named=true;}else throw Error('Ambiguous animation shorthand is preserved; edit its CSS source or resolve it in the design preview.');}return result;});}
-function inlineBindings(node,initial=[]){
- let names=initial.length?initial.map(b=>b.name):['none'];const fields={},extras={},priorities={};const assign=(key,values,important)=>{if(priorities[key]&&!important)return;priorities[key]=important;if(key==='name')names=values;else if(EXTRA_PROPERTIES.includes(key))extras[key]=values;else fields[key]=values;};
- for(const key of Object.keys(TIMING))fields[key]=initial.length?initial.map(b=>b[key]):[CASCADE_DEFAULTS[key]];
- for(const property of EXTRA_PROPERTIES)if(initial.some(b=>b[property]))extras[property]=initial.map(b=>b[property]);
- for(const declaration of declarations(node.props.style||'')){
-  const property=declaration.property.toLowerCase(),value=animationValue(declaration.value),important=/!important\s*$/i.test(declaration.value);if(!/^animation(?:-|$)/.test(property))continue;
-  if(/(?:var|env)\(/i.test(value)||/^(inherit|initial|unset|revert|revert-layer)$/i.test(value)){if(initial.length)continue;throw Error('Resolve variable-dependent or cascade animation values in the design preview before editing timing.');}
-  if(property==='animation'){const parsed=parseShorthand(value);assign('name',parsed.map(b=>b.name),important);for(const key of Object.keys(TIMING))assign(key,parsed.map(b=>b[key]),important);}
-  else if(property==='animation-name')assign('name',splitCssList(value).map(decodeName),important);
-  else if(EXTRA_PROPERTIES.includes(property))assign(property,splitCssList(value),important);
-  else{const key=Object.keys(TIMING).find(k=>TIMING[k]===property);if(key)assign(key,splitCssList(value).map(v=>readTiming(key,v)),important);}
- }
- return names.map((name,index)=>{const result={name};for(const [key,values]of Object.entries(fields))result[key]=values[index%values.length]??CASCADE_DEFAULTS[key];for(const [key,values]of Object.entries(extras))result[key]=values[index%values.length];return result;});
-}
-function readTiming(field,value){if(field==='duration'||field==='delay')return parseTime(value);if(field==='iterations')return value==='infinite'?Infinity:Number(value);return value;}
-function computedBindings(el){const view=el?.ownerDocument?.defaultView;if(!view?.getComputedStyle)return null;const css=view.getComputedStyle(el),names=splitCssList(css.getPropertyValue('animation-name')||'none');return names.map((name,index)=>{const timing={};for(const [field,prop]of Object.entries(TIMING)){const values=splitCssList(css.getPropertyValue(prop));timing[field]=values.length?readTiming(field,values[index%values.length]):CASCADE_DEFAULTS[field];}for(const prop of EXTRA_PROPERTIES){const values=splitCssList(css.getPropertyValue(prop));if(values.length)timing[prop]=values[index%values.length];}return {name:decodeName(name),...timing};});}
-function nodeBindings(node,options={}){const native=options.elements?.get(node.id);if(!native)return inlineBindings(node);const computed=computedBindings(native)||[];if(typeof native.getAttribute!=='function')return inlineBindings(node,computed);const live=native.getAttribute('style')||'',current=node.props.style||'';if(live===current)return computed;const previous=new Map(declarations(live).map(d=>[d.property,d.value]));const changed=declarations(current).filter(d=>previous.get(d.property)!==d.value).map(d=>d.raw).join('');return inlineBindings({props:{style:changed}},computed);}
-export function listHtmlAnimations(doc,options={}){const result=inspect(doc),bindings=[];walk(doc.root,node=>{if(node.kind!=='element')return;try{nodeBindings(node,options).forEach((b,index)=>{if(b.name!=='none')bindings.push({nodeId:node.id,name:b.name,index,timing:Object.fromEntries(Object.keys(TIMING).map(k=>[k,b[k]]))});});}catch(error){result.diagnostics.push({severity:'warning',nodeId:node.id,message:error.message});}});const names=new Set(result.definitions.map(d=>d.name));for(const binding of bindings)if(!names.has(binding.name))result.diagnostics.push({severity:'info',nodeId:binding.nodeId,message:`Animation ${binding.name} is defined in an external stylesheet or has no local keyframes.`});return {definitions:result.definitions.map(({entry,rule,...definition})=>definition),bindings,diagnostics:result.diagnostics};}
-function definition(doc,id){const result=inspect(doc),value=result.definitions.find(d=>d.id===id);if(!value)throw Error('The CSS animation no longer exists. Refresh the animation panel.');if(value.entry.ast.diagnostics.some(d=>d.severity==='error'))throw Error('Fix stylesheet syntax errors before editing keyframes.');return value;}
-function patchStyle(def,start,end,text){const source=def.entry.source;setStyleText(def.entry.node,source.slice(0,start)+text+source.slice(end));}
-function validOffset(offset){const value=Number(offset);if(!Number.isFinite(value)||value<0||value>1)throw Error('Keyframe offset must be between 0 and 1.');return value;}
-function validateCssValue(text,custom=false){
- if(/<\/style/i.test(text)||/!important\s*$/i.test(text))return false;
- let quote='',comment=false;const stack=[];
- for(let i=0;i<text.length;i++){const c=text[i],next=text[i+1];if(comment){if(c==='*'&&next==='/'){comment=false;i++;}continue;}if(quote){if(c==='\\'){i=cssEscapeEnd(text,i);continue;}if(c===quote)quote='';continue;}if(c==='/'&&next==='*'){comment=true;i++;continue;}if(c==='"'||c==="'"){quote=c;continue;}if(c==='\\'){i=cssEscapeEnd(text,i);continue;}if(c==='('||c==='['||c==='{'){if(c==='{'&&!custom)return false;stack.push(c);}if(c===')'||c===']'||c==='}'){if(stack.pop()!==({')':'(',']':'[','}':'{'}[c]))return false;}if(c===';'&&!stack.length)return false;}
- return !quote&&!comment&&!stack.length;
-}
-function validValues(values){if(!values||typeof values!=='object'||Array.isArray(values))throw Error('Provide CSS property values for the keyframe.');for(const [property,value]of Object.entries(values)){if(!/^(--[\w-]+|[a-z][\w-]*)$/i.test(property)||['__proto__','constructor','prototype'].includes(property))throw Error('Invalid CSS keyframe property: '+property);if(value!=null){const text=String(value);if(!validateCssValue(text,property.startsWith('--')))throw Error('Use one balanced CSS value without !important for '+property+'.');}}return values;}
-
-function replaceDeclarations(body,values){validValues(values);const parts=declarations(body);let next=parts.map(d=>d.raw).join('');for(const [key,value]of Object.entries(values)){const parsed=declarations(next),matches=parsed.filter(d=>d.property===key);for(const d of matches.reverse()){const comments=(d.raw.match(/\/\*[\s\S]*?\*\//g)||[]).join(' ');next=next.slice(0,d.start)+comments+next.slice(d.end);}if(value!=null&&String(value)!=='')next=next.trimEnd()+(next.trim()&&!next.trimEnd().endsWith(';')?';':'')+'\n    '+key+': '+String(value).trim()+';\n  ';}return next;}
-function frameCss(offset,values,indent='  '){validValues(values);return indent+number(offset*100)+'% {\n'+Object.entries(values).filter(([,v])=>v!=null&&String(v)!=='').map(([p,v])=>indent+'  '+p+': '+v+';').join('\n')+'\n'+indent+'}';}
-export function setHtmlAnimationKeyframe(doc,id,offset,values){offset=validOffset(offset);validValues(values);let def=definition(doc,id);const matches=def.rule.frames.filter(f=>f.offsets.includes(offset)),frame=matches.at(-1);if(matches.length===1&&frame.offsets.length===1){patchStyle(def,frame.bodyStart,frame.bodyEnd,replaceDeclarations(def.entry.source.slice(frame.bodyStart,frame.bodyEnd),values));}else{const merged=Object.assign({},...matches.map(f=>f.values),values),comments=matches.filter(f=>f.offsets.length===1).flatMap(f=>def.entry.source.slice(f.bodyStart,f.bodyEnd).match(/\/\*[\s\S]*?\*\//g)||[]).join('\n  ');if(matches.length){removeHtmlAnimationKeyframe(doc,id,offset);def=definition(doc,id);}patchStyle(def,def.rule.bodyEnd,def.rule.bodyEnd,'\n'+(comments?'  '+comments+'\n':'')+frameCss(offset,merged)+'\n');}return id;}
-
-export function removeHtmlAnimationKeyframe(doc,id,offset){offset=validOffset(offset);const def=definition(doc,id),edits=[];for(const frame of def.rule.frames.filter(f=>f.offsets.includes(offset))){const remaining=frame.offsets.filter(o=>o!==offset);if(remaining.some(o=>!Number.isFinite(o)))throw Error('Edit mixed named timeline selectors in CSS source.');edits.push(remaining.length?{start:frame.start,end:frame.bodyStart-1,text:remaining.map(o=>number(o*100)+'%').join(', ')+' '}:{start:frame.start,end:frame.end,text:''});}let source=def.entry.source;for(const edit of edits.sort((a,b)=>b.start-a.start))source=source.slice(0,edit.start)+edit.text+source.slice(edit.end);setStyleText(def.entry.node,source);return id;}
-export function moveHtmlAnimationKeyframe(doc,id,from,to){from=validOffset(from);to=validOffset(to);if(from===to)return id;const def=definition(doc,id),frames=def.rule.frames.filter(f=>f.offsets.includes(from));if(!frames.length)throw Error('Choose an existing keyframe.');const values=Object.assign({},...frames.map(f=>f.values));removeHtmlAnimationKeyframe(doc,id,from);return setHtmlAnimationKeyframe(doc,id,to,values);}
-export function duplicateHtmlAnimationKeyframe(doc,id,from,to){from=validOffset(from);to=validOffset(to);const def=definition(doc,id),frames=def.rule.frames.filter(f=>f.offsets.includes(from));if(!frames.length)throw Error('Choose an existing keyframe.');return setHtmlAnimationKeyframe(doc,id,to,Object.assign({},...frames.map(f=>f.values)));}
-function validName(name){if(!/^[a-zA-Z_][\w-]*$/.test(name)||['none','initial','inherit','unset','revert','revert-layer','default'].includes(name.toLowerCase()))throw Error('Use a CSS animation identifier such as fadeIn.');return name;}
-function validateTiming(patch){for(const [key,value]of Object.entries(patch)){if(!Object.hasOwn(TIMING,key))throw Error('Unknown animation timing field: '+key);if(['duration','delay'].includes(key)&&(!Number.isFinite(Number(value))||key==='duration'&&Number(value)<0))throw Error('Duration must be nonnegative and delay must be a finite millisecond value.');if(key==='iterations'&&value!==Infinity&&value!=='infinite'&&(!Number.isFinite(Number(value))||Number(value)<0))throw Error('Iterations must be nonnegative or infinite.');if(key==='direction'&&!DIRECTIONS.includes(value))throw Error('Invalid animation direction.');if(key==='fill'&&!FILLS.includes(value))throw Error('Invalid animation fill mode.');if(key==='playState'&&!['running','paused'].includes(value))throw Error('Invalid animation play state.');if(key==='easing'&&!(EASINGS.includes(value)||/^(?:cubic-bezier|steps|linear)\([^{};]+\)$/.test(value)))throw Error('Use a CSS easing keyword, cubic-bezier(), steps(), or linear().');}}
-function timingCss(key,value){if(key==='duration'||key==='delay')return number(value)+'ms';if(key==='iterations')return value===Infinity||value==='infinite'?'infinite':String(value);return String(value);}
-function setInlineProperty(node,property,value,options={}){let source=node.props.style||'',parts=declarations(source);let important=parts.some(d=>(d.property.toLowerCase()===property||d.property.toLowerCase()==='animation')&&/!important\s*$/i.test(d.value));const native=options.elements?.get(node.id);const inspectRules=rules=>{for(const rule of rules||[]){if(rule.selectorText&&native?.matches){try{if(native.matches(rule.selectorText)&&(rule.style?.getPropertyPriority(property)==='important'||rule.style?.getPropertyPriority('animation')==='important'))important=true;}catch{/* Pseudo-element selectors cannot match the originating element. */}}try{if(rule.cssRules)inspectRules(rule.cssRules);}catch{/* External stylesheets remain protected by their origin. */}}};if(native)for(const sheet of native.ownerDocument?.styleSheets||[]){try{inspectRules(sheet.cssRules);}catch{/* External stylesheet priority cannot be inspected. */}}for(const d of parts.filter(d=>d.property.toLowerCase()===property).reverse()){const comments=(d.raw.match(/\/\*[\s\S]*?\*\//g)||[]).join(' ');source=source.slice(0,d.start)+comments+source.slice(d.end);}source=source.trim();if(source&&!source.endsWith(';'))source+=';';node.props.style=source+(source?' ':'')+property+': '+value+(important?' !important':'')+';';}
-function target(doc,nodeId){requireHtml(doc);const node=find(doc.root,nodeId);if(!node||node.kind!=='element'||['style','script','head','link','meta'].includes(node.type))throw Error('Choose a visible HTML element to animate.');return node;}
-function resolvedBindings(doc,node,options={}){if(!options.elements?.has(node.id)&&!declarations(node.props.style||'').some(d=>/^animation(?:-name)?$/i.test(d.property))&&inspect(doc).styles.some(s=>s.ast.rules.some(r=>r.kind==='rule'&&r.declarations?.some(d=>/^animation(?:-name)?$/i.test(d.property)))))throw Error('Wait for the design preview to load before overriding stylesheet-based animations.');const bindings=nodeBindings(node,options).filter(b=>b.name!=='none');if(bindings.some(b=>!Number.isFinite(b.duration)||!Number.isFinite(b.delay)||!(Number.isFinite(b.iterations)||b.iterations===Infinity)))throw Error('Timeline-relative or unresolved timing values are preserved. Edit their CSS source or use a resolved time-based animation.');return bindings;}
-export function bindHtmlAnimation(doc,nodeId,name,timing={},options={}){validName(name);validateTiming(timing);const node=target(doc,nodeId),bindings=resolvedBindings(doc,node,options);if(bindings.some(b=>b.name===name))throw Error('This element already uses '+name+'.');const next={name,...DEFAULTS,...timing};bindings.push(next);setInlineProperty(node,'animation-name',bindings.map(b=>cssName(b.name)).join(', '),options);for(const key of Object.keys(TIMING))setInlineProperty(node,TIMING[key],bindings.map(b=>timingCss(key,b[key])).join(', '),options);for(const property of EXTRA_PROPERTIES)if(bindings.some(b=>b[property]))setInlineProperty(node,property,bindings.map(b=>b[property]||({"animation-composition":'replace',"animation-timeline":'auto',"animation-range-start":'normal',"animation-range-end":'normal'}[property])).join(', '),options);return {nodeId,name,index:bindings.length-1,timing:{...DEFAULTS,...timing}};}
-export function setHtmlAnimationTiming(doc,nodeId,name,patch,options={}){validateTiming(patch);const node=target(doc,nodeId),bindings=resolvedBindings(doc,node,options);let found=false;for(const binding of bindings)if(binding.name===name){Object.assign(binding,patch);found=true;}if(!found)throw Error('This element does not use '+name+'.');for(const key of Object.keys(patch))setInlineProperty(node,TIMING[key],bindings.map(b=>timingCss(key,b[key])).join(', '),options);return {nodeId,name};}
-export function unbindHtmlAnimation(doc,nodeId,name,options={}){const node=target(doc,nodeId),bindings=resolvedBindings(doc,node,options).filter(b=>b.name!==name);setInlineProperty(node,'animation-name',bindings.length?bindings.map(b=>cssName(b.name)).join(', '):'none',options);for(const key of Object.keys(TIMING))setInlineProperty(node,TIMING[key],bindings.length?bindings.map(b=>timingCss(key,b[key])).join(', '):timingCss(key,CASCADE_DEFAULTS[key]),options);for(const property of EXTRA_PROPERTIES)if(bindings.some(b=>b[property]))setInlineProperty(node,property,bindings.map(b=>b[property]||({"animation-composition":'replace',"animation-timeline":'auto',"animation-range-start":'normal',"animation-range-end":'normal'}[property])).join(', '),options);return {nodeId,name};}
-export function createHtmlAnimation(doc,nodeId,config={},options={}){requireHtml(doc);const snapshot=inspect(doc),used=new Set(snapshot.definitions.map(d=>d.name));let auto='xamoraMotion1',n=1;while(used.has(auto))auto='xamoraMotion'+(++n);const name=validName(config.name||auto);if(used.has(name))throw Error('An animation named '+name+' already exists.');const frames=config.frames||[{offset:0,values:{opacity:'0'}},{offset:1,values:{opacity:'1'}}];for(const f of frames){validOffset(f.offset);validValues(f.values);}const timing=Object.fromEntries(Object.keys(TIMING).filter(k=>config[k]!==undefined).map(k=>[k,config[k]]));validateTiming(timing);const node=target(doc,nodeId);if(resolvedBindings(doc,node,options).some(b=>b.name===name))throw Error('This element already uses '+name+'.');let style=snapshot.styles.find(s=>Object.hasOwn(s.node.props,'data-xamora-animations'))?.node;if(!style){style=element('style',{'data-xamora-animations':''},[textNode('/* Animations authored in Xamora Studio. */\n')]);htmlHead(doc).children.push(style);}const source=styleText(style);setStyleText(style,source+(source.endsWith('\n')?'':'\n')+'@keyframes '+name+' {\n'+frames.slice().sort((a,b)=>a.offset-b.offset).map(f=>frameCss(f.offset,f.values)).join('\n')+'\n}\n');bindHtmlAnimation(doc,nodeId,name,timing,options);const created=inspect(doc).definitions.find(d=>d.styleId===style.id&&d.name===name);return {id:created.id,definitionId:created.id,name};}
-/** Delete only a definition. Bindings remain explicit so selectors/external CSS are never rewritten. */
-export function removeHtmlAnimation(doc,id){const def=definition(doc,id);patchStyle(def,def.rule.start,def.rule.end,'');return def.name;}
-
-function renameReferences(source,oldName,newName){
- const edits=[];
- for(const declaration of declarations(source)){
-  const property=declaration.property.toLowerCase();if(!['animation','animation-name','-webkit-animation','-webkit-animation-name'].includes(property))continue;
-  const raw=declaration.raw,colon=raw.replace(/\/\*[\s\S]*?\*\//g,m=>' '.repeat(m.length)).indexOf(':'),value=raw.slice(colon+1),parts=splitCssList(value);let search=0;
-  for(const part of parts){const partStart=value.indexOf(part,search);search=partStart+part.length;if(partStart<0)continue;const clean=animationValue(stripComments(part).replace(/;\s*$/,''));let name;
-   try{name=property.endsWith('-name')?decodeName(clean):parseShorthand(clean)[0]?.name;}catch{continue;}
-   if(name!==oldName)continue;const tokens=splitCssList(part,' ');let tokenSearch=0;
-   for(const token of tokens){const tokenAt=part.indexOf(token,tokenSearch);tokenSearch=tokenAt+token.length;const plain=animationValue(stripComments(token)).replace(/;$/,'');if(decodeName(plain)!==oldName)continue;
-    const relative=token.replace(/\/\*[\s\S]*?\*\//g,m=>' '.repeat(m.length)).indexOf(plain);if(relative<0)continue;const at=declaration.start+colon+1+partStart+tokenAt+relative;let replacement=cssName(newName);
-    if(!property.endsWith('-name')&&(EASINGS.includes(newName)||DIRECTIONS.includes(newName)||FILLS.includes(newName)||['infinite','running','paused'].includes(newName)))replacement='"'+newName+'"';
-    edits.push({start:at,end:at+plain.length,text:replacement});break;
-   }
+function stripComments(source) {
+  let result = '',
+    quote = '';
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i];
+    if (quote) {
+      result += c;
+      if (c === '\\' && i + 1 < source.length) {
+        result += source[++i];
+        continue;
+      }
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '\"' || c === "'") {
+      quote = c;
+      result += c;
+      continue;
+    }
+    if (c === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2);
+      result += ' ';
+      if (end < 0) break;
+      i = end + 1;
+      continue;
+    }
+    result += c;
   }
- }
- let next=source;for(const edit of edits.sort((a,b)=>b.start-a.start))next=next.slice(0,edit.start)+edit.text+next.slice(edit.end);return next;
+  return result;
+}
+const styleText = (n) =>
+  n.children
+    .filter((c) => c.kind === 'text')
+    .map((c) => c.text)
+    .join('');
+const setStyleText = (n, source) => {
+  if (styleText(n) === source) return;
+  const existing = n.children.find((child) => child.kind === 'text');
+  n.children = [existing ? { ...existing, text: source } : textNode(source)];
+};
+const number = (n) => Number(Number(n).toFixed(6));
+function requireHtml(doc) {
+  if (doc?.framework !== 'HTML') throw Error('CSS animation editing requires an HTML document.');
+}
+
+function cssEscapeEnd(source, index) {
+  let p = index + 1;
+  if (/[\da-f]/i.test(source[p] || '')) {
+    let count = 0;
+    while (p < source.length && /[\da-f]/i.test(source[p]) && count++ < 6) p++;
+    if (/\s/.test(source[p] || '')) p++;
+    return p - 1;
+  }
+  return Math.min(source.length - 1, p);
+}
+/** Split only at top-level separators, retaining commas in functions, strings and comments. */
+export function splitCssList(source, delimiter = ',') {
+  const result = [];
+  let start = 0,
+    quote = '',
+    comment = false,
+    depth = 0;
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i],
+      next = source[i + 1];
+    if (comment) {
+      if (c === '*' && next === '/') {
+        comment = false;
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === '\\') {
+        i = cssEscapeEnd(source, i);
+        continue;
+      }
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      comment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === '\\') {
+      i = cssEscapeEnd(source, i);
+      continue;
+    }
+    if (c === '(' || c === '[') depth++;
+    if (c === ')' || c === ']') depth--;
+    if (!depth && (delimiter === ' ' ? /\s/.test(c) : c === delimiter)) {
+      if (source.slice(start, i).trim()) result.push(source.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  if (source.slice(start).trim()) result.push(source.slice(start).trim());
+  return result;
+}
+function rawDeclarations(source) {
+  const parts = [];
+  let start = 0,
+    quote = '',
+    comment = false,
+    depth = 0;
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i],
+      next = source[i + 1];
+    if (comment) {
+      if (c === '*' && next === '/') {
+        comment = false;
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === '\\') {
+        i = cssEscapeEnd(source, i);
+        continue;
+      }
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      comment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === '\\') {
+      i = cssEscapeEnd(source, i);
+      continue;
+    }
+    if ('([{'.includes(c)) depth++;
+    if (')]}'.includes(c)) depth--;
+    if (c === ';' && !depth) {
+      parts.push(source.slice(start, i + 1));
+      start = i + 1;
+    }
+  }
+  if (start < source.length) parts.push(source.slice(start));
+  return parts;
+}
+function declarations(source, offset = 0) {
+  let position = 0;
+  return rawDeclarations(source).map((raw) => {
+    const start = offset + position;
+    position += raw.length;
+    const clean = stripComments(raw),
+      match = clean.match(/^\s*([\w-]+)\s*:\s*([\s\S]*?)\s*;?\s*$/);
+    return {
+      start,
+      end: offset + position,
+      raw,
+      property: match?.[1] || '',
+      value: match?.[2] || '',
+    };
+  });
+}
+function skipTrivia(source, at, end) {
+  while (at < end) {
+    if (/\s/.test(source[at])) {
+      at++;
+      continue;
+    }
+    if (source.startsWith('/*', at)) {
+      const close = source.indexOf('*/', at + 2);
+      if (close < 0) return end;
+      at = close + 2;
+      continue;
+    }
+    break;
+  }
+  return at;
+}
+function boundary(source, start, end) {
+  let quote = '',
+    comment = false,
+    depth = 0;
+  for (let i = start; i < end; i++) {
+    const c = source[i],
+      next = source[i + 1];
+    if (comment) {
+      if (c === '*' && next === '/') {
+        comment = false;
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === '\\') {
+        i = cssEscapeEnd(source, i);
+        continue;
+      }
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      comment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === '\\') {
+      i = cssEscapeEnd(source, i);
+      continue;
+    }
+    if (c === '(' || c === '[') depth++;
+    if (c === ')' || c === ']') depth--;
+    if (!depth && (c === '{' || c === ';' || c === '}')) return i;
+  }
+  return end;
+}
+function closeBlock(source, open, end) {
+  let quote = '',
+    comment = false,
+    depth = 1;
+  for (let i = open + 1; i < end; i++) {
+    const c = source[i],
+      next = source[i + 1];
+    if (comment) {
+      if (c === '*' && next === '/') {
+        comment = false;
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === '\\') {
+        i = cssEscapeEnd(source, i);
+        continue;
+      }
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      comment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === '\\') {
+      i = cssEscapeEnd(source, i);
+      continue;
+    }
+    if (c === '{') depth++;
+    if (c === '}' && !--depth) return i;
+  }
+  return end;
+}
+function cssName(name) {
+  return /^[a-zA-Z_][\w-]*$/.test(name) &&
+    !['none', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'].includes(name)
+    ? name
+    : '\"' +
+        String(name).replace(
+          /[\\\"\u0000-\u001f\u007f]/g,
+          (c) => '\\' + c.codePointAt(0).toString(16) + ' ',
+        ) +
+        '\"';
+}
+function decodeName(raw) {
+  if (/^['"]/.test(raw)) raw = raw.slice(1, -1);
+  return raw.replace(/\\([\da-f]{1,6}\s?|[^\r\n])/gi, (_, v) =>
+    /^[\da-f]/i.test(v) ? String.fromCodePoint(parseInt(v.trim(), 16) || 0xfffd) : v,
+  );
+}
+function parseOffsets(selector) {
+  return splitCssList(stripComments(selector)).map((s) =>
+    s === 'from'
+      ? 0
+      : s === 'to'
+        ? 1
+        : /^(?:\d+(?:\.\d*)?|\.\d+)%$/.test(s)
+          ? Number(s.slice(0, -1)) / 100
+          : NaN,
+  );
+}
+/** Lossless range AST: unknown rules remain raw source; nested grouping rules are traversed. */
+export function parseCssAnimationStylesheet(source) {
+  if (typeof source !== 'string') throw TypeError('CSS source must be text.');
+  const diagnostics = [],
+    keyframes = [],
+    rules = [];
+  const parseRules = (start, end, parent = null, depth = 0) => {
+    const list = [];
+    if (depth > 128) {
+      diagnostics.push({
+        severity: 'error',
+        message: 'CSS nesting exceeds the 128-level editing limit; source is preserved.',
+        start,
+      });
+      return list;
+    }
+    let cursor = start;
+    while (cursor < end) {
+      const at = skipTrivia(source, cursor, end);
+      if (at >= end) break;
+      const edge = boundary(source, at, end),
+        token = source[edge];
+      if (token === '}') {
+        diagnostics.push({
+          severity: 'error',
+          message: 'Unexpected closing CSS brace.',
+          start: edge,
+        });
+        break;
+      }
+      if (token !== '{') {
+        const stop = token === ';' ? edge + 1 : end;
+        list.push({ kind: 'raw', start: at, end: stop, raw: source.slice(at, stop), parent });
+        cursor = stop;
+        continue;
+      }
+      const close = closeBlock(source, edge, end),
+        header = source.slice(at, edge).trim(),
+        rule = {
+          kind: 'rule',
+          start: at,
+          end: Math.min(close + 1, end),
+          header,
+          bodyStart: edge + 1,
+          bodyEnd: close,
+          parent,
+        };
+      if (close === end)
+        diagnostics.push({ severity: 'error', message: 'Unclosed CSS rule.', start: at });
+      const key = stripComments(header).match(/^@(?:-webkit-)?keyframes\s+([\s\S]+)$/i);
+      if (key) {
+        rule.kind = 'keyframes';
+        rule.rawName = key[1].trim();
+        rule.name = decodeName(rule.rawName);
+        rule.frames = [];
+        let p = edge + 1;
+        while (p < close) {
+          const fstart = skipTrivia(source, p, close);
+          if (fstart >= close) break;
+          const fopen = boundary(source, fstart, close);
+          if (source[fopen] !== '{') {
+            diagnostics.push({
+              severity: 'warning',
+              message: 'Unsupported keyframe source preserved.',
+              start: fstart,
+            });
+            break;
+          }
+          const fclose = closeBlock(source, fopen, close),
+            selector = source.slice(fstart, fopen).trim(),
+            offsets = parseOffsets(selector),
+            decls = declarations(source.slice(fopen + 1, fclose), fopen + 1),
+            values = {};
+          for (const d of decls)
+            if (d.property && !/!important\s*$/i.test(d.value))
+              Object.defineProperty(values, d.property, {
+                value: d.value,
+                writable: true,
+                enumerable: true,
+                configurable: true,
+              });
+          const frame = {
+            start: fstart,
+            end: Math.min(fclose + 1, close),
+            bodyStart: fopen + 1,
+            bodyEnd: fclose,
+            selector,
+            offsets,
+            values,
+            declarations: decls,
+          };
+          rule.frames.push(frame);
+          if (offsets.some((o) => !Number.isFinite(o) || o < 0 || o > 1))
+            diagnostics.push({
+              severity: 'warning',
+              message:
+                'Named timeline range or invalid keyframe selector is preserved; edit it in CSS source.',
+              start: fstart,
+            });
+          p = frame.end;
+        }
+        keyframes.push(rule);
+      } else if (GROUPS.test(header)) {
+        rule.children = parseRules(edge + 1, close, rule, depth + 1);
+      } else rule.declarations = declarations(source.slice(edge + 1, close), edge + 1);
+      list.push(rule);
+      rules.push(rule);
+      cursor = rule.end;
+    }
+    return list;
+  };
+  const children = parseRules(0, source.length);
+  return { source, children, rules, keyframes, diagnostics };
+}
+function inspect(doc) {
+  requireHtml(doc);
+  const definitions = [],
+    styles = [],
+    diagnostics = [];
+  walk(doc.root, (node) => {
+    if (node.type === 'link' && /stylesheet/i.test(node.props.rel || ''))
+      diagnostics.push({
+        severity: 'info',
+        message:
+          'External stylesheet animations can be previewed; import their CSS into a style element to edit keyframes.',
+        nodeId: node.id,
+      });
+    if (node.type !== 'style') return;
+    const source = styleText(node),
+      ast = parseCssAnimationStylesheet(source),
+      entry = { node, source, ast };
+    styles.push(entry);
+    if (ast.children.some((r) => r.kind === 'raw' && /^@import\b/i.test(r.raw)))
+      diagnostics.push({
+        severity: 'info',
+        nodeId: node.id,
+        message:
+          'Imported external CSS can be previewed; bring its source into a local style element to edit keyframes.',
+      });
+    diagnostics.push(...ast.diagnostics.map((d) => ({ ...d, nodeId: node.id })));
+    const occurrences = new Map();
+    for (const rule of ast.keyframes) {
+      const occurrence = occurrences.get(rule.name) || 0;
+      occurrences.set(rule.name, occurrence + 1);
+      const id = node.id + ':' + encodeURIComponent(rule.name) + ':' + occurrence;
+      definitions.push({
+        id,
+        name: rule.name,
+        styleId: node.id,
+        authored: Object.hasOwn(node.props, 'data-xamora-animations'),
+        frames: rule.frames.flatMap((frame) =>
+          frame.offsets
+            .filter(Number.isFinite)
+            .map((offset) => ({ offset, values: { ...frame.values }, selector: frame.selector })),
+        ),
+        rule,
+        entry,
+      });
+    }
+  });
+  return { definitions, styles, diagnostics };
+}
+function animationValue(value) {
+  return String(value)
+    .replace(/\s*!important\s*$/i, '')
+    .trim();
+}
+function parseTime(v) {
+  const m = String(v).match(/^(-?(?:\d+(?:\.\d*)?|\.\d+))(ms|s)$/i);
+  return m ? Number(m[1]) * (m[2].toLowerCase() === 's' ? 1000 : 1) : NaN;
+}
+function parseShorthand(source) {
+  return splitCssList(source).map((item) => {
+    const result = { name: 'none', ...CASCADE_DEFAULTS },
+      tokens = splitCssList(stripComments(item), ' ');
+    let times = 0,
+      named = false;
+    for (const t of tokens) {
+      if (/^(var|env)\(/i.test(t) || /^(inherit|initial|unset|revert|revert-layer)$/i.test(t))
+        throw Error(
+          'Resolve variable-dependent or cascade animation values in the design preview before editing timing.',
+        );
+      if (Number.isFinite(parseTime(t))) {
+        if (times > 1) throw Error('Animation shorthand has too many time values.');
+        result[times++ ? 'delay' : 'duration'] = parseTime(t);
+      } else if (EASINGS.includes(t) || /^(cubic-bezier|steps|linear)\(/.test(t)) result.easing = t;
+      else if (t === 'infinite' || /^(?:\d+(?:\.\d*)?|\.\d+)$/.test(t))
+        result.iterations = t === 'infinite' ? Infinity : Number(t);
+      else if (DIRECTIONS.includes(t)) result.direction = t;
+      else if (FILLS.includes(t)) result.fill = t;
+      else if (['running', 'paused'].includes(t)) result.playState = t;
+      else if (!named) {
+        result.name = decodeName(t);
+        named = true;
+      } else
+        throw Error(
+          'Ambiguous animation shorthand is preserved; edit its CSS source or resolve it in the design preview.',
+        );
+    }
+    return result;
+  });
+}
+function inlineBindings(node, initial = []) {
+  let names = initial.length ? initial.map((b) => b.name) : ['none'];
+  const fields = {},
+    extras = {},
+    priorities = {};
+  const assign = (key, values, important) => {
+    if (priorities[key] && !important) return;
+    priorities[key] = important;
+    if (key === 'name') names = values;
+    else if (EXTRA_PROPERTIES.includes(key)) extras[key] = values;
+    else fields[key] = values;
+  };
+  for (const key of Object.keys(TIMING))
+    fields[key] = initial.length ? initial.map((b) => b[key]) : [CASCADE_DEFAULTS[key]];
+  for (const property of EXTRA_PROPERTIES)
+    if (initial.some((b) => b[property])) extras[property] = initial.map((b) => b[property]);
+  for (const declaration of declarations(node.props.style || '')) {
+    const property = declaration.property.toLowerCase(),
+      value = animationValue(declaration.value),
+      important = /!important\s*$/i.test(declaration.value);
+    if (!/^animation(?:-|$)/.test(property)) continue;
+    if (
+      /(?:var|env)\(/i.test(value) ||
+      /^(inherit|initial|unset|revert|revert-layer)$/i.test(value)
+    ) {
+      if (initial.length) continue;
+      throw Error(
+        'Resolve variable-dependent or cascade animation values in the design preview before editing timing.',
+      );
+    }
+    if (property === 'animation') {
+      const parsed = parseShorthand(value);
+      assign(
+        'name',
+        parsed.map((b) => b.name),
+        important,
+      );
+      for (const key of Object.keys(TIMING))
+        assign(
+          key,
+          parsed.map((b) => b[key]),
+          important,
+        );
+    } else if (property === 'animation-name')
+      assign('name', splitCssList(value).map(decodeName), important);
+    else if (EXTRA_PROPERTIES.includes(property)) assign(property, splitCssList(value), important);
+    else {
+      const key = Object.keys(TIMING).find((k) => TIMING[k] === property);
+      if (key)
+        assign(
+          key,
+          splitCssList(value).map((v) => readTiming(key, v)),
+          important,
+        );
+    }
+  }
+  return names.map((name, index) => {
+    const result = { name };
+    for (const [key, values] of Object.entries(fields))
+      result[key] = values[index % values.length] ?? CASCADE_DEFAULTS[key];
+    for (const [key, values] of Object.entries(extras)) result[key] = values[index % values.length];
+    return result;
+  });
+}
+function readTiming(field, value) {
+  if (field === 'duration' || field === 'delay') return parseTime(value);
+  if (field === 'iterations') return value === 'infinite' ? Infinity : Number(value);
+  return value;
+}
+function computedBindings(el) {
+  const view = el?.ownerDocument?.defaultView;
+  if (!view?.getComputedStyle) return null;
+  const css = view.getComputedStyle(el),
+    names = splitCssList(css.getPropertyValue('animation-name') || 'none');
+  return names.map((name, index) => {
+    const timing = {};
+    for (const [field, prop] of Object.entries(TIMING)) {
+      const values = splitCssList(css.getPropertyValue(prop));
+      timing[field] = values.length
+        ? readTiming(field, values[index % values.length])
+        : CASCADE_DEFAULTS[field];
+    }
+    for (const prop of EXTRA_PROPERTIES) {
+      const values = splitCssList(css.getPropertyValue(prop));
+      if (values.length) timing[prop] = values[index % values.length];
+    }
+    return { name: decodeName(name), ...timing };
+  });
+}
+function nodeBindings(node, options = {}) {
+  const native = options.elements?.get(node.id);
+  if (!native) return inlineBindings(node);
+  const computed = computedBindings(native) || [];
+  if (typeof native.getAttribute !== 'function') return inlineBindings(node, computed);
+  const live = native.getAttribute('style') || '',
+    current = node.props.style || '';
+  if (live === current) return computed;
+  const previous = new Map(declarations(live).map((d) => [d.property, d.value]));
+  const changed = declarations(current)
+    .filter((d) => previous.get(d.property) !== d.value)
+    .map((d) => d.raw)
+    .join('');
+  return inlineBindings({ props: { style: changed } }, computed);
+}
+export function listHtmlAnimations(doc, options = {}) {
+  const result = inspect(doc),
+    bindings = [];
+  walk(doc.root, (node) => {
+    if (node.kind !== 'element') return;
+    try {
+      nodeBindings(node, options).forEach((b, index) => {
+        if (b.name !== 'none')
+          bindings.push({
+            nodeId: node.id,
+            name: b.name,
+            index,
+            timing: Object.fromEntries(Object.keys(TIMING).map((k) => [k, b[k]])),
+          });
+      });
+    } catch (error) {
+      result.diagnostics.push({ severity: 'warning', nodeId: node.id, message: error.message });
+    }
+  });
+  const names = new Set(result.definitions.map((d) => d.name));
+  for (const binding of bindings)
+    if (!names.has(binding.name))
+      result.diagnostics.push({
+        severity: 'info',
+        nodeId: binding.nodeId,
+        message: `Animation ${binding.name} is defined in an external stylesheet or has no local keyframes.`,
+      });
+  return {
+    definitions: result.definitions.map(({ entry, rule, ...definition }) => definition),
+    bindings,
+    diagnostics: result.diagnostics,
+  };
+}
+function definition(doc, id) {
+  const result = inspect(doc),
+    value = result.definitions.find((d) => d.id === id);
+  if (!value) throw Error('The CSS animation no longer exists. Refresh the animation panel.');
+  if (value.entry.ast.diagnostics.some((d) => d.severity === 'error'))
+    throw Error('Fix stylesheet syntax errors before editing keyframes.');
+  return value;
+}
+function patchStyle(def, start, end, text) {
+  const source = def.entry.source;
+  setStyleText(def.entry.node, source.slice(0, start) + text + source.slice(end));
+}
+function validOffset(offset) {
+  const value = Number(offset);
+  if (!Number.isFinite(value) || value < 0 || value > 1)
+    throw Error('Keyframe offset must be between 0 and 1.');
+  return value;
+}
+function validateCssValue(text, custom = false) {
+  if (/<\/style/i.test(text) || /!important\s*$/i.test(text)) return false;
+  let quote = '',
+    comment = false;
+  const stack = [];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i],
+      next = text[i + 1];
+    if (comment) {
+      if (c === '*' && next === '/') {
+        comment = false;
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === '\\') {
+        i = cssEscapeEnd(text, i);
+        continue;
+      }
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      comment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      continue;
+    }
+    if (c === '\\') {
+      i = cssEscapeEnd(text, i);
+      continue;
+    }
+    if (c === '(' || c === '[' || c === '{') {
+      if (c === '{' && !custom) return false;
+      stack.push(c);
+    }
+    if (c === ')' || c === ']' || c === '}') {
+      if (stack.pop() !== { ')': '(', ']': '[', '}': '{' }[c]) return false;
+    }
+    if (c === ';' && !stack.length) return false;
+  }
+  return !quote && !comment && !stack.length;
+}
+function validValues(values) {
+  if (!values || typeof values !== 'object' || Array.isArray(values))
+    throw Error('Provide CSS property values for the keyframe.');
+  for (const [property, value] of Object.entries(values)) {
+    if (
+      !/^(--[\w-]+|[a-z][\w-]*)$/i.test(property) ||
+      ['__proto__', 'constructor', 'prototype'].includes(property)
+    )
+      throw Error('Invalid CSS keyframe property: ' + property);
+    if (value != null) {
+      const text = String(value);
+      if (!validateCssValue(text, property.startsWith('--')))
+        throw Error('Use one balanced CSS value without !important for ' + property + '.');
+    }
+  }
+  return values;
+}
+
+function replaceDeclarations(body, values) {
+  validValues(values);
+  const parts = declarations(body);
+  let next = parts.map((d) => d.raw).join('');
+  for (const [key, value] of Object.entries(values)) {
+    const parsed = declarations(next),
+      matches = parsed.filter((d) => d.property === key);
+    for (const d of matches.reverse()) {
+      const comments = (d.raw.match(/\/\*[\s\S]*?\*\//g) || []).join(' ');
+      next = next.slice(0, d.start) + comments + next.slice(d.end);
+    }
+    if (value != null && String(value) !== '')
+      next =
+        next.trimEnd() +
+        (next.trim() && !next.trimEnd().endsWith(';') ? ';' : '') +
+        '\n    ' +
+        key +
+        ': ' +
+        String(value).trim() +
+        ';\n  ';
+  }
+  return next;
+}
+function frameCss(offset, values, indent = '  ') {
+  validValues(values);
+  return (
+    indent +
+    number(offset * 100) +
+    '% {\n' +
+    Object.entries(values)
+      .filter(([, v]) => v != null && String(v) !== '')
+      .map(([p, v]) => indent + '  ' + p + ': ' + v + ';')
+      .join('\n') +
+    '\n' +
+    indent +
+    '}'
+  );
+}
+export function setHtmlAnimationKeyframe(doc, id, offset, values) {
+  offset = validOffset(offset);
+  validValues(values);
+  let def = definition(doc, id);
+  const matches = def.rule.frames.filter((f) => f.offsets.includes(offset)),
+    frame = matches.at(-1);
+  if (matches.length === 1 && frame.offsets.length === 1) {
+    patchStyle(
+      def,
+      frame.bodyStart,
+      frame.bodyEnd,
+      replaceDeclarations(def.entry.source.slice(frame.bodyStart, frame.bodyEnd), values),
+    );
+  } else {
+    const merged = Object.assign({}, ...matches.map((f) => f.values), values),
+      comments = matches
+        .filter((f) => f.offsets.length === 1)
+        .flatMap(
+          (f) => def.entry.source.slice(f.bodyStart, f.bodyEnd).match(/\/\*[\s\S]*?\*\//g) || [],
+        )
+        .join('\n  ');
+    if (matches.length) {
+      removeHtmlAnimationKeyframe(doc, id, offset);
+      def = definition(doc, id);
+    }
+    patchStyle(
+      def,
+      def.rule.bodyEnd,
+      def.rule.bodyEnd,
+      '\n' + (comments ? '  ' + comments + '\n' : '') + frameCss(offset, merged) + '\n',
+    );
+  }
+  return id;
+}
+
+export function removeHtmlAnimationKeyframe(doc, id, offset) {
+  offset = validOffset(offset);
+  const def = definition(doc, id),
+    edits = [];
+  for (const frame of def.rule.frames.filter((f) => f.offsets.includes(offset))) {
+    const remaining = frame.offsets.filter((o) => o !== offset);
+    if (remaining.some((o) => !Number.isFinite(o)))
+      throw Error('Edit mixed named timeline selectors in CSS source.');
+    edits.push(
+      remaining.length
+        ? {
+            start: frame.start,
+            end: frame.bodyStart - 1,
+            text: remaining.map((o) => number(o * 100) + '%').join(', ') + ' ',
+          }
+        : { start: frame.start, end: frame.end, text: '' },
+    );
+  }
+  let source = def.entry.source;
+  for (const edit of edits.sort((a, b) => b.start - a.start))
+    source = source.slice(0, edit.start) + edit.text + source.slice(edit.end);
+  setStyleText(def.entry.node, source);
+  return id;
+}
+export function moveHtmlAnimationKeyframe(doc, id, from, to) {
+  from = validOffset(from);
+  to = validOffset(to);
+  if (from === to) return id;
+  const def = definition(doc, id),
+    frames = def.rule.frames.filter((f) => f.offsets.includes(from));
+  if (!frames.length) throw Error('Choose an existing keyframe.');
+  const values = Object.assign({}, ...frames.map((f) => f.values));
+  removeHtmlAnimationKeyframe(doc, id, from);
+  return setHtmlAnimationKeyframe(doc, id, to, values);
+}
+export function duplicateHtmlAnimationKeyframe(doc, id, from, to) {
+  from = validOffset(from);
+  to = validOffset(to);
+  const def = definition(doc, id),
+    frames = def.rule.frames.filter((f) => f.offsets.includes(from));
+  if (!frames.length) throw Error('Choose an existing keyframe.');
+  return setHtmlAnimationKeyframe(doc, id, to, Object.assign({}, ...frames.map((f) => f.values)));
+}
+function validName(name) {
+  if (
+    !/^[a-zA-Z_][\w-]*$/.test(name) ||
+    ['none', 'initial', 'inherit', 'unset', 'revert', 'revert-layer', 'default'].includes(
+      name.toLowerCase(),
+    )
+  )
+    throw Error('Use a CSS animation identifier such as fadeIn.');
+  return name;
+}
+function validateTiming(patch) {
+  for (const [key, value] of Object.entries(patch)) {
+    if (!Object.hasOwn(TIMING, key)) throw Error('Unknown animation timing field: ' + key);
+    if (
+      ['duration', 'delay'].includes(key) &&
+      (!Number.isFinite(Number(value)) || (key === 'duration' && Number(value) < 0))
+    )
+      throw Error('Duration must be nonnegative and delay must be a finite millisecond value.');
+    if (
+      key === 'iterations' &&
+      value !== Infinity &&
+      value !== 'infinite' &&
+      (!Number.isFinite(Number(value)) || Number(value) < 0)
+    )
+      throw Error('Iterations must be nonnegative or infinite.');
+    if (key === 'direction' && !DIRECTIONS.includes(value))
+      throw Error('Invalid animation direction.');
+    if (key === 'fill' && !FILLS.includes(value)) throw Error('Invalid animation fill mode.');
+    if (key === 'playState' && !['running', 'paused'].includes(value))
+      throw Error('Invalid animation play state.');
+    if (
+      key === 'easing' &&
+      !(EASINGS.includes(value) || /^(?:cubic-bezier|steps|linear)\([^{};]+\)$/.test(value))
+    )
+      throw Error('Use a CSS easing keyword, cubic-bezier(), steps(), or linear().');
+  }
+}
+function timingCss(key, value) {
+  if (key === 'duration' || key === 'delay') return number(value) + 'ms';
+  if (key === 'iterations')
+    return value === Infinity || value === 'infinite' ? 'infinite' : String(value);
+  return String(value);
+}
+function setInlineProperty(node, property, value, options = {}) {
+  let source = node.props.style || '',
+    parts = declarations(source);
+  let important = parts.some(
+    (d) =>
+      (d.property.toLowerCase() === property || d.property.toLowerCase() === 'animation') &&
+      /!important\s*$/i.test(d.value),
+  );
+  const native = options.elements?.get(node.id);
+  const inspectRules = (rules) => {
+    for (const rule of rules || []) {
+      if (rule.selectorText && native?.matches) {
+        try {
+          if (
+            native.matches(rule.selectorText) &&
+            (rule.style?.getPropertyPriority(property) === 'important' ||
+              rule.style?.getPropertyPriority('animation') === 'important')
+          )
+            important = true;
+        } catch {
+          /* Pseudo-element selectors cannot match the originating element. */
+        }
+      }
+      try {
+        if (rule.cssRules) inspectRules(rule.cssRules);
+      } catch {
+        /* External stylesheets remain protected by their origin. */
+      }
+    }
+  };
+  if (native)
+    for (const sheet of native.ownerDocument?.styleSheets || []) {
+      try {
+        inspectRules(sheet.cssRules);
+      } catch {
+        /* External stylesheet priority cannot be inspected. */
+      }
+    }
+  for (const d of parts.filter((d) => d.property.toLowerCase() === property).reverse()) {
+    const comments = (d.raw.match(/\/\*[\s\S]*?\*\//g) || []).join(' ');
+    source = source.slice(0, d.start) + comments + source.slice(d.end);
+  }
+  source = source.trim();
+  if (source && !source.endsWith(';')) source += ';';
+  node.props.style =
+    source + (source ? ' ' : '') + property + ': ' + value + (important ? ' !important' : '') + ';';
+}
+function target(doc, nodeId) {
+  requireHtml(doc);
+  const node = find(doc.root, nodeId);
+  if (
+    !node ||
+    node.kind !== 'element' ||
+    ['style', 'script', 'head', 'link', 'meta'].includes(node.type)
+  )
+    throw Error('Choose a visible HTML element to animate.');
+  return node;
+}
+function resolvedBindings(doc, node, options = {}) {
+  if (
+    !options.elements?.has(node.id) &&
+    !declarations(node.props.style || '').some((d) => /^animation(?:-name)?$/i.test(d.property)) &&
+    inspect(doc).styles.some((s) =>
+      s.ast.rules.some(
+        (r) =>
+          r.kind === 'rule' &&
+          r.declarations?.some((d) => /^animation(?:-name)?$/i.test(d.property)),
+      ),
+    )
+  )
+    throw Error(
+      'Wait for the design preview to load before overriding stylesheet-based animations.',
+    );
+  const bindings = nodeBindings(node, options).filter((b) => b.name !== 'none');
+  if (
+    bindings.some(
+      (b) =>
+        !Number.isFinite(b.duration) ||
+        !Number.isFinite(b.delay) ||
+        !(Number.isFinite(b.iterations) || b.iterations === Infinity),
+    )
+  )
+    throw Error(
+      'Timeline-relative or unresolved timing values are preserved. Edit their CSS source or use a resolved time-based animation.',
+    );
+  return bindings;
+}
+export function bindHtmlAnimation(doc, nodeId, name, timing = {}, options = {}) {
+  validName(name);
+  validateTiming(timing);
+  const node = target(doc, nodeId),
+    bindings = resolvedBindings(doc, node, options);
+  if (bindings.some((b) => b.name === name)) throw Error('This element already uses ' + name + '.');
+  const next = { name, ...DEFAULTS, ...timing };
+  bindings.push(next);
+  setInlineProperty(
+    node,
+    'animation-name',
+    bindings.map((b) => cssName(b.name)).join(', '),
+    options,
+  );
+  for (const key of Object.keys(TIMING))
+    setInlineProperty(
+      node,
+      TIMING[key],
+      bindings.map((b) => timingCss(key, b[key])).join(', '),
+      options,
+    );
+  for (const property of EXTRA_PROPERTIES)
+    if (bindings.some((b) => b[property]))
+      setInlineProperty(
+        node,
+        property,
+        bindings
+          .map(
+            (b) =>
+              b[property] ||
+              {
+                'animation-composition': 'replace',
+                'animation-timeline': 'auto',
+                'animation-range-start': 'normal',
+                'animation-range-end': 'normal',
+              }[property],
+          )
+          .join(', '),
+        options,
+      );
+  return { nodeId, name, index: bindings.length - 1, timing: { ...DEFAULTS, ...timing } };
+}
+export function setHtmlAnimationTiming(doc, nodeId, name, patch, options = {}) {
+  validateTiming(patch);
+  const node = target(doc, nodeId),
+    bindings = resolvedBindings(doc, node, options);
+  let found = false;
+  for (const binding of bindings)
+    if (binding.name === name) {
+      Object.assign(binding, patch);
+      found = true;
+    }
+  if (!found) throw Error('This element does not use ' + name + '.');
+  for (const key of Object.keys(patch))
+    setInlineProperty(
+      node,
+      TIMING[key],
+      bindings.map((b) => timingCss(key, b[key])).join(', '),
+      options,
+    );
+  return { nodeId, name };
+}
+export function unbindHtmlAnimation(doc, nodeId, name, options = {}) {
+  const node = target(doc, nodeId),
+    bindings = resolvedBindings(doc, node, options).filter((b) => b.name !== name);
+  setInlineProperty(
+    node,
+    'animation-name',
+    bindings.length ? bindings.map((b) => cssName(b.name)).join(', ') : 'none',
+    options,
+  );
+  for (const key of Object.keys(TIMING))
+    setInlineProperty(
+      node,
+      TIMING[key],
+      bindings.length
+        ? bindings.map((b) => timingCss(key, b[key])).join(', ')
+        : timingCss(key, CASCADE_DEFAULTS[key]),
+      options,
+    );
+  for (const property of EXTRA_PROPERTIES)
+    if (bindings.some((b) => b[property]))
+      setInlineProperty(
+        node,
+        property,
+        bindings
+          .map(
+            (b) =>
+              b[property] ||
+              {
+                'animation-composition': 'replace',
+                'animation-timeline': 'auto',
+                'animation-range-start': 'normal',
+                'animation-range-end': 'normal',
+              }[property],
+          )
+          .join(', '),
+        options,
+      );
+  return { nodeId, name };
+}
+export function createHtmlAnimation(doc, nodeId, config = {}, options = {}) {
+  requireHtml(doc);
+  const snapshot = inspect(doc),
+    used = new Set(snapshot.definitions.map((d) => d.name));
+  let auto = 'xamoraMotion1',
+    n = 1;
+  while (used.has(auto)) auto = 'xamoraMotion' + ++n;
+  const name = validName(config.name || auto);
+  if (used.has(name)) throw Error('An animation named ' + name + ' already exists.');
+  const frames = config.frames || [
+    { offset: 0, values: { opacity: '0' } },
+    { offset: 1, values: { opacity: '1' } },
+  ];
+  for (const f of frames) {
+    validOffset(f.offset);
+    validValues(f.values);
+  }
+  const timing = Object.fromEntries(
+    Object.keys(TIMING)
+      .filter((k) => config[k] !== undefined)
+      .map((k) => [k, config[k]]),
+  );
+  validateTiming(timing);
+  const node = target(doc, nodeId);
+  if (resolvedBindings(doc, node, options).some((b) => b.name === name))
+    throw Error('This element already uses ' + name + '.');
+  let style = snapshot.styles.find((s) =>
+    Object.hasOwn(s.node.props, 'data-xamora-animations'),
+  )?.node;
+  if (!style) {
+    style = element('style', { 'data-xamora-animations': '' }, [
+      textNode('/* Animations authored in Xamora Studio. */\n'),
+    ]);
+    htmlHead(doc).children.push(style);
+  }
+  const source = styleText(style);
+  setStyleText(
+    style,
+    source +
+      (source.endsWith('\n') ? '' : '\n') +
+      '@keyframes ' +
+      name +
+      ' {\n' +
+      frames
+        .slice()
+        .sort((a, b) => a.offset - b.offset)
+        .map((f) => frameCss(f.offset, f.values))
+        .join('\n') +
+      '\n}\n',
+  );
+  bindHtmlAnimation(doc, nodeId, name, timing, options);
+  const created = inspect(doc).definitions.find((d) => d.styleId === style.id && d.name === name);
+  return { id: created.id, definitionId: created.id, name };
+}
+/** Delete only a definition. Bindings remain explicit so selectors/external CSS are never rewritten. */
+export function removeHtmlAnimation(doc, id) {
+  const def = definition(doc, id);
+  patchStyle(def, def.rule.start, def.rule.end, '');
+  return def.name;
+}
+
+function renameReferences(source, oldName, newName) {
+  const edits = [];
+  for (const declaration of declarations(source)) {
+    const property = declaration.property.toLowerCase();
+    if (
+      !['animation', 'animation-name', '-webkit-animation', '-webkit-animation-name'].includes(
+        property,
+      )
+    )
+      continue;
+    const raw = declaration.raw,
+      colon = raw.replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length)).indexOf(':'),
+      value = raw.slice(colon + 1),
+      parts = splitCssList(value);
+    let search = 0;
+    for (const part of parts) {
+      const partStart = value.indexOf(part, search);
+      search = partStart + part.length;
+      if (partStart < 0) continue;
+      const clean = animationValue(stripComments(part).replace(/;\s*$/, ''));
+      let name;
+      try {
+        name = property.endsWith('-name') ? decodeName(clean) : parseShorthand(clean)[0]?.name;
+      } catch {
+        continue;
+      }
+      if (name !== oldName) continue;
+      const tokens = splitCssList(part, ' ');
+      let tokenSearch = 0;
+      for (const token of tokens) {
+        const tokenAt = part.indexOf(token, tokenSearch);
+        tokenSearch = tokenAt + token.length;
+        const plain = animationValue(stripComments(token)).replace(/;$/, '');
+        if (decodeName(plain) !== oldName) continue;
+        const relative = token
+          .replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length))
+          .indexOf(plain);
+        if (relative < 0) continue;
+        const at = declaration.start + colon + 1 + partStart + tokenAt + relative;
+        let replacement = cssName(newName);
+        if (
+          !property.endsWith('-name') &&
+          (EASINGS.includes(newName) ||
+            DIRECTIONS.includes(newName) ||
+            FILLS.includes(newName) ||
+            ['infinite', 'running', 'paused'].includes(newName))
+        )
+          replacement = '"' + newName + '"';
+        edits.push({ start: at, end: at + plain.length, text: replacement });
+        break;
+      }
+    }
+  }
+  let next = source;
+  for (const edit of edits.sort((a, b) => b.start - a.start))
+    next = next.slice(0, edit.start) + edit.text + next.slice(edit.end);
+  return next;
 }
 /** Rename literal CSS references; variable-generated names and JavaScript are deliberately retained. */
-export function renameHtmlAnimation(doc,id,name){
- validName(name);const snapshot=inspect(doc),def=definition(doc,id);if(def.name===name)return id;if(snapshot.definitions.some(d=>d.name===name))throw Error('Animation name already exists.');
- const changes=[];
- for(const entry of snapshot.styles){const edits=[];for(const rule of entry.ast.rules){if(rule.kind==='keyframes'&&rule.name===def.name){const header=entry.source.slice(rule.start,rule.bodyStart-1),at=header.lastIndexOf(rule.rawName);edits.push({start:rule.start+at,end:rule.start+at+rule.rawName.length,text:name});}if(rule.kind==='rule'&&rule.declarations){const body=entry.source.slice(rule.bodyStart,rule.bodyEnd),next=renameReferences(body,def.name,name);if(next!==body)edits.push({start:rule.bodyStart,end:rule.bodyEnd,text:next});}}
-  let source=entry.source;for(const edit of edits.sort((a,b)=>b.start-a.start))source=source.slice(0,edit.start)+edit.text+source.slice(edit.end);changes.push({node:entry.node,source});
- }
- for(const {node,source}of changes)setStyleText(node,source);
- walk(doc.root,node=>{if(node.kind==='element'&&node.props.style)node.props.style=renameReferences(node.props.style,def.name,name);});
- return inspect(doc).definitions.find(d=>d.styleId===def.styleId&&d.name===name).id;
+export function renameHtmlAnimation(doc, id, name) {
+  validName(name);
+  const snapshot = inspect(doc),
+    def = definition(doc, id);
+  if (def.name === name) return id;
+  if (snapshot.definitions.some((d) => d.name === name))
+    throw Error('Animation name already exists.');
+  const changes = [];
+  for (const entry of snapshot.styles) {
+    const edits = [];
+    for (const rule of entry.ast.rules) {
+      if (rule.kind === 'keyframes' && rule.name === def.name) {
+        const header = entry.source.slice(rule.start, rule.bodyStart - 1),
+          at = header.lastIndexOf(rule.rawName);
+        edits.push({
+          start: rule.start + at,
+          end: rule.start + at + rule.rawName.length,
+          text: name,
+        });
+      }
+      if (rule.kind === 'rule' && rule.declarations) {
+        const body = entry.source.slice(rule.bodyStart, rule.bodyEnd),
+          next = renameReferences(body, def.name, name);
+        if (next !== body) edits.push({ start: rule.bodyStart, end: rule.bodyEnd, text: next });
+      }
+    }
+    let source = entry.source;
+    for (const edit of edits.sort((a, b) => b.start - a.start))
+      source = source.slice(0, edit.start) + edit.text + source.slice(edit.end);
+    changes.push({ node: entry.node, source });
+  }
+  for (const { node, source } of changes) setStyleText(node, source);
+  walk(doc.root, (node) => {
+    if (node.kind === 'element' && node.props.style)
+      node.props.style = renameReferences(node.props.style, def.name, name);
+  });
+  return inspect(doc).definitions.find((d) => d.styleId === def.styleId && d.name === name).id;
 }
-export function exportHtmlAnimationCss(doc){return inspect(doc).styles.map(s=>s.source).join('\n\n');}
+export function exportHtmlAnimationCss(doc) {
+  return inspect(doc)
+    .styles.map((s) => s.source)
+    .join('\n\n');
+}
 
 export const HTML_ANIMATION_PRESETS = [
- {id:'fade',label:'Fade in',duration:700,easing:'ease-out',frames:[{offset:0,values:{opacity:'0'}},{offset:1,values:{opacity:'1'}}]},
- {id:'slide',label:'Slide up',duration:800,easing:'cubic-bezier(0.16, 1, 0.3, 1)',frames:[{offset:0,values:{opacity:'0',translate:'0 32px'}},{offset:1,values:{opacity:'1',translate:'0 0'}}]},
- {id:'scale',label:'Scale in',duration:650,easing:'ease-out',frames:[{offset:0,values:{opacity:'0',scale:'0.8'}},{offset:1,values:{opacity:'1',scale:'1'}}]},
- {id:'pulse',label:'Pulse',duration:1200,easing:'ease-in-out',iterations:Infinity,frames:[{offset:0,values:{scale:'1'}},{offset:.5,values:{scale:'1.08'}},{offset:1,values:{scale:'1'}}]},
- {id:'spin',label:'Spin',duration:1800,easing:'linear',iterations:Infinity,frames:[{offset:0,values:{rotate:'0deg'}},{offset:1,values:{rotate:'360deg'}}]},
- {id:'color',label:'Color shift',duration:1600,easing:'ease-in-out',direction:'alternate',iterations:Infinity,frames:[{offset:0,values:{'background-color':'#7953e8'}},{offset:1,values:{'background-color':'#10b9a0'}}]}
+  {
+    id: 'fade',
+    label: 'Fade in',
+    duration: 700,
+    easing: 'ease-out',
+    frames: [
+      { offset: 0, values: { opacity: '0' } },
+      { offset: 1, values: { opacity: '1' } },
+    ],
+  },
+  {
+    id: 'slide',
+    label: 'Slide up',
+    duration: 800,
+    easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    frames: [
+      { offset: 0, values: { opacity: '0', translate: '0 32px' } },
+      { offset: 1, values: { opacity: '1', translate: '0 0' } },
+    ],
+  },
+  {
+    id: 'scale',
+    label: 'Scale in',
+    duration: 650,
+    easing: 'ease-out',
+    frames: [
+      { offset: 0, values: { opacity: '0', scale: '0.8' } },
+      { offset: 1, values: { opacity: '1', scale: '1' } },
+    ],
+  },
+  {
+    id: 'pulse',
+    label: 'Pulse',
+    duration: 1200,
+    easing: 'ease-in-out',
+    iterations: Infinity,
+    frames: [
+      { offset: 0, values: { scale: '1' } },
+      { offset: 0.5, values: { scale: '1.08' } },
+      { offset: 1, values: { scale: '1' } },
+    ],
+  },
+  {
+    id: 'spin',
+    label: 'Spin',
+    duration: 1800,
+    easing: 'linear',
+    iterations: Infinity,
+    frames: [
+      { offset: 0, values: { rotate: '0deg' } },
+      { offset: 1, values: { rotate: '360deg' } },
+    ],
+  },
+  {
+    id: 'color',
+    label: 'Color shift',
+    duration: 1600,
+    easing: 'ease-in-out',
+    direction: 'alternate',
+    iterations: Infinity,
+    frames: [
+      { offset: 0, values: { 'background-color': '#7953e8' } },
+      { offset: 1, values: { 'background-color': '#10b9a0' } },
+    ],
+  },
 ];
 
 /** Seek the browser's actual CSS Animation effects. No inline styles or transforms are mutated. */
 export class HtmlAnimationPreview {
- constructor({document,elements}={}){this.document=document;this.elements=elements;this.currentTime=0;this.playing=false;this.diagnostics=[];this.saved=new Map();this.animations=[];this.refresh();}
- refresh(){const animations=this.document?.getAnimations?.()||[...this.elements?.values?.()||[]].flatMap(el=>el.getAnimations?.()||[]);this.animations=[...new Set(animations)].filter(a=>typeof a.animationName==='string');for(const a of this.animations)if(!this.saved.has(a))this.saved.set(a,{currentTime:a.currentTime,playState:a.playState,playbackRate:a.playbackRate});return this;}
- get duration(){return Math.max(0,...this.animations.map(a=>{const t=a.effect?.getComputedTiming?.()||{},raw=a.effect?.getTiming?.()||{},end=t.endTime;return Number.isFinite(end)?end:Math.max(0,Number(raw.delay)||0)+(Number(raw.duration)||1000)*2;}));}
- seek(milliseconds){if(!Number.isFinite(Number(milliseconds)))throw Error('Animation preview time must be finite.');this.currentTime=Math.max(0,Number(milliseconds));for(const a of this.animations){try{a.pause();a.currentTime=this.currentTime;}catch{const message='Animation '+(a.animationName||'')+' uses a timeline that cannot be sampled in milliseconds; its source is preserved.';if(!this.diagnostics.includes(message))this.diagnostics.push(message);}}this.playing=false;return this.currentTime;}
- play({from=this.currentTime,rate=1}={}){if(!Number.isFinite(rate)||rate===0)throw Error('Playback rate must be a finite nonzero number.');this.seek(from);for(const a of this.animations){a.playbackRate=rate;a.play();}this.playing=true;return this;}
- pause(){if(this.playing)this.currentTime=Number(this.animations[0]?.currentTime)||this.currentTime;for(const a of this.animations)a.pause();this.playing=false;return this;}
- stop(){this.seek(0);return this;}
- dispose(){for(const [a,saved]of this.saved){try{a.pause();a.playbackRate=saved.playbackRate;a.currentTime=saved.currentTime;if(saved.playState==='running')a.play();else if(saved.playState==='idle')a.cancel();else if(saved.playState==='finished')a.finish();}catch{/* An iframe disposed during a document change no longer has an active timeline. */}}this.saved.clear();this.animations=[];this.playing=false;this.document=null;this.elements=null;}
+  constructor({ document, elements } = {}) {
+    this.document = document;
+    this.elements = elements;
+    this.currentTime = 0;
+    this.playing = false;
+    this.diagnostics = [];
+    this.saved = new Map();
+    this.animations = [];
+    this.refresh();
+  }
+  refresh() {
+    const animations =
+      this.document?.getAnimations?.() ||
+      [...(this.elements?.values?.() || [])].flatMap((el) => el.getAnimations?.() || []);
+    this.animations = [...new Set(animations)].filter((a) => typeof a.animationName === 'string');
+    for (const a of this.animations)
+      if (!this.saved.has(a))
+        this.saved.set(a, {
+          currentTime: a.currentTime,
+          playState: a.playState,
+          playbackRate: a.playbackRate,
+        });
+    return this;
+  }
+  get duration() {
+    return Math.max(
+      0,
+      ...this.animations.map((a) => {
+        const t = a.effect?.getComputedTiming?.() || {},
+          raw = a.effect?.getTiming?.() || {},
+          end = t.endTime;
+        return Number.isFinite(end)
+          ? end
+          : Math.max(0, Number(raw.delay) || 0) + (Number(raw.duration) || 1000) * 2;
+      }),
+    );
+  }
+  seek(milliseconds) {
+    if (!Number.isFinite(Number(milliseconds)))
+      throw Error('Animation preview time must be finite.');
+    this.currentTime = Math.max(0, Number(milliseconds));
+    for (const a of this.animations) {
+      try {
+        a.pause();
+        a.currentTime = this.currentTime;
+      } catch {
+        const message =
+          'Animation ' +
+          (a.animationName || '') +
+          ' uses a timeline that cannot be sampled in milliseconds; its source is preserved.';
+        if (!this.diagnostics.includes(message)) this.diagnostics.push(message);
+      }
+    }
+    this.playing = false;
+    return this.currentTime;
+  }
+  play({ from = this.currentTime, rate = 1 } = {}) {
+    if (!Number.isFinite(rate) || rate === 0)
+      throw Error('Playback rate must be a finite nonzero number.');
+    this.seek(from);
+    for (const a of this.animations) {
+      a.playbackRate = rate;
+      a.play();
+    }
+    this.playing = true;
+    return this;
+  }
+  pause() {
+    if (this.playing)
+      this.currentTime = Number(this.animations[0]?.currentTime) || this.currentTime;
+    for (const a of this.animations) a.pause();
+    this.playing = false;
+    return this;
+  }
+  stop() {
+    this.seek(0);
+    return this;
+  }
+  dispose() {
+    for (const [a, saved] of this.saved) {
+      try {
+        a.pause();
+        a.playbackRate = saved.playbackRate;
+        a.currentTime = saved.currentTime;
+        if (saved.playState === 'running') a.play();
+        else if (saved.playState === 'idle') a.cancel();
+        else if (saved.playState === 'finished') a.finish();
+      } catch {
+        /* An iframe disposed during a document change no longer has an active timeline. */
+      }
+    }
+    this.saved.clear();
+    this.animations = [];
+    this.playing = false;
+    this.document = null;
+    this.elements = null;
+  }
 }

@@ -1,33 +1,237 @@
 /** WPF visual state groups and generated/explicit transition sampling. */
-import {element,find,walk,localName} from './model.js';
-import {sampleStoryboard,simpleDuration,activeDuration,parseTime,interpolate,valueType,ease,formatTime} from './animation.js';
-import {readPropertyPath,ensureName} from './property-path.js';
+import { element, find, walk, localName } from './model.js';
+import {
+  sampleStoryboard,
+  simpleDuration,
+  activeDuration,
+  parseTime,
+  interpolate,
+  valueType,
+  ease,
+  formatTime,
+} from './animation.js';
+import { readPropertyPath, ensureName } from './property-path.js';
 
-function elements(node){return (node?.children||[]).filter(n=>n.kind==='element');}
-function childrenOf(node,type){return elements(node).flatMap(n=>localName(n.type).endsWith(type==='VisualState'?'.States':type==='VisualTransition'?'.Transitions':`.${type}s`)?elements(n):[n]).filter(n=>localName(n.type)===type);}
-function nameOf(node){return node?.props?.['x:Name']||node?.props?.Name||'';}
-function findStoryboard(state){return elements(state).flatMap(n=>localName(n.type).endsWith('.Storyboard')?elements(n):[n]).find(n=>localName(n.type)==='Storyboard')||null;}
-export function stateGroups(doc){const result=[];walk(doc.root,(owner)=>{if(owner.kind!=='element')return;for(const prop of elements(owner)){if(!localName(prop.type).endsWith('.VisualStateGroups'))continue;for(const node of elements(prop).filter(n=>localName(n.type)==='VisualStateGroup'))result.push({id:node.id,node,ownerId:owner.id,name:nameOf(node)||'Visual states',states:childrenOf(node,'VisualState'),transitions:childrenOf(node,'VisualTransition')});}});return result;}
-export function createStateGroup(doc,owner=doc.root,name='CommonStates'){if(typeof owner==='string')owner=find(doc.root,owner);if(!owner)throw Error('Choose a visual state owner.');doc.root.props['xmlns:x']??='http://schemas.microsoft.com/winfx/2006/xaml';let prop=elements(owner).find(n=>localName(n.type).endsWith('.VisualStateGroups'));if(!prop){prop=element('VisualStateManager.VisualStateGroups');owner.children.push(prop);}const used=new Set(elements(prop).map(nameOf)),stem=String(name).trim()||'VisualStates';let actual=stem,i=2;while(used.has(actual))actual=stem+i++;const node=element('VisualStateGroup',{'x:Name':actual});prop.children.push(node);return node;}
-export function createState(group,name='State'){group=group.node||group;const used=new Set(childrenOf(group,'VisualState').map(nameOf)),stem=String(name).trim()||'State';let actual=stem,i=2;while(used.has(actual))actual=stem+i++;const state=element('VisualState',{'x:Name':actual});const wrapper=elements(group).find(n=>localName(n.type).endsWith('.States'));(wrapper||group).children.push(state);return state;}
-export function stateStoryboard(state){state=state.node||state;let story=findStoryboard(state);if(!story){story=element('Storyboard');state.children.push(story);}return story;}
-export function chooseTransition(group,from,to){const transitions=group.transitions||childrenOf(group.node||group,'VisualTransition');let choice=null,score=-1;for(const transition of transitions){const p=transition.props||{},a=p.From||'',b=p.To||'';if(a&&a!==from||b&&b!==to)continue;const candidate=(a?1:0)+(b?2:0);if(candidate>score){choice=transition;score=candidate;}}return choice;}
-function copyMap(map){return new Map([...map].map(([id,props])=>[id,{...props}]));}
-function merge(target,source){for(const [id,props] of source)target.set(id,{...(target.get(id)||{}),...props});return target;}
-function propertyAt(map,id,path){return map.get(id)?.[path];}
-function baseAt(doc,id,path){const node=find(doc.root,id);return node?readPropertyPath(doc,node,path):'0';}
-function generatedEasing(transition){return elements(transition).flatMap(n=>localName(n.type).endsWith('.GeneratedEasingFunction')?elements(n):[n]).find(n=>/Ease$/.test(localName(n.type)));}
-export class VisualStateRuntime {
-  constructor(doc,{baseDocument=doc,nameScopeId=null,targetId=null}={}){this.doc=doc;this.baseDocument=baseDocument;this.nameScopeId=nameScopeId;this.targetId=targetId;this.active=new Map();this.warnings=[];}
-  groups(){return stateGroups(this.doc);}
-  go(groupId,stateName,time=0,useTransitions=true){const group=this.groups().find(g=>g.id===groupId||g.name===groupId);if(!group)throw Error(`Visual state group ${groupId} was not found.`);const state=group.states.find(s=>s.id===stateName||nameOf(s)===stateName);if(!state)throw Error(`Visual state ${stateName} was not found in ${group.name}.`);const previous=this.active.get(group.id);if(previous?.state.id===state.id)return previous;const before=previous?copyMap(this.sampleEntry(previous,time)):new Map(),transition=useTransitions?chooseTransition(group,nameOf(previous?.state),nameOf(state)):null,generated=transition?Math.max(0,parseTime(transition.props.GeneratedDuration,0)):0,explicit=findStoryboard(transition),duration=transition?Math.max(generated,explicit?activeDuration(explicit):0):0;const entry={group,state,start:Number(time)||0,before,transition,duration,generated,explicit};this.active.set(group.id,entry);return entry;}
-  sampleStory(story,time,group){if(!story)return new Map();const sampled=sampleStoryboard(this.doc,story,time,{baseDocument:this.baseDocument,targetId:this.targetId||group.ownerId,nameScopeId:this.nameScopeId});this.warnings.push(...sampled.warnings);return sampled.overrides;}
-  sampleEntry(entry,time=0){if(typeof entry==='string')entry=this.active.get(entry);if(!entry)return new Map();const elapsed=Math.max(0,(Number(time)||0)-entry.start),story=findStoryboard(entry.state);if(elapsed>=entry.duration)return this.sampleStory(story,elapsed-entry.duration,entry.group);
-    const target=this.sampleStory(story,0,entry.group),result=new Map(),paths=new Map();for(const map of [entry.before,target])for(const [id,props] of map){let set=paths.get(id);if(!set)paths.set(id,set=new Set());for(const key of Object.keys(props))set.add(key);}
-    const raw=entry.generated===0?1:Math.min(1,elapsed/entry.generated),easing=generatedEasing(entry.transition),progress=easing?ease(raw,easing):raw;
-    for(const [id,keys] of paths){const values={};for(const path of keys){const base=baseAt(this.baseDocument,id,path),a=propertyAt(entry.before,id,path)??base,b=propertyAt(target,id,path)??base;try{values[path]=interpolate(a,b,progress,valueType(path,b));}catch(error){this.warnings.push(error.message);values[path]=raw<1?a:b;}}result.set(id,values);}
-    if(entry.explicit)merge(result,this.sampleStory(entry.explicit,elapsed,entry.group));return result;
+function elements(node) {
+  return (node?.children || []).filter((n) => n.kind === 'element');
+}
+function childrenOf(node, type) {
+  return elements(node)
+    .flatMap((n) =>
+      localName(n.type).endsWith(
+        type === 'VisualState'
+          ? '.States'
+          : type === 'VisualTransition'
+            ? '.Transitions'
+            : `.${type}s`,
+      )
+        ? elements(n)
+        : [n],
+    )
+    .filter((n) => localName(n.type) === type);
+}
+function nameOf(node) {
+  return node?.props?.['x:Name'] || node?.props?.Name || '';
+}
+function findStoryboard(state) {
+  return (
+    elements(state)
+      .flatMap((n) => (localName(n.type).endsWith('.Storyboard') ? elements(n) : [n]))
+      .find((n) => localName(n.type) === 'Storyboard') || null
+  );
+}
+export function stateGroups(doc) {
+  const result = [];
+  walk(doc.root, (owner) => {
+    if (owner.kind !== 'element') return;
+    for (const prop of elements(owner)) {
+      if (!localName(prop.type).endsWith('.VisualStateGroups')) continue;
+      for (const node of elements(prop).filter((n) => localName(n.type) === 'VisualStateGroup'))
+        result.push({
+          id: node.id,
+          node,
+          ownerId: owner.id,
+          name: nameOf(node) || 'Visual states',
+          states: childrenOf(node, 'VisualState'),
+          transitions: childrenOf(node, 'VisualTransition'),
+        });
+    }
+  });
+  return result;
+}
+export function createStateGroup(doc, owner = doc.root, name = 'CommonStates') {
+  if (typeof owner === 'string') owner = find(doc.root, owner);
+  if (!owner) throw Error('Choose a visual state owner.');
+  doc.root.props['xmlns:x'] ??= 'http://schemas.microsoft.com/winfx/2006/xaml';
+  let prop = elements(owner).find((n) => localName(n.type).endsWith('.VisualStateGroups'));
+  if (!prop) {
+    prop = element('VisualStateManager.VisualStateGroups');
+    owner.children.push(prop);
   }
-  sample(time=0){this.warnings=[];const result=new Map();for(const entry of this.active.values())merge(result,this.sampleEntry(entry,time));return result;}
-  reset(groupId=null){if(groupId===null)this.active.clear();else{const group=this.groups().find(g=>g.id===groupId||g.name===groupId);this.active.delete(group?.id||groupId);}this.warnings=[];}
+  const used = new Set(elements(prop).map(nameOf)),
+    stem = String(name).trim() || 'VisualStates';
+  let actual = stem,
+    i = 2;
+  while (used.has(actual)) actual = stem + i++;
+  const node = element('VisualStateGroup', { 'x:Name': actual });
+  prop.children.push(node);
+  return node;
+}
+export function createState(group, name = 'State') {
+  group = group.node || group;
+  const used = new Set(childrenOf(group, 'VisualState').map(nameOf)),
+    stem = String(name).trim() || 'State';
+  let actual = stem,
+    i = 2;
+  while (used.has(actual)) actual = stem + i++;
+  const state = element('VisualState', { 'x:Name': actual });
+  const wrapper = elements(group).find((n) => localName(n.type).endsWith('.States'));
+  (wrapper || group).children.push(state);
+  return state;
+}
+export function stateStoryboard(state) {
+  state = state.node || state;
+  let story = findStoryboard(state);
+  if (!story) {
+    story = element('Storyboard');
+    state.children.push(story);
+  }
+  return story;
+}
+export function chooseTransition(group, from, to) {
+  const transitions = group.transitions || childrenOf(group.node || group, 'VisualTransition');
+  let choice = null,
+    score = -1;
+  for (const transition of transitions) {
+    const p = transition.props || {},
+      a = p.From || '',
+      b = p.To || '';
+    if ((a && a !== from) || (b && b !== to)) continue;
+    const candidate = (a ? 1 : 0) + (b ? 2 : 0);
+    if (candidate > score) {
+      choice = transition;
+      score = candidate;
+    }
+  }
+  return choice;
+}
+function copyMap(map) {
+  return new Map([...map].map(([id, props]) => [id, { ...props }]));
+}
+function merge(target, source) {
+  for (const [id, props] of source) target.set(id, { ...(target.get(id) || {}), ...props });
+  return target;
+}
+function propertyAt(map, id, path) {
+  return map.get(id)?.[path];
+}
+function baseAt(doc, id, path) {
+  const node = find(doc.root, id);
+  return node ? readPropertyPath(doc, node, path) : '0';
+}
+function generatedEasing(transition) {
+  return elements(transition)
+    .flatMap((n) => (localName(n.type).endsWith('.GeneratedEasingFunction') ? elements(n) : [n]))
+    .find((n) => /Ease$/.test(localName(n.type)));
+}
+export class VisualStateRuntime {
+  constructor(doc, { baseDocument = doc, nameScopeId = null, targetId = null } = {}) {
+    this.doc = doc;
+    this.baseDocument = baseDocument;
+    this.nameScopeId = nameScopeId;
+    this.targetId = targetId;
+    this.active = new Map();
+    this.warnings = [];
+  }
+  groups() {
+    return stateGroups(this.doc);
+  }
+  go(groupId, stateName, time = 0, useTransitions = true) {
+    const group = this.groups().find((g) => g.id === groupId || g.name === groupId);
+    if (!group) throw Error(`Visual state group ${groupId} was not found.`);
+    const state = group.states.find((s) => s.id === stateName || nameOf(s) === stateName);
+    if (!state) throw Error(`Visual state ${stateName} was not found in ${group.name}.`);
+    const previous = this.active.get(group.id);
+    if (previous?.state.id === state.id) return previous;
+    const before = previous ? copyMap(this.sampleEntry(previous, time)) : new Map(),
+      transition = useTransitions
+        ? chooseTransition(group, nameOf(previous?.state), nameOf(state))
+        : null,
+      generated = transition ? Math.max(0, parseTime(transition.props.GeneratedDuration, 0)) : 0,
+      explicit = findStoryboard(transition),
+      duration = transition ? Math.max(generated, explicit ? activeDuration(explicit) : 0) : 0;
+    const entry = {
+      group,
+      state,
+      start: Number(time) || 0,
+      before,
+      transition,
+      duration,
+      generated,
+      explicit,
+    };
+    this.active.set(group.id, entry);
+    return entry;
+  }
+  sampleStory(story, time, group) {
+    if (!story) return new Map();
+    const sampled = sampleStoryboard(this.doc, story, time, {
+      baseDocument: this.baseDocument,
+      targetId: this.targetId || group.ownerId,
+      nameScopeId: this.nameScopeId,
+    });
+    this.warnings.push(...sampled.warnings);
+    return sampled.overrides;
+  }
+  sampleEntry(entry, time = 0) {
+    if (typeof entry === 'string') entry = this.active.get(entry);
+    if (!entry) return new Map();
+    const elapsed = Math.max(0, (Number(time) || 0) - entry.start),
+      story = findStoryboard(entry.state);
+    if (elapsed >= entry.duration)
+      return this.sampleStory(story, elapsed - entry.duration, entry.group);
+    const target = this.sampleStory(story, 0, entry.group),
+      result = new Map(),
+      paths = new Map();
+    for (const map of [entry.before, target])
+      for (const [id, props] of map) {
+        let set = paths.get(id);
+        if (!set) paths.set(id, (set = new Set()));
+        for (const key of Object.keys(props)) set.add(key);
+      }
+    const raw = entry.generated === 0 ? 1 : Math.min(1, elapsed / entry.generated),
+      easing = generatedEasing(entry.transition),
+      progress = easing ? ease(raw, easing) : raw;
+    for (const [id, keys] of paths) {
+      const values = {};
+      for (const path of keys) {
+        const base = baseAt(this.baseDocument, id, path),
+          a = propertyAt(entry.before, id, path) ?? base,
+          b = propertyAt(target, id, path) ?? base;
+        try {
+          values[path] = interpolate(a, b, progress, valueType(path, b));
+        } catch (error) {
+          this.warnings.push(error.message);
+          values[path] = raw < 1 ? a : b;
+        }
+      }
+      result.set(id, values);
+    }
+    if (entry.explicit) merge(result, this.sampleStory(entry.explicit, elapsed, entry.group));
+    return result;
+  }
+  sample(time = 0) {
+    this.warnings = [];
+    const result = new Map();
+    for (const entry of this.active.values()) merge(result, this.sampleEntry(entry, time));
+    return result;
+  }
+  reset(groupId = null) {
+    if (groupId === null) this.active.clear();
+    else {
+      const group = this.groups().find((g) => g.id === groupId || g.name === groupId);
+      this.active.delete(group?.id || groupId);
+    }
+    this.warnings = [];
+  }
 }

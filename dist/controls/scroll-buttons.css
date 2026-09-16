@@ -1,11 +1,61 @@
-.scroll-button-strip{display:flex;min-width:0;min-height:0;max-width:100%;overflow:hidden;align-items:stretch;background:var(--panel,#fff);flex-shrink:0}
-.scroll-button-strip>.scroll-button-viewport{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
-.scroll-button-viewport::-webkit-scrollbar{display:none}
-.strip-scroll-button{width:18px;min-width:18px;flex:0 0 18px;padding:0;border:0;border-radius:0;background:var(--panel,#fff);color:var(--text,#292834);font-size:17px;cursor:pointer}
-.strip-scroll-button:hover:not(:disabled){background:var(--accent-soft,#eae4fa)}
-.strip-scroll-button:disabled{opacity:.3;cursor:default}
-.dock-group>.scroll-button-strip{height:var(--ui-dock-tabs,28px);min-height:var(--ui-dock-tabs,28px)}
-.dock-group>.scroll-button-strip .dock-tabs{height:100%;min-height:0}
-.dock-tab-wrap,.dock-auto-tab{touch-action:none;cursor:grab}
-.dock-tab-insertion{position:fixed;width:3px;background:#1496ff;box-shadow:0 0 0 1px white}
-.dock-gesturing iframe{pointer-events:none!important}
+.scroll-button-strip {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  overflow: hidden;
+  align-items: stretch;
+  background: var(--panel, #fff);
+  flex-shrink: 0;
+}
+.scroll-button-strip > .scroll-button-viewport {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.scroll-button-viewport::-webkit-scrollbar {
+  display: none;
+}
+.strip-scroll-button {
+  width: 18px;
+  min-width: 18px;
+  flex: 0 0 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--panel, #fff);
+  color: var(--text, #292834);
+  font-size: 17px;
+  cursor: pointer;
+}
+.strip-scroll-button:hover:not(:disabled) {
+  background: var(--accent-soft, #eae4fa);
+}
+.strip-scroll-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.dock-group > .scroll-button-strip {
+  height: var(--ui-dock-tabs, 28px);
+  min-height: var(--ui-dock-tabs, 28px);
+}
+.dock-group > .scroll-button-strip .dock-tabs {
+  height: 100%;
+  min-height: 0;
+}
+.dock-tab-wrap,
+.dock-auto-tab {
+  touch-action: none;
+  cursor: grab;
+}
+.dock-tab-insertion {
+  position: fixed;
+  width: 3px;
+  background: #1496ff;
+  box-shadow: 0 0 0 1px white;
+}
+.dock-gesturing iframe {
+  pointer-events: none !important;
+}

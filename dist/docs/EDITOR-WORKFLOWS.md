@@ -6,17 +6,17 @@ This release adds direct canvas authoring, a solution explorer, IDE menus, riche
 
 **Compact** is the default, including existing workspaces with no saved density preference. Choose another mode with the **Density** selector at the right of the menu bar, **View → Interface density**, or the command palette (search Compact, Standard or Comfortable). The preference is local to this browser and synchronizes across its open app tabs. Clearing this preference restores Compact. It is independent of saved docking layouts and exported solution documents.
 
-| Metric | Compact | Standard | Comfortable |
-| --- | --- | --- | --- |
+| Metric                               | Compact              | Standard             | Comfortable          |
+| ------------------------------------ | -------------------- | -------------------- | -------------------- |
 | Title / menu / toolbar / status bars | 36 / 24 / 34 / 22 px | 44 / 28 / 40 / 25 px | 54 / 32 / 48 / 28 px |
-| Combined shell bars | 116 px | 137 px | 162 px |
-| Dock title / tab rows | 22 / 24 px | 25 / 28 px | 29 / 33 px |
-| Standard control height | 24 px | 29 px | 35 px |
-| Solution/layer row height | 24 px | 29 px | 36 px |
-| Panel section padding | 8 px | 12 px | 16 px |
-| UI text / secondary text | 12 / 11 px | 13 / 12 px | 14 / 12 px |
-| XAML line height | 18 px | 21 px | 24 px |
-| Timeline track minimum | 30 px | 38 px | 46 px |
+| Combined shell bars                  | 116 px               | 137 px               | 162 px               |
+| Dock title / tab rows                | 22 / 24 px           | 25 / 28 px           | 29 / 33 px           |
+| Standard control height              | 24 px                | 29 px                | 35 px                |
+| Solution/layer row height            | 24 px                | 29 px                | 36 px                |
+| Panel section padding                | 8 px                 | 12 px                | 16 px                |
+| UI text / secondary text             | 12 / 11 px           | 13 / 12 px           | 14 / 12 px           |
+| XAML line height                     | 18 px                | 21 px                | 24 px                |
+| Timeline track minimum               | 30 px                | 38 px                | 46 px                |
 
 These are configured CSS values, not measurements from a browser screenshot. Compared with the previous 160-pixel shell, Compact allocates 44 additional CSS pixels to the dock workspace. A fixed-height list can show approximately 50% more 24-pixel rows than 36-pixel rows, before accounting for headers and wrapping.
 
@@ -39,14 +39,14 @@ The setting affects the application interface. Authored controls, preview typogr
 
 The selection toolbar provides text editing, rotation, path editing, and a shortcut to Properties. Existing nested selection cycling, isolation, snapping guides, grid handles, container drop plans, and insertion/cell cues continue to work.
 
-| Gesture | Result |
-| --- | --- |
-| Text toolbar button or existing double-click text gesture | Canvas-anchored text editor |
-| Drag the rotation button | Rotate around the configured origin; Shift snaps to 15° |
-| Enable Path anchors & tangents on a Path | Drag SVG path endpoints or curve control points; Shift uses an 8-unit grid |
-| Insert → Draw → Rectangle / Ellipse / Line | Drag a shape into the selected container; Shift constrains equal extents |
-| Scrub a numeric property label horizontally | Transient preview; one authored edit on release; Shift reduces the step |
-| Escape, pointer cancellation, or lost window focus during new direct gestures | Restore the presentation and cancel the pending gesture |
+| Gesture                                                                       | Result                                                                     |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Text toolbar button or existing double-click text gesture                     | Canvas-anchored text editor                                                |
+| Drag the rotation button                                                      | Rotate around the configured origin; Shift snaps to 15°                    |
+| Enable Path anchors & tangents on a Path                                      | Drag SVG path endpoints or curve control points; Shift uses an 8-unit grid |
+| Insert → Draw → Rectangle / Ellipse / Line                                    | Drag a shape into the selected container; Shift constrains equal extents   |
+| Scrub a numeric property label horizontally                                   | Transient preview; one authored edit on release; Shift reduces the step    |
+| Escape, pointer cancellation, or lost window focus during new direct gestures | Restore the presentation and cancel the pending gesture                    |
 
 Literal text beginning with `{` is encoded with XAML's `{}` escape. A bound Text or Content expression is not overwritten by the text overlay. For mixed inline content, select the actual text child. Text and path editing, gradient editing, and brush-type conversion are ordinary authored edits; they are not all animatable recording channels.
 

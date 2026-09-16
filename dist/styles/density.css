@@ -1,307 +1,1246 @@
 /* Density affects application chrome only. Authored and runtime previews retain their own metrics. */
 :root,
-:root[data-density="compact"] {
-  --ui-font:12px; --ui-small:11px; --ui-control:24px; --ui-row:24px;
-  --ui-gap:4px; --ui-pad:7px; --ui-section:8px; --ui-radius:3px;
-  --ui-title:36px; --ui-menu:24px; --ui-toolbar:34px; --ui-status:22px;
-  --ui-dock-header:22px; --ui-dock-tabs:24px; --dock-chrome-height:46px;
-  --ui-code-line:18px; --ui-code-pad:7px; --ui-track:30px; --ui-ruler:24px;
-  --ui-tab-pad:6px; --ui-track-label:160px; --ui-field-gap:5px;
+:root[data-density='compact'] {
+  --ui-font: 12px;
+  --ui-small: 11px;
+  --ui-control: 24px;
+  --ui-row: 24px;
+  --ui-gap: 4px;
+  --ui-pad: 7px;
+  --ui-section: 8px;
+  --ui-radius: 3px;
+  --ui-title: 36px;
+  --ui-menu: 24px;
+  --ui-toolbar: 34px;
+  --ui-status: 22px;
+  --ui-dock-header: 22px;
+  --ui-dock-tabs: 24px;
+  --dock-chrome-height: 46px;
+  --ui-code-line: 18px;
+  --ui-code-pad: 7px;
+  --ui-track: 30px;
+  --ui-ruler: 24px;
+  --ui-tab-pad: 6px;
+  --ui-track-label: 160px;
+  --ui-field-gap: 5px;
 }
-:root[data-density="standard"] {
-  --ui-font:13px; --ui-small:12px; --ui-control:29px; --ui-row:29px;
-  --ui-gap:6px; --ui-pad:10px; --ui-section:12px; --ui-radius:4px;
-  --ui-title:44px; --ui-menu:28px; --ui-toolbar:40px; --ui-status:25px;
-  --ui-dock-header:25px; --ui-dock-tabs:28px; --dock-chrome-height:53px;
-  --ui-code-line:21px; --ui-code-pad:10px; --ui-track:38px; --ui-ruler:28px;
-  --ui-tab-pad:8px; --ui-track-label:185px; --ui-field-gap:7px;
+:root[data-density='standard'] {
+  --ui-font: 13px;
+  --ui-small: 12px;
+  --ui-control: 29px;
+  --ui-row: 29px;
+  --ui-gap: 6px;
+  --ui-pad: 10px;
+  --ui-section: 12px;
+  --ui-radius: 4px;
+  --ui-title: 44px;
+  --ui-menu: 28px;
+  --ui-toolbar: 40px;
+  --ui-status: 25px;
+  --ui-dock-header: 25px;
+  --ui-dock-tabs: 28px;
+  --dock-chrome-height: 53px;
+  --ui-code-line: 21px;
+  --ui-code-pad: 10px;
+  --ui-track: 38px;
+  --ui-ruler: 28px;
+  --ui-tab-pad: 8px;
+  --ui-track-label: 185px;
+  --ui-field-gap: 7px;
 }
-:root[data-density="comfortable"] {
-  --ui-font:14px; --ui-small:12px; --ui-control:35px; --ui-row:36px;
-  --ui-gap:8px; --ui-pad:13px; --ui-section:16px; --ui-radius:5px;
-  --ui-title:54px; --ui-menu:32px; --ui-toolbar:48px; --ui-status:28px;
-  --ui-dock-header:29px; --ui-dock-tabs:33px; --dock-chrome-height:62px;
-  --ui-code-line:24px; --ui-code-pad:12px; --ui-track:46px; --ui-ruler:32px;
-  --ui-tab-pad:10px; --ui-track-label:210px; --ui-field-gap:10px;
+:root[data-density='comfortable'] {
+  --ui-font: 14px;
+  --ui-small: 12px;
+  --ui-control: 35px;
+  --ui-row: 36px;
+  --ui-gap: 8px;
+  --ui-pad: 13px;
+  --ui-section: 16px;
+  --ui-radius: 5px;
+  --ui-title: 54px;
+  --ui-menu: 32px;
+  --ui-toolbar: 48px;
+  --ui-status: 28px;
+  --ui-dock-header: 29px;
+  --ui-dock-tabs: 33px;
+  --dock-chrome-height: 62px;
+  --ui-code-line: 24px;
+  --ui-code-pad: 12px;
+  --ui-track: 46px;
+  --ui-ruler: 32px;
+  --ui-tab-pad: 10px;
+  --ui-track-label: 210px;
+  --ui-field-gap: 10px;
 }
 
 /* Fixed shell bars become shorter; the remaining height belongs to the dock workspace. */
 html[data-density] .studio.docking-enabled {
-  grid-template-rows:var(--ui-title) var(--ui-menu) var(--ui-toolbar) minmax(0,1fr) var(--ui-status);
-  min-height:0;
+  grid-template-rows: var(--ui-title) var(--ui-menu) var(--ui-toolbar) minmax(0, 1fr) var(
+      --ui-status
+    );
+  min-height: 0;
 }
-html[data-density] :is(.topbar,.toolbar,.ide-menubar,.statusbar) {
-  gap:var(--ui-gap); padding-inline:var(--ui-pad); min-width:0;
-  overflow-x:auto; scrollbar-width:thin;
+html[data-density] :is(.topbar, .toolbar, .ide-menubar, .statusbar) {
+  gap: var(--ui-gap);
+  padding-inline: var(--ui-pad);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
-html[data-density] :is(.topbar,.toolbar,.statusbar)>:not(.spacer):not(.file-title) {flex-shrink:0}
-html[data-density] .topbar .file-title {min-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--ui-font)}
-html[data-density] .topbar .brand {gap:6px;font-size:15px;letter-spacing:-.3px}
-html[data-density] .brand-mark {width:24px;height:24px;font-size:20px;border-radius:5px}
-html[data-density] .topbar .button {height:var(--ui-control);padding-inline:var(--ui-pad);font-size:var(--ui-font)}
-html[data-density] :is(.topbar,.toolbar) .icon-button {width:var(--ui-control);height:var(--ui-control);border-radius:var(--ui-radius)}
-html[data-density] .topbar .avatar {width:24px;height:24px}
-html[data-density] .toolbar .tool {width:calc(var(--ui-control) + 5px);height:var(--ui-control);border-radius:var(--ui-radius)}
-html[data-density] .toolbar .divider {height:20px;margin-inline:3px}
-html[data-density] .toolbar :is(.feature-toolbar,.motion-tools) {gap:2px;margin-left:3px;padding-left:3px;flex-shrink:0}
-html[data-density] .toolbar .feature-toolbar button {padding:3px 5px;min-height:var(--ui-control)}
-html[data-density] .toolbar .feature-toolbar span {font-size:var(--ui-small)}
-html[data-density] .toolbar .view-toggle {padding:2px;flex-shrink:0}
-html[data-density] .toolbar .view-toggle button {height:calc(var(--ui-control) - 2px);padding:2px var(--ui-pad);font-size:var(--ui-font)}
-html[data-density] .toolbar .framework-select {height:var(--ui-control);padding:2px 5px;font-size:var(--ui-font)}
-html[data-density] .ide-menubar>button {padding-inline:var(--ui-pad);font-size:var(--ui-font);flex-shrink:0}
-html[data-density] .ide-menu-popup {padding:3px;min-width:230px}
-html[data-density] .ide-menu-popup>button {padding:4px 7px;min-height:var(--ui-row);font-size:var(--ui-font);gap:7px}
-html[data-density] .density-picker {margin-left:auto;display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:var(--ui-small);padding-left:12px;flex-shrink:0}
-html[data-density] .density-picker select {height:calc(var(--ui-menu) - 4px);padding:0 4px;border:1px solid var(--border);border-radius:3px;background:var(--input);color:var(--text);font-size:var(--ui-small)}
-html[data-density] .statusbar {font-size:var(--ui-small)}
-html[data-density] .statusbar button {font-size:var(--ui-small)}
-html[data-density] .statusbar .status-right {gap:var(--ui-pad)}
+html[data-density] :is(.topbar, .toolbar, .statusbar) > :not(.spacer):not(.file-title) {
+  flex-shrink: 0;
+}
+html[data-density] .topbar .file-title {
+  min-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ui-font);
+}
+html[data-density] .topbar .brand {
+  gap: 6px;
+  font-size: 15px;
+  letter-spacing: -0.3px;
+}
+html[data-density] .brand-mark {
+  width: 24px;
+  height: 24px;
+  font-size: 20px;
+  border-radius: 5px;
+}
+html[data-density] .topbar .button {
+  height: var(--ui-control);
+  padding-inline: var(--ui-pad);
+  font-size: var(--ui-font);
+}
+html[data-density] :is(.topbar, .toolbar) .icon-button {
+  width: var(--ui-control);
+  height: var(--ui-control);
+  border-radius: var(--ui-radius);
+}
+html[data-density] .topbar .avatar {
+  width: 24px;
+  height: 24px;
+}
+html[data-density] .toolbar .tool {
+  width: calc(var(--ui-control) + 5px);
+  height: var(--ui-control);
+  border-radius: var(--ui-radius);
+}
+html[data-density] .toolbar .divider {
+  height: 20px;
+  margin-inline: 3px;
+}
+html[data-density] .toolbar :is(.feature-toolbar, .motion-tools) {
+  gap: 2px;
+  margin-left: 3px;
+  padding-left: 3px;
+  flex-shrink: 0;
+}
+html[data-density] .toolbar .feature-toolbar button {
+  padding: 3px 5px;
+  min-height: var(--ui-control);
+}
+html[data-density] .toolbar .feature-toolbar span {
+  font-size: var(--ui-small);
+}
+html[data-density] .toolbar .view-toggle {
+  padding: 2px;
+  flex-shrink: 0;
+}
+html[data-density] .toolbar .view-toggle button {
+  height: calc(var(--ui-control) - 2px);
+  padding: 2px var(--ui-pad);
+  font-size: var(--ui-font);
+}
+html[data-density] .toolbar .framework-select {
+  height: var(--ui-control);
+  padding: 2px 5px;
+  font-size: var(--ui-font);
+}
+html[data-density] .ide-menubar > button {
+  padding-inline: var(--ui-pad);
+  font-size: var(--ui-font);
+  flex-shrink: 0;
+}
+html[data-density] .ide-menu-popup {
+  padding: 3px;
+  min-width: 230px;
+}
+html[data-density] .ide-menu-popup > button {
+  padding: 4px 7px;
+  min-height: var(--ui-row);
+  font-size: var(--ui-font);
+  gap: 7px;
+}
+html[data-density] .density-picker {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: var(--ui-small);
+  padding-left: 12px;
+  flex-shrink: 0;
+}
+html[data-density] .density-picker select {
+  height: calc(var(--ui-menu) - 4px);
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--input);
+  color: var(--text);
+  font-size: var(--ui-small);
+}
+html[data-density] .statusbar {
+  font-size: var(--ui-small);
+}
+html[data-density] .statusbar button {
+  font-size: var(--ui-small);
+}
+html[data-density] .statusbar .status-right {
+  gap: var(--ui-pad);
+}
 
 /* Every window keeps its title, tabs, action buttons and five-pixel splitter. */
-html[data-density] .dock-group-header {height:var(--ui-dock-header);min-height:var(--ui-dock-header);padding-left:var(--ui-pad);gap:1px}
-html[data-density] .dock-group-title {font-size:var(--ui-font)}
-html[data-density] .dock-group-header .dock-button {height:calc(var(--ui-dock-header) - 2px);min-width:21px;width:21px;line-height:1;font-size:12px}
-html[data-density] .dock-tabs {height:var(--ui-dock-tabs);min-height:var(--ui-dock-tabs)}
-html[data-density] .dock-tab {font-size:var(--ui-font);gap:4px;padding:2px var(--ui-tab-pad);max-width:190px}
-html[data-density] .dock-tab-wrap {max-width:240px;min-width:48px}
-html[data-density] .dock-tab-wrap>.dock-button {height:calc(var(--ui-dock-tabs) - 2px);min-width:18px;line-height:1;padding:0 3px}
-html[data-density] .dock-tab-icon {font-size:12px}
-html[data-density] .dock-menu button {min-height:var(--ui-row);padding:4px 8px;font-size:var(--ui-font)}
-html[data-density] .dock-error-toolbar {min-height:var(--ui-row);padding:4px var(--ui-pad);gap:var(--ui-gap);font-size:var(--ui-font)}
-html[data-density] .dock-error-row {padding:5px var(--ui-pad);font-size:var(--ui-font)}
+html[data-density] .dock-group-header {
+  height: var(--ui-dock-header);
+  min-height: var(--ui-dock-header);
+  padding-left: var(--ui-pad);
+  gap: 1px;
+}
+html[data-density] .dock-group-title {
+  font-size: var(--ui-font);
+}
+html[data-density] .dock-group-header .dock-button {
+  height: calc(var(--ui-dock-header) - 2px);
+  min-width: 21px;
+  width: 21px;
+  line-height: 1;
+  font-size: 12px;
+}
+html[data-density] .dock-tabs {
+  height: var(--ui-dock-tabs);
+  min-height: var(--ui-dock-tabs);
+}
+html[data-density] .dock-tab {
+  font-size: var(--ui-font);
+  gap: 4px;
+  padding: 2px var(--ui-tab-pad);
+  max-width: 190px;
+}
+html[data-density] .dock-tab-wrap {
+  max-width: 240px;
+  min-width: 48px;
+}
+html[data-density] .dock-tab-wrap > .dock-button {
+  height: calc(var(--ui-dock-tabs) - 2px);
+  min-width: 18px;
+  line-height: 1;
+  padding: 0 3px;
+}
+html[data-density] .dock-tab-icon {
+  font-size: 12px;
+}
+html[data-density] .dock-menu button {
+  min-height: var(--ui-row);
+  padding: 4px 8px;
+  font-size: var(--ui-font);
+}
+html[data-density] .dock-error-toolbar {
+  min-height: var(--ui-row);
+  padding: 4px var(--ui-pad);
+  gap: var(--ui-gap);
+  font-size: var(--ui-font);
+}
+html[data-density] .dock-error-row {
+  padding: 5px var(--ui-pad);
+  font-size: var(--ui-font);
+}
 
 /* Solution, layers and toolkit: tighter rows and gutters, with all actions retained. */
-html[data-density] .solution-explorer {font-size:var(--ui-font)}
-html[data-density] .solution-header {padding:var(--ui-gap) var(--ui-pad);gap:var(--ui-gap)}
-html[data-density] .solution-header input {height:var(--ui-control);padding:2px 5px}
-html[data-density] .solution-actions {padding:var(--ui-gap) var(--ui-pad);gap:var(--ui-gap)}
+html[data-density] .solution-explorer {
+  font-size: var(--ui-font);
+}
+html[data-density] .solution-header {
+  padding: var(--ui-gap) var(--ui-pad);
+  gap: var(--ui-gap);
+}
+html[data-density] .solution-header input {
+  height: var(--ui-control);
+  padding: 2px 5px;
+}
+html[data-density] .solution-actions {
+  padding: var(--ui-gap) var(--ui-pad);
+  gap: var(--ui-gap);
+}
 html[data-density] .solution-actions button,
-html[data-density] .solution-selection button {min-height:var(--ui-control);padding:2px 5px;font-size:var(--ui-small)}
-html[data-density] .solution-explorer>[data-solution-search] {height:var(--ui-control);padding:3px 6px;margin:3px var(--ui-pad);width:calc(100% - 2 * var(--ui-pad))}
-html[data-density] .solution-tree {padding:3px 0}
-html[data-density] .solution-tree>[role=treeitem] {min-height:var(--ui-row);gap:5px;line-height:1.25}
-html[data-density] .solution-selection {padding:var(--ui-gap) var(--ui-pad)}
-html[data-density] .solution-selection>input {height:var(--ui-control);padding:3px 5px}
-html[data-density] .solution-selection>div {padding:var(--ui-gap) 0;gap:var(--ui-gap)}
-html[data-density] .solution-selection small {font-size:var(--ui-small);line-height:1.35}
-html[data-density] .dock-sidebar-content :is(.panel-section,.toolkit-group) {padding:var(--ui-section)}
-html[data-density] .dock-sidebar-content .section-heading {margin-bottom:var(--ui-gap);font-size:var(--ui-font)}
-html[data-density] .dock-sidebar-content .page-row {padding:4px 6px;min-height:var(--ui-row);font-size:var(--ui-font);gap:6px}
-html[data-density] .dock-sidebar-content .tree-toolbar {padding:var(--ui-gap) var(--ui-pad);min-height:var(--ui-row)}
-html[data-density] .dock-sidebar-content .tree-row {height:var(--ui-row);font-size:var(--ui-font);gap:4px}
-html[data-density] .dock-sidebar-content .search-box {margin-bottom:var(--ui-gap);padding:4px 6px;min-height:var(--ui-control)}
-html[data-density] .dock-sidebar-content .search-box input {font-size:var(--ui-font)}
-html[data-density] .toolkit-group h4 {margin-bottom:var(--ui-gap);font-size:var(--ui-small)}
-html[data-density] .toolkit-grid {gap:var(--ui-gap);grid-template-columns:repeat(auto-fit,minmax(95px,1fr))}
-html[data-density] .control-card {min-height:var(--ui-row);padding:4px 5px;gap:5px;font-size:var(--ui-font);border-radius:var(--ui-radius)}
+html[data-density] .solution-selection button {
+  min-height: var(--ui-control);
+  padding: 2px 5px;
+  font-size: var(--ui-small);
+}
+html[data-density] .solution-explorer > [data-solution-search] {
+  height: var(--ui-control);
+  padding: 3px 6px;
+  margin: 3px var(--ui-pad);
+  width: calc(100% - 2 * var(--ui-pad));
+}
+html[data-density] .solution-tree {
+  padding: 3px 0;
+}
+html[data-density] .solution-tree > [role='treeitem'] {
+  min-height: var(--ui-row);
+  gap: 5px;
+  line-height: 1.25;
+}
+html[data-density] .solution-selection {
+  padding: var(--ui-gap) var(--ui-pad);
+}
+html[data-density] .solution-selection > input {
+  height: var(--ui-control);
+  padding: 3px 5px;
+}
+html[data-density] .solution-selection > div {
+  padding: var(--ui-gap) 0;
+  gap: var(--ui-gap);
+}
+html[data-density] .solution-selection small {
+  font-size: var(--ui-small);
+  line-height: 1.35;
+}
+html[data-density] .dock-sidebar-content :is(.panel-section, .toolkit-group) {
+  padding: var(--ui-section);
+}
+html[data-density] .dock-sidebar-content .section-heading {
+  margin-bottom: var(--ui-gap);
+  font-size: var(--ui-font);
+}
+html[data-density] .dock-sidebar-content .page-row {
+  padding: 4px 6px;
+  min-height: var(--ui-row);
+  font-size: var(--ui-font);
+  gap: 6px;
+}
+html[data-density] .dock-sidebar-content .tree-toolbar {
+  padding: var(--ui-gap) var(--ui-pad);
+  min-height: var(--ui-row);
+}
+html[data-density] .dock-sidebar-content .tree-row {
+  height: var(--ui-row);
+  font-size: var(--ui-font);
+  gap: 4px;
+}
+html[data-density] .dock-sidebar-content .search-box {
+  margin-bottom: var(--ui-gap);
+  padding: 4px 6px;
+  min-height: var(--ui-control);
+}
+html[data-density] .dock-sidebar-content .search-box input {
+  font-size: var(--ui-font);
+}
+html[data-density] .toolkit-group h4 {
+  margin-bottom: var(--ui-gap);
+  font-size: var(--ui-small);
+}
+html[data-density] .toolkit-grid {
+  gap: var(--ui-gap);
+  grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+}
+html[data-density] .control-card {
+  min-height: var(--ui-row);
+  padding: 4px 5px;
+  gap: 5px;
+  font-size: var(--ui-font);
+  border-radius: var(--ui-radius);
+}
 
 /* Properties are variable-height: complex values remain fully editable. */
-html[data-density] .dock-inspector-content {font-size:var(--ui-font)}
-html[data-density] .dock-inspector-content .panel-section {padding:var(--ui-section)}
-html[data-density] .dock-inspector-content .section-heading {margin-bottom:var(--ui-gap);font-size:var(--ui-font)}
-html[data-density] .dock-inspector-content .blend-actions {gap:var(--ui-gap);grid-template-columns:repeat(auto-fit,minmax(106px,1fr))}
-html[data-density] .dock-inspector-content .button {height:var(--ui-control);padding:0 6px;font-size:var(--ui-small);border-radius:var(--ui-radius)}
-html[data-density] .dock-inspector-content .helper-buttons {gap:var(--ui-gap);margin:var(--ui-gap) 0}
-html[data-density] .dock-inspector-content .feature-help {font-size:var(--ui-small);line-height:1.4;margin-top:var(--ui-gap)}
-html[data-density] .dock-inspector-content .align-tools {padding:var(--ui-gap) var(--ui-pad)}
-html[data-density] .dock-inspector-content .align-tools .icon-button {height:var(--ui-control);width:var(--ui-control)}
-html[data-density] .dock-inspector-content .property-grid {gap:var(--ui-field-gap)}
+html[data-density] .dock-inspector-content {
+  font-size: var(--ui-font);
+}
+html[data-density] .dock-inspector-content .panel-section {
+  padding: var(--ui-section);
+}
+html[data-density] .dock-inspector-content .section-heading {
+  margin-bottom: var(--ui-gap);
+  font-size: var(--ui-font);
+}
+html[data-density] .dock-inspector-content .blend-actions {
+  gap: var(--ui-gap);
+  grid-template-columns: repeat(auto-fit, minmax(106px, 1fr));
+}
+html[data-density] .dock-inspector-content .button {
+  height: var(--ui-control);
+  padding: 0 6px;
+  font-size: var(--ui-small);
+  border-radius: var(--ui-radius);
+}
+html[data-density] .dock-inspector-content .helper-buttons {
+  gap: var(--ui-gap);
+  margin: var(--ui-gap) 0;
+}
+html[data-density] .dock-inspector-content .feature-help {
+  font-size: var(--ui-small);
+  line-height: 1.4;
+  margin-top: var(--ui-gap);
+}
+html[data-density] .dock-inspector-content .align-tools {
+  padding: var(--ui-gap) var(--ui-pad);
+}
+html[data-density] .dock-inspector-content .align-tools .icon-button {
+  height: var(--ui-control);
+  width: var(--ui-control);
+}
+html[data-density] .dock-inspector-content .property-grid {
+  gap: var(--ui-field-gap);
+}
 html[data-density] .dock-inspector-content .prop-field,
-html[data-density] .dock-inspector-content .prop-field[data-rich] {height:auto;min-height:var(--ui-control);padding:3px 5px;gap:3px;border-radius:var(--ui-radius)}
-html[data-density] .dock-inspector-content .prop-field :is(input,select,label) {font-size:var(--ui-small)}
-html[data-density] .dock-inspector-content .prop-field[data-rich] {grid-template-columns:26px minmax(0,1fr) 14px}
-html[data-density] .dock-inspector-content .prop-field[data-rich]:has(.rich-color) {grid-template-columns:24px 20px minmax(0,1fr) 14px}
-html[data-density] .dock-inspector-content .rich-color {height:20px!important;width:20px!important;min-width:20px;padding:1px!important}
-html[data-density] .dock-inspector-content .rich-alpha {margin:0;min-height:12px}
-html[data-density] .dock-inspector-content .rich-four {gap:3px;padding:2px 0}
-html[data-density] .dock-inspector-content .prop-field[data-rich] .rich-four label input {height:var(--ui-control);font-size:var(--ui-small)}
-html[data-density] .dock-inspector-content .rich-segments {padding:2px 0;gap:2px}
-html[data-density] .dock-inspector-content .rich-segments button {padding:3px;font-size:var(--ui-small)}
-html[data-density] .dock-inspector-content .property-line {margin-top:var(--ui-gap);font-size:var(--ui-small);gap:var(--ui-gap)}
-html[data-density] .dock-inspector-content .property-line select {padding:3px;min-height:var(--ui-control);font-size:var(--ui-small)}
-html[data-density] .dock-inspector-content .layout-modes {padding:2px}
-html[data-density] .dock-inspector-content .layout-modes button {height:var(--ui-control);font-size:var(--ui-small)}
-html[data-density] .dock-inspector-content .expanded-props summary {padding:var(--ui-section);font-size:var(--ui-font)}
-html[data-density] .dock-inspector-content .expanded-props .property-grid {padding:var(--ui-section)}
-html[data-density] .dock-inspector-content .empty-inspector {padding:var(--ui-section);font-size:var(--ui-font);line-height:1.4}
-html[data-density] .dock-inspector-content .empty-inspector svg {margin:var(--ui-gap)}
-html[data-density] .rich-editors details {padding:var(--ui-section)}
-html[data-density] .rich-editors summary {font-size:var(--ui-font);padding:1px 0}
-html[data-density] .rich-editors details>div {padding-top:var(--ui-gap)}
-html[data-density] :is(.rich-editors,.resource-detail,.resource-workbench-tools) :is(input,select) {padding:3px 5px;font-size:var(--ui-small);min-height:var(--ui-control)}
-html[data-density] :is(.rich-editors,.resource-detail) input[type=range] {padding:0;min-height:14px}
-html[data-density] .rich-editors button {padding:3px 5px;min-height:22px;font-size:var(--ui-small)}
-html[data-density] .rich-row {gap:var(--ui-gap);margin:3px 0}
-html[data-density] .rich-transform-grid {gap:var(--ui-gap)}
-html[data-density] :is(.rich-transform-grid,.rich-row) label {font-size:var(--ui-small);gap:2px}
-html[data-density] .rich-origin {margin:6px auto;gap:2px}
-html[data-density] .rich-ramp {height:26px;margin:6px 7px 12px}
-html[data-density] .rich-stops>div {gap:var(--ui-gap);margin:3px 0}
-html[data-density] .raw-property-row {padding:var(--ui-gap) var(--ui-pad)}
-html[data-density] .raw-property-row>div {margin-top:3px}
-html[data-density] .raw-property-row :is(input,label) {font-size:var(--ui-small)}
-html[data-density] :is(.raw-property-row input,#raw-filter) {padding:3px 5px;min-height:var(--ui-control)}
-html[data-density] .resource-workbench-tools {padding:var(--ui-gap) var(--ui-pad)}
-html[data-density] .resource-row {padding:var(--ui-gap) var(--ui-pad);gap:7px}
-html[data-density] .resource-row .swatch {height:22px;width:22px;border-radius:3px;flex-shrink:0}
-html[data-density] .resource-row strong {font-size:var(--ui-font)}
-html[data-density] .resource-row small {font-size:var(--ui-small)}
-html[data-density] .resource-detail {padding:var(--ui-section);font-size:var(--ui-font)}
+html[data-density] .dock-inspector-content .prop-field[data-rich] {
+  height: auto;
+  min-height: var(--ui-control);
+  padding: 3px 5px;
+  gap: 3px;
+  border-radius: var(--ui-radius);
+}
+html[data-density] .dock-inspector-content .prop-field :is(input, select, label) {
+  font-size: var(--ui-small);
+}
+html[data-density] .dock-inspector-content .prop-field[data-rich] {
+  grid-template-columns: 26px minmax(0, 1fr) 14px;
+}
+html[data-density] .dock-inspector-content .prop-field[data-rich]:has(.rich-color) {
+  grid-template-columns: 24px 20px minmax(0, 1fr) 14px;
+}
+html[data-density] .dock-inspector-content .rich-color {
+  height: 20px !important;
+  width: 20px !important;
+  min-width: 20px;
+  padding: 1px !important;
+}
+html[data-density] .dock-inspector-content .rich-alpha {
+  margin: 0;
+  min-height: 12px;
+}
+html[data-density] .dock-inspector-content .rich-four {
+  gap: 3px;
+  padding: 2px 0;
+}
+html[data-density] .dock-inspector-content .prop-field[data-rich] .rich-four label input {
+  height: var(--ui-control);
+  font-size: var(--ui-small);
+}
+html[data-density] .dock-inspector-content .rich-segments {
+  padding: 2px 0;
+  gap: 2px;
+}
+html[data-density] .dock-inspector-content .rich-segments button {
+  padding: 3px;
+  font-size: var(--ui-small);
+}
+html[data-density] .dock-inspector-content .property-line {
+  margin-top: var(--ui-gap);
+  font-size: var(--ui-small);
+  gap: var(--ui-gap);
+}
+html[data-density] .dock-inspector-content .property-line select {
+  padding: 3px;
+  min-height: var(--ui-control);
+  font-size: var(--ui-small);
+}
+html[data-density] .dock-inspector-content .layout-modes {
+  padding: 2px;
+}
+html[data-density] .dock-inspector-content .layout-modes button {
+  height: var(--ui-control);
+  font-size: var(--ui-small);
+}
+html[data-density] .dock-inspector-content .expanded-props summary {
+  padding: var(--ui-section);
+  font-size: var(--ui-font);
+}
+html[data-density] .dock-inspector-content .expanded-props .property-grid {
+  padding: var(--ui-section);
+}
+html[data-density] .dock-inspector-content .empty-inspector {
+  padding: var(--ui-section);
+  font-size: var(--ui-font);
+  line-height: 1.4;
+}
+html[data-density] .dock-inspector-content .empty-inspector svg {
+  margin: var(--ui-gap);
+}
+html[data-density] .rich-editors details {
+  padding: var(--ui-section);
+}
+html[data-density] .rich-editors summary {
+  font-size: var(--ui-font);
+  padding: 1px 0;
+}
+html[data-density] .rich-editors details > div {
+  padding-top: var(--ui-gap);
+}
+html[data-density]
+  :is(.rich-editors, .resource-detail, .resource-workbench-tools)
+  :is(input, select) {
+  padding: 3px 5px;
+  font-size: var(--ui-small);
+  min-height: var(--ui-control);
+}
+html[data-density] :is(.rich-editors, .resource-detail) input[type='range'] {
+  padding: 0;
+  min-height: 14px;
+}
+html[data-density] .rich-editors button {
+  padding: 3px 5px;
+  min-height: 22px;
+  font-size: var(--ui-small);
+}
+html[data-density] .rich-row {
+  gap: var(--ui-gap);
+  margin: 3px 0;
+}
+html[data-density] .rich-transform-grid {
+  gap: var(--ui-gap);
+}
+html[data-density] :is(.rich-transform-grid, .rich-row) label {
+  font-size: var(--ui-small);
+  gap: 2px;
+}
+html[data-density] .rich-origin {
+  margin: 6px auto;
+  gap: 2px;
+}
+html[data-density] .rich-ramp {
+  height: 26px;
+  margin: 6px 7px 12px;
+}
+html[data-density] .rich-stops > div {
+  gap: var(--ui-gap);
+  margin: 3px 0;
+}
+html[data-density] .raw-property-row {
+  padding: var(--ui-gap) var(--ui-pad);
+}
+html[data-density] .raw-property-row > div {
+  margin-top: 3px;
+}
+html[data-density] .raw-property-row :is(input, label) {
+  font-size: var(--ui-small);
+}
+html[data-density] :is(.raw-property-row input, #raw-filter) {
+  padding: 3px 5px;
+  min-height: var(--ui-control);
+}
+html[data-density] .resource-workbench-tools {
+  padding: var(--ui-gap) var(--ui-pad);
+}
+html[data-density] .resource-row {
+  padding: var(--ui-gap) var(--ui-pad);
+  gap: 7px;
+}
+html[data-density] .resource-row .swatch {
+  height: 22px;
+  width: 22px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+html[data-density] .resource-row strong {
+  font-size: var(--ui-font);
+}
+html[data-density] .resource-row small {
+  font-size: var(--ui-small);
+}
+html[data-density] .resource-detail {
+  padding: var(--ui-section);
+  font-size: var(--ui-font);
+}
 
 /* Code gutter, text and highlight share identical vertical metrics. */
-html[data-density] .canvas-header {height:var(--ui-control);min-height:var(--ui-control);padding-inline:var(--ui-pad);font-size:var(--ui-small)}
-html[data-density] .code-header {height:calc(var(--ui-control) + 4px);min-height:calc(var(--ui-control) + 4px);padding-inline:var(--ui-pad);gap:var(--ui-gap);overflow-x:auto;white-space:nowrap}
-html[data-density] .code-header>* {flex-shrink:0}
-html[data-density] .code-header .button {height:var(--ui-control);font-size:var(--ui-small)}
-html[data-density] :is(.code-input,.code-highlight,.line-numbers) {font-size:var(--ui-font);line-height:var(--ui-code-line);padding-top:var(--ui-code-pad)}
-html[data-density] .line-numbers {padding-inline:8px;min-width:38px}
-html[data-density] .editor-status {height:20px;font-size:var(--ui-small);gap:8px;white-space:nowrap;overflow:auto;flex-shrink:0}
-html[data-density] .editor-find {padding:var(--ui-gap) var(--ui-pad);overflow:auto;flex-shrink:0}
-html[data-density] .editor-find input {padding:3px 5px;min-height:var(--ui-control);font-size:var(--ui-small)}
-html[data-density] .canvas-tools {bottom:8px;right:8px}
-html[data-density] .canvas-tools button {height:var(--ui-control);padding-inline:7px}
-html[data-density] .canvas-hint {padding:5px 8px;bottom:8px;font-size:var(--ui-small)}
+html[data-density] .canvas-header {
+  height: var(--ui-control);
+  min-height: var(--ui-control);
+  padding-inline: var(--ui-pad);
+  font-size: var(--ui-small);
+}
+html[data-density] .code-header {
+  height: calc(var(--ui-control) + 4px);
+  min-height: calc(var(--ui-control) + 4px);
+  padding-inline: var(--ui-pad);
+  gap: var(--ui-gap);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+html[data-density] .code-header > * {
+  flex-shrink: 0;
+}
+html[data-density] .code-header .button {
+  height: var(--ui-control);
+  font-size: var(--ui-small);
+}
+html[data-density] :is(.code-input, .code-highlight, .line-numbers) {
+  font-size: var(--ui-font);
+  line-height: var(--ui-code-line);
+  padding-top: var(--ui-code-pad);
+}
+html[data-density] .line-numbers {
+  padding-inline: 8px;
+  min-width: 38px;
+}
+html[data-density] .editor-status {
+  height: 20px;
+  font-size: var(--ui-small);
+  gap: 8px;
+  white-space: nowrap;
+  overflow: auto;
+  flex-shrink: 0;
+}
+html[data-density] .editor-find {
+  padding: var(--ui-gap) var(--ui-pad);
+  overflow: auto;
+  flex-shrink: 0;
+}
+html[data-density] .editor-find input {
+  padding: 3px 5px;
+  min-height: var(--ui-control);
+  font-size: var(--ui-small);
+}
+html[data-density] .canvas-tools {
+  bottom: 8px;
+  right: 8px;
+}
+html[data-density] .canvas-tools button {
+  height: var(--ui-control);
+  padding-inline: 7px;
+}
+html[data-density] .canvas-hint {
+  padding: 5px 8px;
+  bottom: 8px;
+  font-size: var(--ui-small);
+}
 
 /* Timeline inputs use inline labels, so track rows receive the saved space. */
-html[data-density] .dock-timeline-content {container-type:inline-size;container-name:timeline}
-html[data-density] .docking-enabled .motion-panel {min-height:0;font-size:var(--ui-font);overflow:auto}
-html[data-density] :is(.motion-toolbar,.motion-transport,.motion-quick,.motion-key-inspector) {padding:var(--ui-gap) var(--ui-pad);gap:var(--ui-gap);min-height:calc(var(--ui-control) + 2 * var(--ui-gap));align-items:center;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}
-html[data-density] :is(.motion-toolbar,.motion-transport,.motion-quick,.motion-key-inspector)>* {flex-shrink:0}
-html[data-density] :is(.motion-quick,.motion-key-inspector) label {flex-direction:row;align-items:center;gap:4px;font-size:var(--ui-small);white-space:nowrap}
-html[data-density] :is(.motion-toolbar,.motion-transport,.motion-quick,.motion-key-inspector) :is(input,select,button) {font-size:var(--ui-small);min-height:var(--ui-control);padding:3px 5px}
-html[data-density] :is(.motion-quick,.motion-key-inspector) :is(input[type=checkbox],input[type=range]) {min-height:14px;padding:0;margin:0}
-html[data-density] .motion-toolbar strong {font-size:var(--ui-font);display:inline}
-html[data-density] .motion-toolbar select {max-width:150px}
-html[data-density] .motion-transport label:has(#motion-loop) {display:flex;font-size:var(--ui-small)}
-html[data-density] #motion-inline-name {width:100px}
-html[data-density] #motion-inline-duration {width:60px}
-html[data-density] #motion-timeline-zoom {width:90px}
-html[data-density] #motion-quick-property {max-width:160px}
-html[data-density] .motion-key-inspector input {width:70px}
-html[data-density] .motion-key-inspector select {max-width:95px}
-html[data-density] :is(.motion-ruler,.motion-track) {grid-template-columns:var(--ui-track-label) minmax(220px,1fr)}
-html[data-density] .motion-track-area {min-height:64px;flex:1 1 64px}
-html[data-density] .motion-ruler {height:var(--ui-ruler)}
-html[data-density] .motion-ruler>span {padding:5px var(--ui-pad);font-size:var(--ui-small)}
-html[data-density] .motion-ruler b {font-size:var(--ui-small)}
+html[data-density] .dock-timeline-content {
+  container-type: inline-size;
+  container-name: timeline;
+}
+html[data-density] .docking-enabled .motion-panel {
+  min-height: 0;
+  font-size: var(--ui-font);
+  overflow: auto;
+}
+html[data-density] :is(.motion-toolbar, .motion-transport, .motion-quick, .motion-key-inspector) {
+  padding: var(--ui-gap) var(--ui-pad);
+  gap: var(--ui-gap);
+  min-height: calc(var(--ui-control) + 2 * var(--ui-gap));
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+html[data-density]
+  :is(.motion-toolbar, .motion-transport, .motion-quick, .motion-key-inspector)
+  > * {
+  flex-shrink: 0;
+}
+html[data-density] :is(.motion-quick, .motion-key-inspector) label {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--ui-small);
+  white-space: nowrap;
+}
+html[data-density]
+  :is(.motion-toolbar, .motion-transport, .motion-quick, .motion-key-inspector)
+  :is(input, select, button) {
+  font-size: var(--ui-small);
+  min-height: var(--ui-control);
+  padding: 3px 5px;
+}
+html[data-density]
+  :is(.motion-quick, .motion-key-inspector)
+  :is(input[type='checkbox'], input[type='range']) {
+  min-height: 14px;
+  padding: 0;
+  margin: 0;
+}
+html[data-density] .motion-toolbar strong {
+  font-size: var(--ui-font);
+  display: inline;
+}
+html[data-density] .motion-toolbar select {
+  max-width: 150px;
+}
+html[data-density] .motion-transport label:has(#motion-loop) {
+  display: flex;
+  font-size: var(--ui-small);
+}
+html[data-density] #motion-inline-name {
+  width: 100px;
+}
+html[data-density] #motion-inline-duration {
+  width: 60px;
+}
+html[data-density] #motion-timeline-zoom {
+  width: 90px;
+}
+html[data-density] #motion-quick-property {
+  max-width: 160px;
+}
+html[data-density] .motion-key-inspector input {
+  width: 70px;
+}
+html[data-density] .motion-key-inspector select {
+  max-width: 95px;
+}
+html[data-density] :is(.motion-ruler, .motion-track) {
+  grid-template-columns: var(--ui-track-label) minmax(220px, 1fr);
+}
+html[data-density] .motion-track-area {
+  min-height: 64px;
+  flex: 1 1 64px;
+}
+html[data-density] .motion-ruler {
+  height: var(--ui-ruler);
+}
+html[data-density] .motion-ruler > span {
+  padding: 5px var(--ui-pad);
+  font-size: var(--ui-small);
+}
+html[data-density] .motion-ruler b {
+  font-size: var(--ui-small);
+}
 html[data-density] .motion-track,
-html[data-density] .motion-key-lane {min-height:var(--ui-track)}
-html[data-density] .motion-track-label {padding:3px var(--ui-pad)!important;display:flex;align-items:center;gap:6px}
-html[data-density] .motion-track-label strong {font-size:var(--ui-small);flex:0 1 auto;min-width:0}
-html[data-density] .motion-track-label small {font-size:var(--ui-small);margin:0;flex:1;min-width:0;text-align:right}
-html[data-density] .motion-key {top:calc((var(--ui-track) - 22px) / 2)}
-html[data-density] .motion-panel footer {padding:3px var(--ui-pad);font-size:var(--ui-small);min-height:20px}
+html[data-density] .motion-key-lane {
+  min-height: var(--ui-track);
+}
+html[data-density] .motion-track-label {
+  padding: 3px var(--ui-pad) !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+html[data-density] .motion-track-label strong {
+  font-size: var(--ui-small);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+html[data-density] .motion-track-label small {
+  font-size: var(--ui-small);
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+html[data-density] .motion-key {
+  top: calc((var(--ui-track) - 22px) / 2);
+}
+html[data-density] .motion-panel footer {
+  padding: 3px var(--ui-pad);
+  font-size: var(--ui-small);
+  min-height: 20px;
+}
 @container timeline (min-width:1080px) {
-  html[data-density="compact"] .docking-enabled .motion-panel {display:grid!important;grid-template-columns:minmax(360px,.8fr) minmax(530px,1.2fr);grid-template-rows:auto auto minmax(64px,1fr) auto auto}
-  html[data-density="compact"] .motion-toolbar {grid-column:1;grid-row:1}
-  html[data-density="compact"] .motion-transport {grid-column:2;grid-row:1;border-left:1px solid var(--border)}
-  html[data-density="compact"] .motion-quick {grid-column:1/-1;grid-row:2}
-  html[data-density="compact"] .motion-track-area {grid-column:1/-1;grid-row:3}
-  html[data-density="compact"] .motion-panel footer {grid-column:1/-1;grid-row:4}
-  html[data-density="compact"] .motion-key-inspector {grid-column:1/-1;grid-row:5}
+  html[data-density='compact'] .docking-enabled .motion-panel {
+    display: grid !important;
+    grid-template-columns: minmax(360px, 0.8fr) minmax(530px, 1.2fr);
+    grid-template-rows: auto auto minmax(64px, 1fr) auto auto;
+  }
+  html[data-density='compact'] .motion-toolbar {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  html[data-density='compact'] .motion-transport {
+    grid-column: 2;
+    grid-row: 1;
+    border-left: 1px solid var(--border);
+  }
+  html[data-density='compact'] .motion-quick {
+    grid-column: 1/-1;
+    grid-row: 2;
+  }
+  html[data-density='compact'] .motion-track-area {
+    grid-column: 1/-1;
+    grid-row: 3;
+  }
+  html[data-density='compact'] .motion-panel footer {
+    grid-column: 1/-1;
+    grid-row: 4;
+  }
+  html[data-density='compact'] .motion-key-inspector {
+    grid-column: 1/-1;
+    grid-row: 5;
+  }
 }
 
 /* Dialogs/data controls, scoped away from the preview's authored node trees. */
-html[data-density] .modal-header {padding:var(--ui-section);gap:var(--ui-gap)}
-html[data-density] .modal-header h2 {font-size:calc(var(--ui-font) + 2px)}
-html[data-density] .modal-body {padding:var(--ui-section);font-size:var(--ui-font);line-height:1.45}
-html[data-density] .modal-body :is(input,select,textarea):not(.design-node,.design-node *) {padding:5px 7px;margin-bottom:var(--ui-section);font-size:var(--ui-font)}
-html[data-density] .modal-body label:not(.design-node,.design-node *) {font-size:var(--ui-font);margin-bottom:var(--ui-gap)}
-html[data-density] .modal-footer {padding:var(--ui-section);gap:var(--ui-gap)}
-html[data-density] :is(.modal-header,.modal-footer) .button {height:var(--ui-control);font-size:var(--ui-font)}
-html[data-density] .form-columns {gap:var(--ui-section);margin-bottom:var(--ui-section)}
-html[data-density] .database-toolbar {padding:var(--ui-section);gap:var(--ui-gap)}
-html[data-density] .database-main,.database-nav {padding:var(--ui-section)}
-html[data-density] .data-heading {margin-bottom:var(--ui-section);gap:var(--ui-gap)}
+html[data-density] .modal-header {
+  padding: var(--ui-section);
+  gap: var(--ui-gap);
+}
+html[data-density] .modal-header h2 {
+  font-size: calc(var(--ui-font) + 2px);
+}
+html[data-density] .modal-body {
+  padding: var(--ui-section);
+  font-size: var(--ui-font);
+  line-height: 1.45;
+}
+html[data-density] .modal-body :is(input, select, textarea):not(.design-node, .design-node *) {
+  padding: 5px 7px;
+  margin-bottom: var(--ui-section);
+  font-size: var(--ui-font);
+}
+html[data-density] .modal-body label:not(.design-node, .design-node *) {
+  font-size: var(--ui-font);
+  margin-bottom: var(--ui-gap);
+}
+html[data-density] .modal-footer {
+  padding: var(--ui-section);
+  gap: var(--ui-gap);
+}
+html[data-density] :is(.modal-header, .modal-footer) .button {
+  height: var(--ui-control);
+  font-size: var(--ui-font);
+}
+html[data-density] .form-columns {
+  gap: var(--ui-section);
+  margin-bottom: var(--ui-section);
+}
+html[data-density] .database-toolbar {
+  padding: var(--ui-section);
+  gap: var(--ui-gap);
+}
+html[data-density] .database-main,
+.database-nav {
+  padding: var(--ui-section);
+}
+html[data-density] .data-heading {
+  margin-bottom: var(--ui-section);
+  gap: var(--ui-gap);
+}
 html[data-density] .data-table th,
-html[data-density] .data-table td {padding:var(--ui-gap) var(--ui-pad);font-size:var(--ui-font)}
-html[data-density] .data-table.editable td {padding:0}
-html[data-density] .data-table.editable td :is(input:not([type=checkbox]),select) {height:var(--ui-row);padding:3px 6px;font-size:var(--ui-font)}
-html[data-density] .feature-tabs>button {padding:4px 7px;font-size:var(--ui-font);min-height:var(--ui-control)}
-html[data-density] :is(.command-list,.dock-window-list)>button {padding:5px var(--ui-pad);min-height:var(--ui-row);font-size:var(--ui-font)}
+html[data-density] .data-table td {
+  padding: var(--ui-gap) var(--ui-pad);
+  font-size: var(--ui-font);
+}
+html[data-density] .data-table.editable td {
+  padding: 0;
+}
+html[data-density] .data-table.editable td :is(input:not([type='checkbox']), select) {
+  height: var(--ui-row);
+  padding: 3px 6px;
+  font-size: var(--ui-font);
+}
+html[data-density] .feature-tabs > button {
+  padding: 4px 7px;
+  font-size: var(--ui-font);
+  min-height: var(--ui-control);
+}
+html[data-density] :is(.command-list, .dock-window-list) > button {
+  padding: 5px var(--ui-pad);
+  min-height: var(--ui-row);
+  font-size: var(--ui-font);
+}
 html[data-density] .track-header,
-html[data-density] .track-row {padding:var(--ui-gap);gap:var(--ui-gap)}
-html[data-density] .note-card {padding:var(--ui-section);margin:var(--ui-gap) var(--ui-pad);font-size:var(--ui-font);line-height:1.4}
-html[data-density] .views-toolbar {min-height:var(--ui-control);padding:var(--ui-gap) var(--ui-pad);gap:var(--ui-gap)}
-html[data-density] .views-toolbar :is(button,input,select) {height:var(--ui-control);font-size:var(--ui-small)}
-html[data-density] .views-workbench-footer {padding:var(--ui-gap) var(--ui-pad);font-size:var(--ui-small)}
-html[data-density] #view-connection-editor {padding:var(--ui-section);gap:var(--ui-gap)}
-html[data-density] #view-connection-editor label {font-size:var(--ui-small)}
-html[data-density] #view-connection-editor :is(input,select,button) {padding:3px 5px;min-height:var(--ui-control);font-size:var(--ui-small)}
+html[data-density] .track-row {
+  padding: var(--ui-gap);
+  gap: var(--ui-gap);
+}
+html[data-density] .note-card {
+  padding: var(--ui-section);
+  margin: var(--ui-gap) var(--ui-pad);
+  font-size: var(--ui-font);
+  line-height: 1.4;
+}
+html[data-density] .views-toolbar {
+  min-height: var(--ui-control);
+  padding: var(--ui-gap) var(--ui-pad);
+  gap: var(--ui-gap);
+}
+html[data-density] .views-toolbar :is(button, input, select) {
+  height: var(--ui-control);
+  font-size: var(--ui-small);
+}
+html[data-density] .views-workbench-footer {
+  padding: var(--ui-gap) var(--ui-pad);
+  font-size: var(--ui-small);
+}
+html[data-density] #view-connection-editor {
+  padding: var(--ui-section);
+  gap: var(--ui-gap);
+}
+html[data-density] #view-connection-editor label {
+  font-size: var(--ui-small);
+}
+html[data-density] #view-connection-editor :is(input, select, button) {
+  padding: 3px 5px;
+  min-height: var(--ui-control);
+  font-size: var(--ui-small);
+}
 
 /* Small windows scroll their command bars; existing commands stay available. */
-@media(max-width:1000px) {
-  html[data-density] .docking-enabled .topbar :is(.file-folder,.save-state) {display:inline}
-  html[data-density] .docking-enabled .feature-toolbar span {display:inline}
-  html[data-density] .docking-enabled .toolbar .feature-toolbar {display:flex}
+@media (max-width: 1000px) {
+  html[data-density] .docking-enabled .topbar :is(.file-folder, .save-state) {
+    display: inline;
+  }
+  html[data-density] .docking-enabled .feature-toolbar span {
+    display: inline;
+  }
+  html[data-density] .docking-enabled .toolbar .feature-toolbar {
+    display: flex;
+  }
 }
-@media(max-width:650px) {
-  html[data-density] .docking-enabled .toolbar .secondary-tool {display:grid}
+@media (max-width: 650px) {
+  html[data-density] .docking-enabled .toolbar .secondary-tool {
+    display: grid;
+  }
   html[data-density] .docking-enabled .topbar .file-title,
-  html[data-density] .docking-enabled .topbar .brand>span {display:inline}
-  html[data-density] .docking-enabled .topbar :is(.avatar,.history-button) {display:inline-flex}
-  html[data-density] .docking-enabled .statusbar .status-right {display:flex}
-  html[data-density] .density-picker {padding-left:8px}
+  html[data-density] .docking-enabled .topbar .brand > span {
+    display: inline;
+  }
+  html[data-density] .docking-enabled .topbar :is(.avatar, .history-button) {
+    display: inline-flex;
+  }
+  html[data-density] .docking-enabled .statusbar .status-right {
+    display: flex;
+  }
+  html[data-density] .density-picker {
+    padding-left: 8px;
+  }
 }
 /* Preserve both track-label lines and native preview inheritance. */
-html[data-density] .motion-track-label {display:block;line-height:1.1}
-html[data-density] .motion-track-label :is(strong,small) {display:block;text-align:left}
-html[data-density] .motion-track-label small {margin-top:1px}
+html[data-density] .motion-track-label {
+  display: block;
+  line-height: 1.1;
+}
+html[data-density] .motion-track-label :is(strong, small) {
+  display: block;
+  text-align: left;
+}
+html[data-density] .motion-track-label small {
+  margin-top: 1px;
+}
 html[data-density] .prototype-modal .modal-body,
-html[data-density] .preview-host {font-size:13px;line-height:1.6}
-html[data-density] .prototype-toolbar {padding:var(--ui-section);gap:var(--ui-gap)}
-html[data-density] .prototype-toolbar :is(button,select) {min-height:var(--ui-control);font-size:var(--ui-font)}
-html[data-density] .prototype-status {padding:var(--ui-gap) var(--ui-pad);font-size:var(--ui-small)}
-html[data-density] .modal-body .button:not(.design-node,.design-node *) {height:var(--ui-control);padding-inline:var(--ui-pad);font-size:var(--ui-font)}
-html[data-density] :is(.topbar,.toolbar,.ide-menubar,.statusbar) {overflow-y:hidden}
-html[data-density] .code-header {height:auto;padding-block:2px;overflow-y:hidden}
-@media(max-width:1000px) {
-  html[data-density] .studio.docking-enabled {grid-template-rows:var(--ui-title) var(--ui-menu) var(--ui-toolbar) minmax(0,1fr) var(--ui-status)}
+html[data-density] .preview-host {
+  font-size: 13px;
+  line-height: 1.6;
+}
+html[data-density] .prototype-toolbar {
+  padding: var(--ui-section);
+  gap: var(--ui-gap);
+}
+html[data-density] .prototype-toolbar :is(button, select) {
+  min-height: var(--ui-control);
+  font-size: var(--ui-font);
+}
+html[data-density] .prototype-status {
+  padding: var(--ui-gap) var(--ui-pad);
+  font-size: var(--ui-small);
+}
+html[data-density] .modal-body .button:not(.design-node, .design-node *) {
+  height: var(--ui-control);
+  padding-inline: var(--ui-pad);
+  font-size: var(--ui-font);
+}
+html[data-density] :is(.topbar, .toolbar, .ide-menubar, .statusbar) {
+  overflow-y: hidden;
+}
+html[data-density] .code-header {
+  height: auto;
+  padding-block: 2px;
+  overflow-y: hidden;
+}
+@media (max-width: 1000px) {
+  html[data-density] .studio.docking-enabled {
+    grid-template-rows: var(--ui-title) var(--ui-menu) var(--ui-toolbar) minmax(0, 1fr) var(
+        --ui-status
+      );
+  }
 }
 
 /* Dock tab navigation occupies the existing tab row; no horizontal scrollbar. */
-.scroll-button-strip{display:flex;min-width:0;min-height:0;max-width:100%;overflow:hidden;align-items:stretch;background:var(--panel);flex-shrink:0}
-.scroll-button-strip>.scroll-button-viewport{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
-.scroll-button-viewport::-webkit-scrollbar{display:none}
-.strip-scroll-button{width:18px;min-width:18px;flex:0 0 18px;padding:0;border:0;border-radius:0;background:var(--panel);color:var(--text);font-size:17px;cursor:pointer}
-.strip-scroll-button:hover:not(:disabled){background:var(--accent-soft)}
-.strip-scroll-button:disabled{opacity:.3;cursor:default}
-.dock-group>.scroll-button-strip{height:var(--ui-dock-tabs,28px);min-height:var(--ui-dock-tabs,28px)}
-.dock-group>.scroll-button-strip .dock-tabs{height:100%;min-height:0}
-.dock-tab-wrap,.dock-auto-tab{touch-action:none;cursor:grab}
-.dock-tab-insertion{position:fixed;width:3px;background:#1496ff;box-shadow:0 0 0 1px white}
+.scroll-button-strip {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  overflow: hidden;
+  align-items: stretch;
+  background: var(--panel);
+  flex-shrink: 0;
+}
+.scroll-button-strip > .scroll-button-viewport {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.scroll-button-viewport::-webkit-scrollbar {
+  display: none;
+}
+.strip-scroll-button {
+  width: 18px;
+  min-width: 18px;
+  flex: 0 0 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 17px;
+  cursor: pointer;
+}
+.strip-scroll-button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.strip-scroll-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.dock-group > .scroll-button-strip {
+  height: var(--ui-dock-tabs, 28px);
+  min-height: var(--ui-dock-tabs, 28px);
+}
+.dock-group > .scroll-button-strip .dock-tabs {
+  height: 100%;
+  min-height: 0;
+}
+.dock-tab-wrap,
+.dock-auto-tab {
+  touch-action: none;
+  cursor: grab;
+}
+.dock-tab-insertion {
+  position: fixed;
+  width: 3px;
+  background: #1496ff;
+  box-shadow: 0 0 0 1px white;
+}
 
-.html-design-frame{min-width:0;min-height:0;color-scheme:normal}
-.html-tree-row{display:flex;align-items:center;gap:6px;width:100%;min-height:var(--ui-row);border:0;background:transparent;color:var(--text);text-align:left;font:inherit;white-space:nowrap}
-.html-tree-row>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:var(--ui-small)}
-.html-tree-row.active,.html-tree-row:hover,.html-drop-target{background:var(--accent-soft);color:var(--accent)}
-.html-toolkit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:var(--ui-pad)}
-.html-toolkit button{min-height:var(--ui-control);border:1px solid var(--border);border-radius:4px;background:var(--panel);color:var(--text);text-align:left;padding:4px 8px}
-.html-property-header{display:flex;align-items:center;gap:6px}.html-property-header code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.html-property-section{border-bottom:1px solid var(--border);padding:var(--ui-pad)}
-.html-property-section summary{cursor:pointer;font-weight:600;margin-bottom:5px;min-height:var(--ui-control);line-height:var(--ui-control)}
-.html-field{display:grid;grid-template-columns:minmax(60px,.85fr) minmax(0,1.15fr);align-items:center;gap:8px;margin:4px 0;font-size:var(--ui-small)}
-.html-field>span{overflow-wrap:anywhere}.html-field input,.html-field select{min-width:0;width:100%;margin:0;height:var(--ui-control)}
-.html-property-section textarea,.html-resource-editor{width:100%;min-height:90px;resize:vertical;font:12px/1.5 ui-monospace,monospace;white-space:pre;tab-size:2}
-.html-add-attribute{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 22px;gap:4px;margin-top:6px}.html-add-attribute input{min-width:0;width:100%}
-.html-inspect-source{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace}
-.html-preview-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:12px}.html-preview-toolbar label{display:flex;align-items:center;gap:8px;margin:0}.html-preview-toolbar select{width:auto;margin:0}
-.html-preview-host{overflow:auto;background:var(--canvas);padding:12px;max-height:72vh}#html-preview-device{background:white;margin:auto}
-.html-drop-guide{position:absolute;z-index:55;border:2px solid #1496ff;background:#1496ff22;pointer-events:none;font:11px system-ui;color:#007acc;white-space:nowrap}
-.html-inline-editor{z-index:60}
-.chrome-scroll-wrapper{min-width:0;min-height:0;width:100%;height:100%;background:var(--panel)}
-html[data-density] .chrome-scroll-wrapper>.scroll-button-viewport{min-width:0;flex:1;scrollbar-width:none;height:100%;overflow-y:hidden;box-sizing:border-box}
-html[data-density] .chrome-scroll-wrapper>.scroll-button-viewport::-webkit-scrollbar{display:none}
+.html-design-frame {
+  min-width: 0;
+  min-height: 0;
+  color-scheme: normal;
+}
+.html-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: var(--ui-row);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  white-space: nowrap;
+}
+.html-tree-row > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: var(--ui-small);
+}
+.html-tree-row.active,
+.html-tree-row:hover,
+.html-drop-target {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.html-toolkit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  padding: var(--ui-pad);
+}
+.html-toolkit button {
+  min-height: var(--ui-control);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  padding: 4px 8px;
+}
+.html-property-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.html-property-header code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.html-property-section {
+  border-bottom: 1px solid var(--border);
+  padding: var(--ui-pad);
+}
+.html-property-section summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 5px;
+  min-height: var(--ui-control);
+  line-height: var(--ui-control);
+}
+.html-field {
+  display: grid;
+  grid-template-columns: minmax(60px, 0.85fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: var(--ui-small);
+}
+.html-field > span {
+  overflow-wrap: anywhere;
+}
+.html-field input,
+.html-field select {
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  height: var(--ui-control);
+}
+.html-property-section textarea,
+.html-resource-editor {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  white-space: pre;
+  tab-size: 2;
+}
+.html-add-attribute {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 22px;
+  gap: 4px;
+  margin-top: 6px;
+}
+.html-add-attribute input {
+  min-width: 0;
+  width: 100%;
+}
+.html-inspect-source {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+}
+.html-preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.html-preview-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.html-preview-toolbar select {
+  width: auto;
+  margin: 0;
+}
+.html-preview-host {
+  overflow: auto;
+  background: var(--canvas);
+  padding: 12px;
+  max-height: 72vh;
+}
+#html-preview-device {
+  background: white;
+  margin: auto;
+}
+.html-drop-guide {
+  position: absolute;
+  z-index: 55;
+  border: 2px solid #1496ff;
+  background: #1496ff22;
+  pointer-events: none;
+  font: 11px system-ui;
+  color: #007acc;
+  white-space: nowrap;
+}
+.html-inline-editor {
+  z-index: 60;
+}
+.chrome-scroll-wrapper {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--panel);
+}
+html[data-density] .chrome-scroll-wrapper > .scroll-button-viewport {
+  min-width: 0;
+  flex: 1;
+  scrollbar-width: none;
+  height: 100%;
+  overflow-y: hidden;
+  box-sizing: border-box;
+}
+html[data-density] .chrome-scroll-wrapper > .scroll-button-viewport::-webkit-scrollbar {
+  display: none;
+}
 
-.dock-gesturing iframe{pointer-events:none!important}
+.dock-gesturing iframe {
+  pointer-events: none !important;
+}
 
-.html-attribute-row{display:flex;align-items:center;gap:4px}.html-attribute-row>.html-field{flex:1;min-width:0}.html-attribute-row>button{width:18px;min-width:18px;padding:0}
-.html-boolean{display:inline-flex;align-items:center;gap:4px;margin:3px 10px 3px 0;font-size:var(--ui-small)}.html-boolean input{width:14px!important;height:14px!important;margin:0!important}
+.html-attribute-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.html-attribute-row > .html-field {
+  flex: 1;
+  min-width: 0;
+}
+.html-attribute-row > button {
+  width: 18px;
+  min-width: 18px;
+  padding: 0;
+}
+.html-boolean {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 3px 10px 3px 0;
+  font-size: var(--ui-small);
+}
+.html-boolean input {
+  width: 14px !important;
+  height: 14px !important;
+  margin: 0 !important;
+}
 
-.dock-passive-surface iframe,.view-frame iframe,.view-board-preview iframe,.prototype-view iframe{pointer-events:none}
-.html-keyboard-focus:focus{outline:0}
+.dock-passive-surface iframe,
+.view-frame iframe,
+.view-board-preview iframe,
+.prototype-view iframe {
+  pointer-events: none;
+}
+.html-keyboard-focus:focus {
+  outline: 0;
+}
 
-.view-preview iframe{pointer-events:none}
-.html-document-active .timeline-panel{position:relative}
-.html-motion-note{padding:5px 8px;font-size:var(--ui-small);color:var(--muted);border-bottom:1px solid var(--border)}
+.view-preview iframe {
+  pointer-events: none;
+}
+.html-document-active .timeline-panel {
+  position: relative;
+}
+.html-motion-note {
+  padding: 5px 8px;
+  font-size: var(--ui-small);
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}

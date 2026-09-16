@@ -25,24 +25,24 @@ flowchart TD
     GPU["WebGPU grid surface"] --> UI
 ```
 
-| Module | Responsibility | Host requirements |
-| --- | --- | --- |
-| `model.js` | Tree identity, traversal, validation, selection, transactions, history | ECMAScript, EventTarget, structuredClone |
-| `document-session.js` | Live source/model synchronization, source spans, draft recovery, identity reconciliation, adapter registration | No DOM for XAML; HTML adapter requires DOMParser |
-| `xaml.js` | Safe XML-subset parsing, canonical serialization, common-framework mapping, diagnostics | No DOM |
-| `registry.js` | Control descriptors, construction, toolkit metadata, export adapters | No DOM for metadata |
-| `render.js` | Layout and visual mappings, resources, bindings, templates, standalone HTML | Browser DOM |
-| `gpu.js` | Dot-grid rendering, pixel-ratio handling, device-loss fallback | WebGPU when available |
-| `editor.js` | Code input, highlighted mirror, validation, completion, find/replace | Browser DOM |
-| `design-tools.js` | Logical content parenting, paint/geometry hit testing, drop plans, track edits, identity reconciliation, snapping | Geometry supplied by host; hit service needs DOM |
-| `design-data.js` | Typed tables, constraints, indexed queries, safe paths and binding evaluation | No DOM |
-| `prototype.js` | Isolated preview state, action transactions, provenance-aware TwoWay writeback | No DOM; EventTarget |
-| `xaml-language.js` | Context scanner and source-range completion results | No DOM |
-| `studio/canvas-controller.js` | Drag preview/cues, selection cycling, track handles and grid editor | Browser DOM |
-| `studio/data-editor.js` | Records, schema, relationships, query builder, objects, import/export | Browser DOM |
-| `studio/prototype-editor.js` | Multi-view board, connector editor, interactive session host | Browser DOM |
-| `studio/features.js` | Module integration, raw properties, editing helpers, connected example | Browser DOM |
-| `app.js` | Base panels, commands, dialogs, local files and persistence | Browser DOM and local storage |
+| Module                        | Responsibility                                                                                                    | Host requirements                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `model.js`                    | Tree identity, traversal, validation, selection, transactions, history                                            | ECMAScript, EventTarget, structuredClone         |
+| `document-session.js`         | Live source/model synchronization, source spans, draft recovery, identity reconciliation, adapter registration    | No DOM for XAML; HTML adapter requires DOMParser |
+| `xaml.js`                     | Safe XML-subset parsing, canonical serialization, common-framework mapping, diagnostics                           | No DOM                                           |
+| `registry.js`                 | Control descriptors, construction, toolkit metadata, export adapters                                              | No DOM for metadata                              |
+| `render.js`                   | Layout and visual mappings, resources, bindings, templates, standalone HTML                                       | Browser DOM                                      |
+| `gpu.js`                      | Dot-grid rendering, pixel-ratio handling, device-loss fallback                                                    | WebGPU when available                            |
+| `editor.js`                   | Code input, highlighted mirror, validation, completion, find/replace                                              | Browser DOM                                      |
+| `design-tools.js`             | Logical content parenting, paint/geometry hit testing, drop plans, track edits, identity reconciliation, snapping | Geometry supplied by host; hit service needs DOM |
+| `design-data.js`              | Typed tables, constraints, indexed queries, safe paths and binding evaluation                                     | No DOM                                           |
+| `prototype.js`                | Isolated preview state, action transactions, provenance-aware TwoWay writeback                                    | No DOM; EventTarget                              |
+| `xaml-language.js`            | Context scanner and source-range completion results                                                               | No DOM                                           |
+| `studio/canvas-controller.js` | Drag preview/cues, selection cycling, track handles and grid editor                                               | Browser DOM                                      |
+| `studio/data-editor.js`       | Records, schema, relationships, query builder, objects, import/export                                             | Browser DOM                                      |
+| `studio/prototype-editor.js`  | Multi-view board, connector editor, interactive session host                                                      | Browser DOM                                      |
+| `studio/features.js`          | Module integration, raw properties, editing helpers, connected example                                            | Browser DOM                                      |
+| `app.js`                      | Base panels, commands, dialogs, local files and persistence                                                       | Browser DOM and local storage                    |
 
 The source modules are native ES modules. No build step or application runtime dependency is required. The local server uses the Node standard library. A static deployment serves the same `dist/` files as local development.
 
@@ -126,16 +126,16 @@ Retained history uses nested reversible deltas and structural sharing during und
 
 ## 6. Layout preview
 
-| Layout | Current browser mapping | Editing behavior |
-| --- | --- | --- |
-| Canvas | Relative container, absolutely positioned children | Drag edits Left/Top; resize writes dimensions and affected anchors |
-| Grid | CSS Grid with explicit row/column tracks and placement | Row/column definition fields, cell drag, spans and property edits |
-| StackPanel | Flex column/row | Orientation, margin edits, visual wrapping and layer reparenting |
-| DockPanel | Nested flex remainder regions preserving child order | Dock attached property and LastChildFill |
-| WrapPanel | Wrapping flex container | Orientation, dimensions, margins |
-| UniformGrid | Equal CSS grid columns/rows | Rows/Columns through property editor |
-| Border | Grid container plus border, fill, radius, padding | Single-child content model |
-| ScrollViewer | Overflow container | Content and size editing |
+| Layout       | Current browser mapping                                | Editing behavior                                                   |
+| ------------ | ------------------------------------------------------ | ------------------------------------------------------------------ |
+| Canvas       | Relative container, absolutely positioned children     | Drag edits Left/Top; resize writes dimensions and affected anchors |
+| Grid         | CSS Grid with explicit row/column tracks and placement | Row/column definition fields, cell drag, spans and property edits  |
+| StackPanel   | Flex column/row                                        | Orientation, margin edits, visual wrapping and layer reparenting   |
+| DockPanel    | Nested flex remainder regions preserving child order   | Dock attached property and LastChildFill                           |
+| WrapPanel    | Wrapping flex container                                | Orientation, dimensions, margins                                   |
+| UniformGrid  | Equal CSS grid columns/rows                            | Rows/Columns through property editor                               |
+| Border       | Grid container plus border, fill, radius, padding      | Single-child content model                                         |
+| ScrollViewer | Overflow container                                     | Content and size editing                                           |
 
 `Auto` becomes `auto`, star sizing becomes `minmax(0, nfr)`, and numeric sizes become CSS pixels. Empty definition collections receive a single implicit star track. Child Grid row/column and span values are bounded by the defined track count for preview.
 
@@ -201,7 +201,6 @@ No browser-driven end-to-end testing, visual screenshot review, physical GPU tes
 
 Production evolution should prioritize a real native preview bridge and framework metadata importer; normalized QName identity and cross-document runtime-aware refactoring; full content models; incremental measure/arrange and rendering; virtualized tree/property lists; a semantic language server/editor integration; and platform-specific export validation. These are substantial engineering boundaries, not hidden completed features.
 
-
 ## 14. Hit testing and manipulation pipeline
 
 `HitTestService` obtains browser paint hits first and augments them with geometry for transparent/disabled authoring targets. A geometric descendant is inserted ahead of its hit ancestor while unrelated browser stacking order is retained. Visibility, clipping ancestors, isolation scope, locked ancestors, and dragged subtrees filter eligibility. Alt cycling uses a hit signature, pointer tolerance, and document revision to maintain its position.
@@ -244,25 +243,24 @@ See `DESIGNER-WORKFLOWS.md` for every new panel and gesture, `EXTENDING.md` for 
 
 The Node tests exercise model/data/runtime operations and deterministic DOM control logic. Real Chromium suites additionally verify the complete application's source/canvas/property synchronization, HTML animation interpolation and keyframe dragging, and isolated preview workflows. Targeted compact-layout checks include browser hit testing for the key editor. These checks do not qualify every pointer path, mobile visual fidelity, physical GPU behavior, accessibility, or native framework compilation. Production qualification still requires broader device coverage and measurements of retained history, transient transaction clones and DOM regeneration on larger projects.
 
-
 ## Motion and Blend authoring architecture (0.3)
 
 The source tree remains authoritative. Storyboards, animation tracks, keys, states, transitions, brushes, transforms and triggers are ordinary native XAML elements in that tree. UI edits run inside DocumentStore transactions and serialize through the existing loss-aware writer. Runtime playback never commits sampled values into DocumentStore.
 
-| Module | Responsibility |
-| --- | --- |
-| core/property-path.js | Named-object lookup, scalar/attached/object property paths, brush/resource traversal, editable transform-group paths |
-| core/animation.js | Timeline discovery, typed keyframes, easing, clocks, sampling, source authoring helpers and injectable AnimationPlayer |
-| core/states.js | State groups, transition choice, one state per group, isolated outgoing snapshots, transient sampled state values |
-| core/styling.js | Scoped/merged resources, style selection, BasedOn, scalar/object setters, conditions and namespace-safe design attributes |
-| core/appearance.js | Brush, transform, effect, clipping and design-time browser mappings |
-| core/vector.js | Editable path representation, serialization, point handles and shape conversion |
-| core/motion-render.js | Evaluation-only instance tree, resolved base values, baseline capture/restore and transient DOM property updates |
-| core/motion-schema.js | Completion vocabulary for motion, states, geometry and appearance |
-| core/motion-diagnostics.js | Unsupported animation/property/composition warnings |
-| studio/animation-editor.js | Docked timeline, recording, key/track editing and transport UI |
-| studio/blend-features.js | State, brush, transform, effect, style, design-data and vector authoring surfaces |
-| studio/motion-runtime.js | Per-view clocks, native trigger execution, input states, template scopes and renderer invalidation |
+| Module                     | Responsibility                                                                                                            |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| core/property-path.js      | Named-object lookup, scalar/attached/object property paths, brush/resource traversal, editable transform-group paths      |
+| core/animation.js          | Timeline discovery, typed keyframes, easing, clocks, sampling, source authoring helpers and injectable AnimationPlayer    |
+| core/states.js             | State groups, transition choice, one state per group, isolated outgoing snapshots, transient sampled state values         |
+| core/styling.js            | Scoped/merged resources, style selection, BasedOn, scalar/object setters, conditions and namespace-safe design attributes |
+| core/appearance.js         | Brush, transform, effect, clipping and design-time browser mappings                                                       |
+| core/vector.js             | Editable path representation, serialization, point handles and shape conversion                                           |
+| core/motion-render.js      | Evaluation-only instance tree, resolved base values, baseline capture/restore and transient DOM property updates          |
+| core/motion-schema.js      | Completion vocabulary for motion, states, geometry and appearance                                                         |
+| core/motion-diagnostics.js | Unsupported animation/property/composition warnings                                                                       |
+| studio/animation-editor.js | Docked timeline, recording, key/track editing and transport UI                                                            |
+| studio/blend-features.js   | State, brush, transform, effect, style, design-data and vector authoring surfaces                                         |
+| studio/motion-runtime.js   | Per-view clocks, native trigger execution, input states, template scopes and renderer invalidation                        |
 
 The renderer exposes effectiveNodes/effectiveProperties, runtimeTemplates and templateOwners. Each template instance retains a source identity and receives a separate runtime identity. The motion evaluation document appends instance template trees to their owners solely for namescope and property-path evaluation. The authored document is unchanged.
 
@@ -276,7 +274,6 @@ Design-time mode is explicit in PreviewRenderer.render options. d: properties ca
 
 The browser render and motion layers are adapters over a universal authoring tree. WPF-specific authoring commands reject incompatible framework targets; unknown framework markup remains preserved. An Avalonia animation authoring/evaluation adapter, native metadata host and compiler-backed validation are still required for native equivalence. See BLEND-COMPARISON.md for the detailed feature map.
 
-
 ## 18. Docking workspace (0.4)
 
 The former fixed sidebar/center grid is now hosted by a reusable docking control. `core/docking.js` owns split and tab trees, floating roots, edge strips, closed panels, active/pinned state, return locations, layout validation and separate history. `controls/dock-workspace.js` owns DOM placement and input. `studio/docking-studio.js` maps designer features onto stable panel IDs.
@@ -289,24 +286,23 @@ Layout visibility controls motion/prototype lifecycle. A newly shown timeline re
 
 Current and named layouts use separate device-local storage keys, with bounded JSON import/export. Missing extension panel IDs are reconciled at load; registration/removal clears incompatible layout history. Full contracts, keyboard routes, standalone embedding and native-window limitations are documented in DOCKING.md.
 
-
 ## 19. Editor workspace and authoring in 0.5
 
 `EditorWorkspace` is installed after `DockingStudio`. It composes the solution, direct-authoring, rich-properties, resource, timeline, view-board and IDE-menu adapters while retaining the original parser, store, renderer and runtime. Each adapter owns a focused UI concern; DOM-free algorithms remain separately importable from `core/index.js`.
 
-| Module | Responsibility | Mutation boundary |
-| --- | --- | --- |
-| `core/solution.js` | Relative paths, migration, validation, moves and dictionary lookup | Returns staged documents/solution for a move |
-| `core/authoring.js` | Literal/object replacement, text escaping, typed values, scoped resource references, inverse vectors | Resource rename returns staged documents |
-| `core/timeline-editing.js` | Clock-aware recording, grouped key moves, paste, value/interpolation edits | Store transactions; record/edit additionally stage a cloned root |
-| `controls/menu-bar.js` | Nested accessible menu roles, focus and keyboard routing | Invokes callbacks; owns no document state |
-| `studio/solution-workspace.js` | File tree, solution snapshots, imports and resolver ownership | Validated solution snapshot application |
-| `studio/direct-authoring.js` | Text overlay, rotation, path points, drawing and record gestures | Transient DOM preview followed by one store transaction |
-| `studio/rich-properties.js` | Type-specific widgets, brush/transform/effect/style/Grid editors | Existing property API or explicit store transaction |
-| `studio/resource-workspace.js` | Resource inventory, swatches, merges and reference navigation | Document transaction or scoped solution rename |
-| `studio/timeline-workspace.js` | Inline motion controls, key selection, clipboard and snapping | AnimationEditor mutation/record batch |
-| `studio/view-board.js` | Retained cards, filtering, pagination, tiling and connections | Layout operations or interaction store transaction |
-| `studio/ide-menu.js` | Command registry, dynamic menus, focus-aware Edit routing | Delegates to owning editor/controller |
+| Module                         | Responsibility                                                                                       | Mutation boundary                                                |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `core/solution.js`             | Relative paths, migration, validation, moves and dictionary lookup                                   | Returns staged documents/solution for a move                     |
+| `core/authoring.js`            | Literal/object replacement, text escaping, typed values, scoped resource references, inverse vectors | Resource rename returns staged documents                         |
+| `core/timeline-editing.js`     | Clock-aware recording, grouped key moves, paste, value/interpolation edits                           | Store transactions; record/edit additionally stage a cloned root |
+| `controls/menu-bar.js`         | Nested accessible menu roles, focus and keyboard routing                                             | Invokes callbacks; owns no document state                        |
+| `studio/solution-workspace.js` | File tree, solution snapshots, imports and resolver ownership                                        | Validated solution snapshot application                          |
+| `studio/direct-authoring.js`   | Text overlay, rotation, path points, drawing and record gestures                                     | Transient DOM preview followed by one store transaction          |
+| `studio/rich-properties.js`    | Type-specific widgets, brush/transform/effect/style/Grid editors                                     | Existing property API or explicit store transaction              |
+| `studio/resource-workspace.js` | Resource inventory, swatches, merges and reference navigation                                        | Document transaction or scoped solution rename                   |
+| `studio/timeline-workspace.js` | Inline motion controls, key selection, clipboard and snapping                                        | AnimationEditor mutation/record batch                            |
+| `studio/view-board.js`         | Retained cards, filtering, pagination, tiling and connections                                        | Layout operations or interaction store transaction               |
+| `studio/ide-menu.js`           | Command registry, dynamic menus, focus-aware Edit routing                                            | Delegates to owning editor/controller                            |
 
 ### History ownership
 
@@ -336,7 +332,6 @@ Editor-originated input, completion and formatting use `XamlEditor.changed()` an
 
 View cards are keyed and refreshed by document/data/resource signatures, rendered in batches of 40, and retained when unchanged. This reduces unnecessary DOM reconstruction but is not a full virtualized scene engine. Solution snapshots and full-tree XAML/preview updates remain scaling constraints. Deterministic tests are complemented by real Chromium source/property/preview workflows, HTML keyframe pointer dragging, and compact key-editor hit testing. This targeted coverage does not qualify native measure/arrange, all physical pointer geometry, browser accessibility, or rendering across devices. See [editor workflows](EDITOR-WORKFLOWS.md) for user-visible boundaries.
 
-
 ## 20. Presentation density in 0.6
 
 `controls/workspace-density.js` exports a standalone `WorkspaceDensity` preference controller, immutable `DENSITY_MODES`, a validation function, and the storage key. It sets only a `data-density` attribute on its configured root and emits a change event. `studio/density-workspace.js` mounts the selector, exposes the appearance API, synchronizes storage events and refreshes measured overlays. It never serializes design documents, renders the document tree, or enters model undo history.
@@ -358,7 +353,6 @@ Storage failure falls back to a working in-memory preference. The root controlle
 `core/overlay-layout.js` positions selection actions outside the element type label, with viewport-aware fallback. `controls/scroll-buttons.js` is an independent horizontal scrolling control, with keyboard isolation, resize/content observation, active-item reveal and disposal. Its stylesheet is imported by the docking stylesheet for standalone consumers. `studio/chrome-scroll.js` applies the control to the existing shell bars without rebuilding their children.
 
 DockWorkspace preserves per-group scroll offsets across synchronous tree reconstruction, prioritizes tab-strip destinations over outer edge zones, paints an insertion marker, scrolls near overflow edges during dragging, and supports auto-hide rail drag origins. Selection/source input nodes still move intact through docking operations.
-
 
 ## 23. HTML animation source and native preview
 
@@ -382,7 +376,6 @@ The core does not retain DOM objects in its document/history representations. Pu
 
 See [HTML states and transitions](HTML-STATES.md) for source/API contracts, interaction runtime ownership and supported selector boundaries.
 
-
 ## 26. Standalone application runtime and package boundaries
 
 `core/web-runtime.js` assembles the existing document model, XAML parser, browser renderer, binding/resource services, animation clocks and visual states into a disposable browser application. `core/runtime-properties.js` supplies observable application data and typed property metadata/precedence; `core/runtime-element.js` connects the same lifetime to custom elements. The runtime does not import studio controllers or studio styles.
@@ -390,7 +383,6 @@ See [HTML states and transitions](HTML-STATES.md) for source/API contracts, inte
 The package build assigns every exported source module to one owner and rewrites cross-package imports to explicit package subpaths. This preserves shared constructor identities while keeping the original buildless studio imports intact. ESM/CommonJS, declarations, browser bundles, styles and actual installed-tarball consumer checks form the distributable contract. The repository root is private; npm publication is separately gated by a manual release workflow and remains disabled by default.
 
 See [web framework architecture](WEB-FRAMEWORK-ARCHITECTURE.md), [runtime APIs](WEB-RUNTIME.md), and [package/release setup](PACKAGES.md). Browser layout remains an implementation of the supported web control subset; native framework services and arbitrary code-behind require adapters.
-
 
 ## 27. Semantic conversion and shared project planning
 

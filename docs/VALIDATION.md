@@ -4,16 +4,16 @@ Version 0.7.0 with document synchronization and HTML animation authoring · 15 S
 
 ## Final combined verification
 
-| Check | Result |
-| --- | --- |
-| `npm test` | **428 passed, 0 failed, 0 skipped**. |
-| `npm run check` | **Passed**: JavaScript syntax, module linkage, and local entrypoint assets verified. |
-| `node tests/browser-sync.mjs` | **Passed** in real headless Chromium. |
-| `node tests/browser-html-motion.mjs` | **Passed** in real headless Chromium. |
-| `node tests/browser-incremental.mjs` | **Passed**, including 12 native HTML parser contexts and 30 sequential edits. |
-| `node tests/browser-language.mjs` | **Passed**, including definition/reference navigation, rename, completion and diagnostic ranges. |
+| Check                                | Result                                                                                                   |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `npm test`                           | **428 passed, 0 failed, 0 skipped**.                                                                     |
+| `npm run check`                      | **Passed**: JavaScript syntax, module linkage, and local entrypoint assets verified.                     |
+| `node tests/browser-sync.mjs`        | **Passed** in real headless Chromium.                                                                    |
+| `node tests/browser-html-motion.mjs` | **Passed** in real headless Chromium.                                                                    |
+| `node tests/browser-incremental.mjs` | **Passed**, including 12 native HTML parser contexts and 30 sequential edits.                            |
+| `node tests/browser-language.mjs`    | **Passed**, including definition/reference navigation, rename, completion and diagnostic ranges.         |
 | `node tests/browser-html-states.mjs` | **Passed**, including native transitions, pointer recording, exported interactions and compact controls. |
-| Compact timeline inspection | Inspected at **1600 × 1100** and **1366 × 768**, including selected-key editor access after scrolling. |
+| Compact timeline inspection          | Inspected at **1600 × 1100** and **1366 × 768**, including selected-key editor access after scrolling.   |
 
 The final combined Node run reported 18.11 seconds. This is an execution result for the test suite, not an application performance benchmark. The browser suites also assert that their tested workflows produce no uncaught browser errors.
 
@@ -120,7 +120,6 @@ Closing the state panel or switching from HTML to XAML restores original preview
 
 See [HTML states and transitions](HTML-STATES.md) for the authored CSS/runtime ownership model and supported selector boundaries.
 
-
 ## 0.8 standalone framework and packages
 
 The isolated framework/package change passed 444 Node tests, static syntax/module/asset checks, and all seven applicable Chromium suites (five established designer suites plus runtime and standalone-example suites). Twelve actual npm tarballs passed isolated dependency-closure installation, ESM/CommonJS module imports and constructor-identity checks, and strict TypeScript consumer programs without `skipLibCheck`.
@@ -130,7 +129,6 @@ The standalone browser bundle test mounts the application with exactly two reque
 Focused runtime checks include invalid-source/render-failure retention, async source/dictionary races, focus and caret restoration, typed property defaults/inheritance/coercion, forward ElementName binding, remount lifecycle and restoration after animation disposal. Existing source/canvas/property synchronization, HTML motion/states and semantic-navigation tests remain passing.
 
 No npm release was performed. Packaging, consumer installation and artifact integrity are validated separately from future publication authorization. The browser implementation retains the support and scaling boundaries documented in WEB-RUNTIME.md and WEB-FRAMEWORK-ARCHITECTURE.md.
-
 
 ## 0.8 semantic compiler, CLI and IDE qualification
 

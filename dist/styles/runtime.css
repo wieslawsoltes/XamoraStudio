@@ -1,16 +1,71 @@
 /* Standalone Xamora runtime controls; intentionally scoped away from host-page CSS. */
-.xamora-application { box-sizing: border-box; font: 14px system-ui, sans-serif; color: #292834; isolation: isolate; }
-.xamora-application * { box-sizing: border-box; }
-.xamora-application button, .xamora-application input, .xamora-application select, .xamora-application textarea { font: inherit; }
-.xamora-application .preview-button { cursor: pointer; border: 0; border-radius: 4px; padding: 8px 14px; }
-.xamora-application .preview-input { padding: 6px 8px; border: 1px solid #c9c9d2; border-radius: 4px; min-width: 0; }
-.xamora-application :focus-visible { outline: 2px solid #7953e8; outline-offset: 2px; }
-.xamora-application .preview-tabs { display: flex; gap: 4px; }
-.xamora-application .preview-tabs button { padding: 8px; border: 0; border-radius: 4px; }
-.xamora-application .preview-tabs .active { background: #7953e8; color: white; }
-.xamora-application .bound-data-grid { border-collapse: collapse; width: 100%; }
-.xamora-application .bound-data-grid td, .xamora-application .bound-data-grid th { padding: 6px 10px; text-align: left; border-bottom: 1px solid #e4e3eb; }
-.xamora-application .bound-list-item { padding: 6px 10px; }
-.xamora-application .preview-image { display: grid; place-items: center; background: #eee; }
-.xamora-application [disabled] { cursor: default; }
-.xamora-application .empty-container { outline: none; }
+.xamora-application {
+  box-sizing: border-box;
+  font:
+    14px system-ui,
+    sans-serif;
+  color: #292834;
+  isolation: isolate;
+}
+.xamora-application * {
+  box-sizing: border-box;
+}
+.xamora-application button,
+.xamora-application input,
+.xamora-application select,
+.xamora-application textarea {
+  font: inherit;
+}
+.xamora-application .preview-button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 14px;
+}
+.xamora-application .preview-input {
+  padding: 6px 8px;
+  border: 1px solid #c9c9d2;
+  border-radius: 4px;
+  min-width: 0;
+}
+.xamora-application :focus-visible {
+  outline: 2px solid #7953e8;
+  outline-offset: 2px;
+}
+.xamora-application .preview-tabs {
+  display: flex;
+  gap: 4px;
+}
+.xamora-application .preview-tabs button {
+  padding: 8px;
+  border: 0;
+  border-radius: 4px;
+}
+.xamora-application .preview-tabs .active {
+  background: #7953e8;
+  color: white;
+}
+.xamora-application .bound-data-grid {
+  border-collapse: collapse;
+  width: 100%;
+}
+.xamora-application .bound-data-grid td,
+.xamora-application .bound-data-grid th {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e4e3eb;
+}
+.xamora-application .bound-list-item {
+  padding: 6px 10px;
+}
+.xamora-application .preview-image {
+  display: grid;
+  place-items: center;
+  background: #eee;
+}
+.xamora-application [disabled] {
+  cursor: default;
+}
+.xamora-application .empty-container {
+  outline: none;
+}

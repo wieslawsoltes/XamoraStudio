@@ -1,31 +1,338 @@
-import {element,localName,clone} from './model.js';
+import { element, localName, clone } from './model.js';
 export class ToolkitRegistry extends EventTarget {
-  constructor(){super();this.controls=new Map();this.adapters=new Map();this.toolkits=new Map();}
-  registerControl(descriptor){if(!descriptor.type||!descriptor.category)throw Error('Controls require type and category.');const previous=this.controls.get(descriptor.type),registered={properties:[],defaults:{},...descriptor};this.controls.set(descriptor.type,registered);this.dispatchEvent(new Event('change'));return()=>{if(this.controls.get(descriptor.type)!==registered)return false;if(previous)this.controls.set(descriptor.type,previous);else this.controls.delete(descriptor.type);this.dispatchEvent(new Event('change'));return true;};}
-  get(type,namespace){return this.controls.get(type)||(type.includes(':')&&['http://schemas.microsoft.com/winfx/2006/xaml/presentation','https://github.com/avaloniaui'].includes(namespace)?this.controls.get(localName(type)):undefined);}
-  list(){return [...this.controls.values()];}
-  registerAdapter(name,adapter){if(typeof adapter.serialize!=='function')throw Error('Adapter needs a serialize function.');this.adapters.set(name,adapter);}
-  install(manifest){if(!manifest.name||!Array.isArray(manifest.controls)||manifest.controls.length>200)throw Error('Toolkit requires a name and up to 200 controls.');manifest.controls.forEach(c=>{if(!/^[A-Za-z_][\w.:-]*$/.test(c.type)||!c.category)throw Error('Each control requires a valid type and category.');if(c.defaults&&Object.values(c.defaults).some(v=>!['string','number','boolean'].includes(typeof v)))throw Error('Defaults must be primitive values.');});manifest.controls.forEach(c=>this.registerControl({...c,toolkit:manifest.name}));this.toolkits.set(manifest.name,clone(manifest));}
-  create(type){const d=this.get(type);if(!d)throw Error(`Unknown control: ${type}`);const make=c=>element(c.type,c.props||{},(c.children||[]).map(make));return element(type,{...d.defaults},(d.children||[]).map(make));}
+  constructor() {
+    super();
+    this.controls = new Map();
+    this.adapters = new Map();
+    this.toolkits = new Map();
+  }
+  registerControl(descriptor) {
+    if (!descriptor.type || !descriptor.category)
+      throw Error('Controls require type and category.');
+    const previous = this.controls.get(descriptor.type),
+      registered = { properties: [], defaults: {}, ...descriptor };
+    this.controls.set(descriptor.type, registered);
+    this.dispatchEvent(new Event('change'));
+    return () => {
+      if (this.controls.get(descriptor.type) !== registered) return false;
+      if (previous) this.controls.set(descriptor.type, previous);
+      else this.controls.delete(descriptor.type);
+      this.dispatchEvent(new Event('change'));
+      return true;
+    };
+  }
+  get(type, namespace) {
+    return (
+      this.controls.get(type) ||
+      (type.includes(':') &&
+      [
+        'http://schemas.microsoft.com/winfx/2006/xaml/presentation',
+        'https://github.com/avaloniaui',
+      ].includes(namespace)
+        ? this.controls.get(localName(type))
+        : undefined)
+    );
+  }
+  list() {
+    return [...this.controls.values()];
+  }
+  registerAdapter(name, adapter) {
+    if (typeof adapter.serialize !== 'function') throw Error('Adapter needs a serialize function.');
+    this.adapters.set(name, adapter);
+  }
+  install(manifest) {
+    if (!manifest.name || !Array.isArray(manifest.controls) || manifest.controls.length > 200)
+      throw Error('Toolkit requires a name and up to 200 controls.');
+    manifest.controls.forEach((c) => {
+      if (!/^[A-Za-z_][\w.:-]*$/.test(c.type) || !c.category)
+        throw Error('Each control requires a valid type and category.');
+      if (
+        c.defaults &&
+        Object.values(c.defaults).some((v) => !['string', 'number', 'boolean'].includes(typeof v))
+      )
+        throw Error('Defaults must be primitive values.');
+    });
+    manifest.controls.forEach((c) => this.registerControl({ ...c, toolkit: manifest.name }));
+    this.toolkits.set(manifest.name, clone(manifest));
+  }
+  create(type) {
+    const d = this.get(type);
+    if (!d) throw Error(`Unknown control: ${type}`);
+    const make = (c) => element(c.type, c.props || {}, (c.children || []).map(make));
+    return element(type, { ...d.defaults }, (d.children || []).map(make));
+  }
 }
-export const propertyGroups={
-  Layout:['Width','Height','MinWidth','MinHeight','MaxWidth','MaxHeight','Margin','Padding','HorizontalAlignment','VerticalAlignment'],
-  Appearance:['Background','Foreground','BorderBrush','BorderThickness','CornerRadius','Opacity','Visibility','IsVisible'],
-  Typography:['FontFamily','FontSize','FontWeight','FontStyle','TextAlignment','TextWrapping','LineHeight'],
-  Content:['Text','Content','Header','ToolTip','Watermark','PlaceholderText','Source'],
-  Behavior:['IsEnabled','IsReadOnly','IsChecked','Value','Minimum','Maximum','SelectedIndex','TabIndex','Cursor'],
-  Attached:['Grid.Row','Grid.Column','Grid.RowSpan','Grid.ColumnSpan','Canvas.Left','Canvas.Top','Canvas.Right','Canvas.Bottom','Panel.ZIndex','DockPanel.Dock'],
-  Data:['DataContext','ItemsSource','Command','CommandParameter','Style','Template','Classes'],
-  Events:['Click','Loaded','Unloaded','SelectionChanged','TextChanged','PointerPressed']
+export const propertyGroups = {
+  Layout: [
+    'Width',
+    'Height',
+    'MinWidth',
+    'MinHeight',
+    'MaxWidth',
+    'MaxHeight',
+    'Margin',
+    'Padding',
+    'HorizontalAlignment',
+    'VerticalAlignment',
+  ],
+  Appearance: [
+    'Background',
+    'Foreground',
+    'BorderBrush',
+    'BorderThickness',
+    'CornerRadius',
+    'Opacity',
+    'Visibility',
+    'IsVisible',
+  ],
+  Typography: [
+    'FontFamily',
+    'FontSize',
+    'FontWeight',
+    'FontStyle',
+    'TextAlignment',
+    'TextWrapping',
+    'LineHeight',
+  ],
+  Content: ['Text', 'Content', 'Header', 'ToolTip', 'Watermark', 'PlaceholderText', 'Source'],
+  Behavior: [
+    'IsEnabled',
+    'IsReadOnly',
+    'IsChecked',
+    'Value',
+    'Minimum',
+    'Maximum',
+    'SelectedIndex',
+    'TabIndex',
+    'Cursor',
+  ],
+  Attached: [
+    'Grid.Row',
+    'Grid.Column',
+    'Grid.RowSpan',
+    'Grid.ColumnSpan',
+    'Canvas.Left',
+    'Canvas.Top',
+    'Canvas.Right',
+    'Canvas.Bottom',
+    'Panel.ZIndex',
+    'DockPanel.Dock',
+  ],
+  Data: [
+    'DataContext',
+    'ItemsSource',
+    'Command',
+    'CommandParameter',
+    'Style',
+    'Template',
+    'Classes',
+  ],
+  Events: ['Click', 'Loaded', 'Unloaded', 'SelectionChanged', 'TextChanged', 'PointerPressed'],
 };
-export function builtins(){const r=new ToolkitRegistry();
-  const add=(type,category,defaults={},extra={})=>r.registerControl({type,category,defaults,...extra});
-  add('Grid','Layout',{}, {container:true,icon:'grid'});add('StackPanel','Layout',{Orientation:'Vertical'},{container:true,icon:'stack'});add('Canvas','Layout',{Height:'240'},{container:true,icon:'frame'});add('DockPanel','Layout',{LastChildFill:'True'},{container:true,icon:'dock'});add('WrapPanel','Layout',{Orientation:'Horizontal'},{container:true,icon:'wrap'});add('UniformGrid','Layout',{Columns:'3'},{container:true,icon:'grid'});
-  add('Border','Layout',{Background:'#F5F4F8',BorderBrush:'#E4E3EB',BorderThickness:'1',CornerRadius:'12',Padding:'20'},{container:true,singleChild:true,icon:'square'});add('Viewbox','Layout',{}, {container:true,singleChild:true});add('ScrollViewer','Layout',{Height:'240'},{container:true,singleChild:true});
-  add('TextBlock','Text',{Text:'Your text here',FontSize:'16',Foreground:'#292834'}, {icon:'text'});add('Label','Text',{Content:'Label',FontSize:'14'},{icon:'text'});add('TextBox','Input',{Text:'Text input',Height:'38',Padding:'10',BorderBrush:'#DAD8E2',BorderThickness:'1'},{icon:'input'});add('PasswordBox','Input',{Height:'38'},{icon:'input'});add('Button','Input',{Content:'Button',Background:'#7953E8',Foreground:'#FFFFFF',Padding:'16,10',Height:'40'},{icon:'button'});add('CheckBox','Input',{Content:'Checkbox',IsChecked:'True',Margin:'0,8'},{icon:'check'});add('RadioButton','Input',{Content:'Option',GroupName:'Options',Margin:'0,8'},{icon:'circle'});add('ToggleButton','Input',{Content:'Toggle',IsChecked:'False',Height:'36'},{icon:'button'});add('ToggleSwitch','Input',{Header:'Setting',IsChecked:'True'},{icon:'toggle'});add('ComboBox','Input',{Height:'38',SelectedIndex:'0'},{icon:'input',container:true,children:[{type:'ComboBoxItem',props:{Content:'Select an option'}},{type:'ComboBoxItem',props:{Content:'Another option'}}]});add('Slider','Input',{Value:'65',Minimum:'0',Maximum:'100',Height:'28'},{icon:'slider'});add('NumericUpDown','Input',{Value:'10',Minimum:'0',Maximum:'100'},{icon:'input'});add('DatePicker','Input',{Height:'38'},{icon:'calendar'});
-  add('Image','Media',{Width:'160',Height:'100',Stretch:'Uniform'},{icon:'image'});add('Rectangle','Shapes',{Width:'120',Height:'80',Fill:'#C2B1F6',RadiusX:'8',RadiusY:'8'},{icon:'square'});add('Ellipse','Shapes',{Width:'80',Height:'80',Fill:'#B5DACA'},{icon:'circle'});add('Path','Shapes',{Data:'M 10,70 L 60,10 L 110,70 Z',Width:'120',Height:'80',Fill:'#7953E8',Stretch:'Fill'},{icon:'path',properties:['Data','Fill','Stroke','StrokeThickness','Stretch']});add('Line','Shapes',{X1:'0',Y1:'0',X2:'120',Y2:'80',Width:'120',Height:'80',Stroke:'#7953E8',StrokeThickness:'2'},{icon:'line'});add('Polygon','Shapes',{Points:'10,70 60,10 110,70',Width:'120',Height:'80',Fill:'#7953E8'},{icon:'path'});add('Polyline','Shapes',{Points:'10,70 60,10 110,70',Width:'120',Height:'80',Stroke:'#7953E8',StrokeThickness:'2'},{icon:'path'});add('ProgressBar','Data',{Value:'68',Minimum:'0',Maximum:'100',Height:'8',Foreground:'#7953E8'},{icon:'slider'});
-  for(const type of ['ListBox','ListView','TreeView','ItemsControl','TabControl','Menu','ToolBar'])add(type,'Collections',{}, {container:true,icon:'list'});
-  for(const type of ['ListBoxItem','ListViewItem','TreeViewItem','ComboBoxItem','TabItem','MenuItem'])add(type,'Collections',{[type==='TabItem'||type==='TreeViewItem'||type==='MenuItem'?'Header':'Content']:'Item'},{container:true});
-  add('DataGrid','Collections',{Height:'180'},{container:true,icon:'grid'});add('Expander','Containers',{Header:'Details',IsExpanded:'True'},{container:true,singleChild:true});add('GroupBox','Containers',{Header:'Group'},{container:true,singleChild:true});add('ContentControl','Containers',{Content:'Content'},{container:true,singleChild:true});add('ContentPresenter','Containers',{Content:'{TemplateBinding Content}'},{container:true,singleChild:true});add('UserControl','Containers',{}, {container:true,singleChild:true});add('Window','Containers',{}, {container:true,singleChild:true});
+export function builtins() {
+  const r = new ToolkitRegistry();
+  const add = (type, category, defaults = {}, extra = {}) =>
+    r.registerControl({ type, category, defaults, ...extra });
+  add('Grid', 'Layout', {}, { container: true, icon: 'grid' });
+  add('StackPanel', 'Layout', { Orientation: 'Vertical' }, { container: true, icon: 'stack' });
+  add('Canvas', 'Layout', { Height: '240' }, { container: true, icon: 'frame' });
+  add('DockPanel', 'Layout', { LastChildFill: 'True' }, { container: true, icon: 'dock' });
+  add('WrapPanel', 'Layout', { Orientation: 'Horizontal' }, { container: true, icon: 'wrap' });
+  add('UniformGrid', 'Layout', { Columns: '3' }, { container: true, icon: 'grid' });
+  add(
+    'Border',
+    'Layout',
+    {
+      Background: '#F5F4F8',
+      BorderBrush: '#E4E3EB',
+      BorderThickness: '1',
+      CornerRadius: '12',
+      Padding: '20',
+    },
+    { container: true, singleChild: true, icon: 'square' },
+  );
+  add('Viewbox', 'Layout', {}, { container: true, singleChild: true });
+  add('ScrollViewer', 'Layout', { Height: '240' }, { container: true, singleChild: true });
+  add(
+    'TextBlock',
+    'Text',
+    { Text: 'Your text here', FontSize: '16', Foreground: '#292834' },
+    { icon: 'text' },
+  );
+  add('Label', 'Text', { Content: 'Label', FontSize: '14' }, { icon: 'text' });
+  add(
+    'TextBox',
+    'Input',
+    {
+      Text: 'Text input',
+      Height: '38',
+      Padding: '10',
+      BorderBrush: '#DAD8E2',
+      BorderThickness: '1',
+    },
+    { icon: 'input' },
+  );
+  add('PasswordBox', 'Input', { Height: '38' }, { icon: 'input' });
+  add(
+    'Button',
+    'Input',
+    {
+      Content: 'Button',
+      Background: '#7953E8',
+      Foreground: '#FFFFFF',
+      Padding: '16,10',
+      Height: '40',
+    },
+    { icon: 'button' },
+  );
+  add(
+    'CheckBox',
+    'Input',
+    { Content: 'Checkbox', IsChecked: 'True', Margin: '0,8' },
+    { icon: 'check' },
+  );
+  add(
+    'RadioButton',
+    'Input',
+    { Content: 'Option', GroupName: 'Options', Margin: '0,8' },
+    { icon: 'circle' },
+  );
+  add(
+    'ToggleButton',
+    'Input',
+    { Content: 'Toggle', IsChecked: 'False', Height: '36' },
+    { icon: 'button' },
+  );
+  add('ToggleSwitch', 'Input', { Header: 'Setting', IsChecked: 'True' }, { icon: 'toggle' });
+  add(
+    'ComboBox',
+    'Input',
+    { Height: '38', SelectedIndex: '0' },
+    {
+      icon: 'input',
+      container: true,
+      children: [
+        { type: 'ComboBoxItem', props: { Content: 'Select an option' } },
+        { type: 'ComboBoxItem', props: { Content: 'Another option' } },
+      ],
+    },
+  );
+  add(
+    'Slider',
+    'Input',
+    { Value: '65', Minimum: '0', Maximum: '100', Height: '28' },
+    { icon: 'slider' },
+  );
+  add('NumericUpDown', 'Input', { Value: '10', Minimum: '0', Maximum: '100' }, { icon: 'input' });
+  add('DatePicker', 'Input', { Height: '38' }, { icon: 'calendar' });
+  add('Image', 'Media', { Width: '160', Height: '100', Stretch: 'Uniform' }, { icon: 'image' });
+  add(
+    'Rectangle',
+    'Shapes',
+    { Width: '120', Height: '80', Fill: '#C2B1F6', RadiusX: '8', RadiusY: '8' },
+    { icon: 'square' },
+  );
+  add('Ellipse', 'Shapes', { Width: '80', Height: '80', Fill: '#B5DACA' }, { icon: 'circle' });
+  add(
+    'Path',
+    'Shapes',
+    {
+      Data: 'M 10,70 L 60,10 L 110,70 Z',
+      Width: '120',
+      Height: '80',
+      Fill: '#7953E8',
+      Stretch: 'Fill',
+    },
+    { icon: 'path', properties: ['Data', 'Fill', 'Stroke', 'StrokeThickness', 'Stretch'] },
+  );
+  add(
+    'Line',
+    'Shapes',
+    {
+      X1: '0',
+      Y1: '0',
+      X2: '120',
+      Y2: '80',
+      Width: '120',
+      Height: '80',
+      Stroke: '#7953E8',
+      StrokeThickness: '2',
+    },
+    { icon: 'line' },
+  );
+  add(
+    'Polygon',
+    'Shapes',
+    { Points: '10,70 60,10 110,70', Width: '120', Height: '80', Fill: '#7953E8' },
+    { icon: 'path' },
+  );
+  add(
+    'Polyline',
+    'Shapes',
+    {
+      Points: '10,70 60,10 110,70',
+      Width: '120',
+      Height: '80',
+      Stroke: '#7953E8',
+      StrokeThickness: '2',
+    },
+    { icon: 'path' },
+  );
+  add(
+    'ProgressBar',
+    'Data',
+    { Value: '68', Minimum: '0', Maximum: '100', Height: '8', Foreground: '#7953E8' },
+    { icon: 'slider' },
+  );
+  for (const type of [
+    'ListBox',
+    'ListView',
+    'TreeView',
+    'ItemsControl',
+    'TabControl',
+    'Menu',
+    'ToolBar',
+  ])
+    add(type, 'Collections', {}, { container: true, icon: 'list' });
+  for (const type of [
+    'ListBoxItem',
+    'ListViewItem',
+    'TreeViewItem',
+    'ComboBoxItem',
+    'TabItem',
+    'MenuItem',
+  ])
+    add(
+      type,
+      'Collections',
+      {
+        [type === 'TabItem' || type === 'TreeViewItem' || type === 'MenuItem'
+          ? 'Header'
+          : 'Content']: 'Item',
+      },
+      { container: true },
+    );
+  add('DataGrid', 'Collections', { Height: '180' }, { container: true, icon: 'grid' });
+  add(
+    'Expander',
+    'Containers',
+    { Header: 'Details', IsExpanded: 'True' },
+    { container: true, singleChild: true },
+  );
+  add('GroupBox', 'Containers', { Header: 'Group' }, { container: true, singleChild: true });
+  add(
+    'ContentControl',
+    'Containers',
+    { Content: 'Content' },
+    { container: true, singleChild: true },
+  );
+  add(
+    'ContentPresenter',
+    'Containers',
+    { Content: '{TemplateBinding Content}' },
+    { container: true, singleChild: true },
+  );
+  add('UserControl', 'Containers', {}, { container: true, singleChild: true });
+  add('Window', 'Containers', {}, { container: true, singleChild: true });
   return r;
 }

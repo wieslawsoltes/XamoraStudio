@@ -150,14 +150,14 @@ Plain `data` defaults supplied at registration are copied for each element, so s
 
 The implementation targets modern browsers with ES modules, DOM/CSS Grid/Flexbox, Proxy, custom elements and requestAnimationFrame. WebGPU is optional for designer rendering work and is not required by standalone applications. Browser tests run in Chromium. Other browser engines require their own release qualification.
 
-| Area | Implemented browser behavior | Boundary |
-| --- | --- | --- |
-| Layout | Grid tracks/spans, StackPanel, WrapPanel, UniformGrid, DockPanel, Canvas, sizes, margins, alignment | DOM/CSS layout is not the native WPF/Avalonia measure-arrange engine; virtualization and every native attached property are not implemented. |
-| Controls | Shared built-in DOM control mappings, templates and toolkit render/mount adapters | Native accessibility contracts, keyboard behavior and platform controls need adapter-specific validation. |
-| Collections | Observable arrays, ItemsSource, item templates, editing and commands in item contexts | The shared built-in renderer displays up to 500 items and reports larger collections; use a virtualizing custom control for larger views. |
-| Data | Observable nested objects, registered commands/events/converters and supported binding modes | No CLR objects, C# execution, reflection, full .NET binding engine or automatic network persistence. |
-| Styling | Supported resource lookup, style inheritance, templates and theme dictionaries | Dynamic style/selector/property semantics beyond the shared subset require adapters. |
-| Motion | Shared storyboard/keyframe/state sampling and explicit application controls | Unsupported native animation types, composition effects or clocks are not translated into equivalent browser implementations automatically. |
-| Documents | XAML AST rendering and existing HTML document rendering | Importing a document successfully does not mean every native or arbitrary script behavior is portable. |
+| Area        | Implemented browser behavior                                                                        | Boundary                                                                                                                                     |
+| ----------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Layout      | Grid tracks/spans, StackPanel, WrapPanel, UniformGrid, DockPanel, Canvas, sizes, margins, alignment | DOM/CSS layout is not the native WPF/Avalonia measure-arrange engine; virtualization and every native attached property are not implemented. |
+| Controls    | Shared built-in DOM control mappings, templates and toolkit render/mount adapters                   | Native accessibility contracts, keyboard behavior and platform controls need adapter-specific validation.                                    |
+| Collections | Observable arrays, ItemsSource, item templates, editing and commands in item contexts               | The shared built-in renderer displays up to 500 items and reports larger collections; use a virtualizing custom control for larger views.    |
+| Data        | Observable nested objects, registered commands/events/converters and supported binding modes        | No CLR objects, C# execution, reflection, full .NET binding engine or automatic network persistence.                                         |
+| Styling     | Supported resource lookup, style inheritance, templates and theme dictionaries                      | Dynamic style/selector/property semantics beyond the shared subset require adapters.                                                         |
+| Motion      | Shared storyboard/keyframe/state sampling and explicit application controls                         | Unsupported native animation types, composition effects or clocks are not translated into equivalent browser implementations automatically.  |
+| Documents   | XAML AST rendering and existing HTML document rendering                                             | Importing a document successfully does not mean every native or arbitrary script behavior is portable.                                       |
 
 The runtime's first package release is a browser framework based on Xamora's supported control and document semantics. It is not a binary-compatible WPF or Avalonia implementation. Runtime diagnostics and the standalone browser example are part of that support contract.

@@ -1,12 +1,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {builtins} from '../dist/core/registry.js';
-import {parseXaml} from '../dist/core/xaml.js';
-import {completeXaml,completionContext} from '../dist/core/xaml-language.js';
-const registry=builtins();
-const complete=(source,extras={})=>completeXaml(source,source.length,{registry,...extras});
-test('contextual element and property completions include replacement ranges',()=>{const el=complete('<Sta').find(x=>x.label==='StackPanel');assert.equal(el.start,1);assert.equal(el.insertText,'StackPanel');const prop=complete('<Grid Wid').find(x=>x.label==='Width');assert.equal(prop.insertText,'Width=""');assert.equal(prop.caretOffset,7);});
-test('completion respects quoted delimiters and avoids comments and CDATA',()=>{assert.equal(completionContext('<Button Content="a > b" Wid').start,0);assert.ok(complete('<Button Content="a > b" Wid').some(x=>x.label==='Width'));assert.deepEqual(complete('<!-- <Gri'),[]);assert.deepEqual(complete('<![CDATA[<Gri'),[]);});
-test('enum and custom toolkit values are available without native assemblies',()=>{assert.ok(complete('<StackPanel Orientation="H').some(x=>x.label==='Horizontal'));registry.registerControl({type:'acme:Card',category:'Acme',properties:[{name:'Status',values:['Ready','Busy']}]});assert.ok(complete('<acme:Card Status="R').some(x=>x.label==='Ready'));});
-test('resource and data path completions use the current document and context',()=>{const document=parseXaml('<Grid xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Grid.Resources><SolidColorBrush x:Key="Accent" Color="#7953E8"/></Grid.Resources></Grid>');assert.ok(complete('<Button Background="{StaticResource Ac',{document}).some(x=>x.label==='Accent'));assert.ok(complete('<TextBlock Text="{Binding App.T',{context:{App:{Title:'Demo'}}}).some(x=>x.label==='App.Title'));});
-test('closing tags use nesting and grid spans start at one',()=>{assert.ok(complete('<Grid><StackPanel></St').some(x=>x.label==='StackPanel'));assert.equal(complete('<Button Grid.RowSpan="').some(x=>x.label==='0'),false);assert.equal(complete('<Button Grid.Row="').some(x=>x.label==='0'),true);});
+import { builtins } from '../dist/core/registry.js';
+import { parseXaml } from '../dist/core/xaml.js';
+import { completeXaml, completionContext } from '../dist/core/xaml-language.js';
+const registry = builtins();
+const complete = (source, extras = {}) =>
+  completeXaml(source, source.length, { registry, ...extras });
+test('contextual element and property completions include replacement ranges', () => {
+  const el = complete('<Sta').find((x) => x.label === 'StackPanel');
+  assert.equal(el.start, 1);
+  assert.equal(el.insertText, 'StackPanel');
+  const prop = complete('<Grid Wid').find((x) => x.label === 'Width');
+  assert.equal(prop.insertText, 'Width=""');
+  assert.equal(prop.caretOffset, 7);
+});
+test('completion respects quoted delimiters and avoids comments and CDATA', () => {
+  assert.equal(completionContext('<Button Content="a > b" Wid').start, 0);
+  assert.ok(complete('<Button Content="a > b" Wid').some((x) => x.label === 'Width'));
+  assert.deepEqual(complete('<!-- <Gri'), []);
+  assert.deepEqual(complete('<![CDATA[<Gri'), []);
+});
+test('enum and custom toolkit values are available without native assemblies', () => {
+  assert.ok(complete('<StackPanel Orientation="H').some((x) => x.label === 'Horizontal'));
+  registry.registerControl({
+    type: 'acme:Card',
+    category: 'Acme',
+    properties: [{ name: 'Status', values: ['Ready', 'Busy'] }],
+  });
+  assert.ok(complete('<acme:Card Status="R').some((x) => x.label === 'Ready'));
+});
+test('resource and data path completions use the current document and context', () => {
+  const document = parseXaml(
+    '<Grid xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Grid.Resources><SolidColorBrush x:Key="Accent" Color="#7953E8"/></Grid.Resources></Grid>',
+  );
+  assert.ok(
+    complete('<Button Background="{StaticResource Ac', { document }).some(
+      (x) => x.label === 'Accent',
+    ),
+  );
+  assert.ok(
+    complete('<TextBlock Text="{Binding App.T', { context: { App: { Title: 'Demo' } } }).some(
+      (x) => x.label === 'App.Title',
+    ),
+  );
+});
+test('closing tags use nesting and grid spans start at one', () => {
+  assert.ok(complete('<Grid><StackPanel></St').some((x) => x.label === 'StackPanel'));
+  assert.equal(
+    complete('<Button Grid.RowSpan="').some((x) => x.label === '0'),
+    false,
+  );
+  assert.equal(
+    complete('<Button Grid.Row="').some((x) => x.label === '0'),
+    true,
+  );
+});
