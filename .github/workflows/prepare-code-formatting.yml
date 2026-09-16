@@ -6,7 +6,6 @@ permissions:
   contents: write
 jobs:
   prepare:
-    if: github.event.head_commit.message == 'chore: prepare reproducible source formatting'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
