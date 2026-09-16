@@ -1,0 +1,36 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import * as babel from './node_modules/prettier/plugins/babel.mjs';
+const source = await readFile('dist/app.js', 'utf8');
+const nodes = babel.parsers.babel.parse(source, {}).program.body;
+const imports = nodes.filter(n => n.type === 'ImportDeclaration');
+const studio = nodes.find(n => n.type === 'ClassDeclaration' && n.id.name === 'Studio');
+const boot = nodes.find(n => n.type === 'TryStatement');
+const named = name => nodes.find(n => n.id?.name === name || n.declarations?.some(d => d.id.name === name));
+const text = node => source.slice(node.start, node.end);
+if (!studio || !boot || !named('icons') || !named('toast')) throw Error('Unexpected app composition');
+const isFeature = node => node.source.value.startsWith('./studio/');
+await mkdir('dist/studio', { recursive: true });
+await writeFile('dist/studio/icons.js', `import { esc } from './ui.js';\n\n${text(named('icons'))}\nexport ${text(named('icon'))}\nexport ${text(named('button'))}\n`);
+const studioImports = imports.filter(node => !isFeature(node)).map(node => text(node).replaceAll("'./core/", "'../core/")).join('\n');
+await writeFile('dist/studio/studio.js', `${studioImports}\nimport { $, $$, esc, toast, download } from './ui.js';\nimport { icon, button } from './icons.js';\n\n${text(named('nval'))}\n\nexport ${text(studio)}\n`);
+await writeFile('dist/app.js', `/** Compose the designer host and its feature workspaces in dependency order. */\nimport { Studio } from './studio/studio.js';\nimport { $, esc, download } from './studio/ui.js';\n${imports.filter(isFeature).map(text).join('\n')}\n\n${text(boot)}\n`);
+const uiFile='dist/studio/ui.js';
+let ui=await readFile(uiFile,'utf8');
+const uiNodes=babel.parsers.babel.parse(ui,{}).program.body;
+const notify=uiNodes.find(n=>n.declaration?.id?.name==='notify');
+if(!notify) throw Error('Missing shared notifier');
+const notifyBody=ui.slice(notify.declaration.body.start,notify.declaration.body.end).replace(/3500/g,'duration');
+ui=ui.slice(0,notify.start)+`/** A notifier owns its timer so existing toast channels remain independent. */\nexport function createNotifier(duration = 3500) {\n  return function notify(message) ${notifyBody};\n}\nexport const notify = createNotifier();\nexport const toast = createNotifier(3400);`+ui.slice(notify.end);
+ui+=`\n/** The base designer historically downloads plain text unless a type is supplied. */\nexport function download(name, content, type = 'text/plain') {\n  return saveFile(name, content, type);\n}\n`;
+await writeFile(uiFile,ui);
+for (const file of ['docs/ARCHITECTURE.md', 'dist/docs/ARCHITECTURE.md']) {
+  let doc = await readFile(file, 'utf8');
+  doc = doc.replace(/^\| `app.js`.+$/m, '| `app.js` | Application startup and workspace recovery | Studio feature constructors |\n| `studio/studio.js` | Base workspace host, interaction and state coordination | Core modules and shared Studio UI |\n| `studio/icons.js`, `studio/ui.js` | Icon markup and shared DOM, notification and download helpers | Browser DOM only when invoked |');
+  await writeFile(file, doc);
+}
+let readme=await readFile('README.md','utf8');
+readme=readme.replace('app.js                      Studio orchestration and interactions','app.js                      Application startup and workspace recovery');
+await writeFile('README.md', readme);
+let contributing=await readFile('CONTRIBUTING.md','utf8');
+contributing=contributing.replace('`dist/app.js`: application composition and base workspace.', '`dist/app.js`: application composition and startup recovery.\n- `dist/studio/studio.js`: the base workspace host; importing this module does not start the app.\n- `dist/studio/ui.js` and `dist/studio/icons.js`: shared UI primitives; keep duplicate helpers out of feature modules.');
+await writeFile('CONTRIBUTING.md',contributing);
