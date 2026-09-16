@@ -10,6 +10,9 @@ export interface CliOptions {
   solution: boolean;
   report?: string;
   help?: boolean;
+  viewport?: string;
+  media?: 'screen' | 'print';
+  environment?: { width?: number; height?: number; type: string };
 }
 export interface ConversionInput {
   id: string;

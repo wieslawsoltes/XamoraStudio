@@ -1,3 +1,4 @@
+import { compilerStylesheetUrl } from './compiler-css.js';
 import { compileDocument } from './semantic-compiler.js';
 import { normalizePath, resolvePath, relativePath } from './solution.js';
 import { clone, walk } from './model.js';
@@ -318,6 +319,7 @@ export function planProjectConversion(inputs, options = {}, compiler = compileDo
         from,
         to,
         sourceName: path.split('/').at(-1),
+        baseUrl: compilerStylesheetUrl(path, settings.baseUrl || 'https://xamora.invalid/'),
         name: target.split('/').at(-1),
       });
       if (!result || typeof result.success !== 'boolean')
@@ -358,6 +360,16 @@ export function planProjectConversion(inputs, options = {}, compiler = compileDo
     summary.losses += entry.result?.losses?.length || 0;
   }
   // Parser/plugin functions stay out of the serializable preview and conversion report.
-  const { Parser, parse, plugins, ...serializable } = settings;
+  const {
+    Parser,
+    parse,
+    plugins,
+    resolveStylesheet,
+    containerEnvironment,
+    renderSnapshot,
+    ...serializable
+  } = settings;
+  if (serializable.environment?.supports instanceof Function)
+    serializable.environment = { ...serializable.environment, supports: undefined };
   return { version: 1, options: serializable, entries, summary };
 }

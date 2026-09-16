@@ -58,8 +58,10 @@ The compiler returns `success`, `source`, `document`, `diagnostics`, `losses`, `
 
 The static CSS cascade compiles selectors once and compares specificity as separate
 ID/class/type columns. Supported selectors are type, universal, ID, class, attribute
-presence/operators (including ASCII case flags), `:root`, descendant, child, adjacent
-sibling and general sibling selectors. Quotes, commas and escaped identifiers are
+presence/operators (including ASCII case flags), structural and functional pseudo-selectors,
+filtered An+B formulas, form-state predicates, descendant, child, adjacent sibling and
+general sibling selectors. See [responsive conversion](RESPONSIVE-COMPILER.md) for
+interaction-state inputs and the exact environment contract. Quotes, commas and escaped identifiers are
 parsed without treating their contents as combinators. Descendant matching backtracks
 when an intermediate ancestor does not satisfy a preceding relationship.
 
@@ -80,11 +82,13 @@ instead of copied as invalid native brush strings. Supported relative font weigh
 resolved numerically, and Bold/Italic defaults are not overwritten by an inherited
 normal weight/style.
 
-Conditional media/container/layer rules, pseudo selectors other than `:root`, external
-stylesheets, complex CSS functions, browser/user-agent default layouts and arbitrary
-intrinsic/responsive layouts still require adapters. Source-only constructs can remain
-in portable metadata without establishing native behavioral equivalence. Compilation
-never fetches a stylesheet or evaluates browser state.
+Conditional media/supports/container rules, cascade layers, external stylesheet graphs
+and dimensional CSS math now have explicit environment/resource APIs. Intrinsic and
+responsive browser layout can be captured through a read-only live-DOM measurement
+adapter with coalesced observation. The synchronous compiler still never fetches a
+stylesheet or guesses browser state. [Responsive compiler contracts and native
+qualification](RESPONSIVE-COMPILER.md) distinguish static environment snapshots, live
+regeneration, supported native output and remaining paint/runtime adapters.
 
 ### Rich text and form controls
 
@@ -199,7 +203,8 @@ whitespace, form-state, color/unit, metadata-edit and input-immutability regress
 the built package entrypoint, and compares conversion results with Chromium computed
 CSS, rendered inline text and edited form state. Both run by default in the existing
 browser gate. The source-only environment switch is for local development, not CI
-qualification. These checks do not substitute for native WPF/Avalonia runtime tests.
+qualification. The separate native compiler workflow now loads generated fixtures in
+actual WPF and Avalonia runtimes; see [the qualification contract](RESPONSIVE-COMPILER.md#actual-native-qualification).
 
 Semantic references: [CSS cascade](https://www.w3.org/TR/css-cascade-3/),
 [custom properties](https://www.w3.org/TR/css-variables-1/),

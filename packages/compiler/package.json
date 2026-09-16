@@ -46,6 +46,56 @@
         "types": "./dist/cjs/conversion-project.d.cts",
         "default": "./dist/cjs/conversion-project.cjs"
       }
+    },
+    "./compiler-selectors": {
+      "import": {
+        "types": "./dist/esm/compiler-selectors.d.ts",
+        "default": "./dist/esm/compiler-selectors.js"
+      },
+      "require": {
+        "types": "./dist/cjs/compiler-selectors.d.cts",
+        "default": "./dist/cjs/compiler-selectors.cjs"
+      }
+    },
+    "./compiler-environment": {
+      "import": {
+        "types": "./dist/esm/compiler-environment.d.ts",
+        "default": "./dist/esm/compiler-environment.js"
+      },
+      "require": {
+        "types": "./dist/cjs/compiler-environment.d.cts",
+        "default": "./dist/cjs/compiler-environment.cjs"
+      }
+    },
+    "./compiler-css": {
+      "import": {
+        "types": "./dist/esm/compiler-css.d.ts",
+        "default": "./dist/esm/compiler-css.js"
+      },
+      "require": {
+        "types": "./dist/cjs/compiler-css.d.cts",
+        "default": "./dist/cjs/compiler-css.cjs"
+      }
+    },
+    "./compiler-browser": {
+      "import": {
+        "types": "./dist/esm/compiler-browser.d.ts",
+        "default": "./dist/esm/compiler-browser.js"
+      },
+      "require": {
+        "types": "./dist/cjs/compiler-browser.d.cts",
+        "default": "./dist/cjs/compiler-browser.cjs"
+      }
+    },
+    "./compiler-resources": {
+      "import": {
+        "types": "./dist/esm/compiler-resources.d.ts",
+        "default": "./dist/esm/compiler-resources.js"
+      },
+      "require": {
+        "types": "./dist/cjs/compiler-resources.d.cts",
+        "default": "./dist/cjs/compiler-resources.cjs"
+      }
     }
   },
   "files": [
@@ -81,7 +131,12 @@
   "xamora": {
     "modules": [
       "semantic-compiler",
-      "conversion-project"
+      "conversion-project",
+      "compiler-selectors",
+      "compiler-environment",
+      "compiler-css",
+      "compiler-browser",
+      "compiler-resources"
     ],
     "cli": "dist/compiler-cli/index.js",
     "cliModules": [

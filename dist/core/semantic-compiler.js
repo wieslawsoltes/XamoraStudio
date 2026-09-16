@@ -26,6 +26,8 @@ import { listStoryboards, storyboardTracks, parseTime, formatTime } from './anim
 import { findResource, resolveStyle, selectStyles } from './styling.js';
 import { ensureTransformPath } from './property-path.js';
 import { parseCssAnimationStylesheet, splitCssList } from './html-animation.js';
+import { collectCompilerCss } from './compiler-css.js';
+import { resolveCssLength } from './compiler-environment.js';
 
 export const SEMANTIC_COMPILER_VERSION = 1;
 export const WEB_NAMESPACE = 'urn:xamora:web';
@@ -330,170 +332,6 @@ function cssBoxValues(value) {
 function compareCssPriority(a, b) {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
   return 0;
-}
-function cssIdentifier(source, start) {
-  let at = start,
-    value = '';
-  while (at < source.length) {
-    const c = source[at];
-    if (/[\w-]/.test(c) || c.charCodeAt(0) >= 128) {
-      value += c;
-      at++;
-    } else if (c === '\\' && at + 1 < source.length && !/[\r\n\f]/.test(source[at + 1])) {
-      const hex = source.slice(at + 1).match(/^[\da-f]{1,6}/i)?.[0];
-      if (hex) {
-        const code = parseInt(hex, 16);
-        value += String.fromCodePoint(
-          !code || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ? 0xfffd : code,
-        );
-        at += hex.length + 1;
-        if (/\s/.test(source[at] || '')) at++;
-      } else {
-        value += source[at + 1];
-        at += 2;
-      }
-    } else break;
-  }
-  return value ? { value, end: at } : null;
-}
-// Compile supported selectors once. Quotes and escapes are not combinators or specificity.
-function compileStaticSelector(source) {
-  source = stripCssComments(source).trim();
-  if (!source || source.length > 4096) return null;
-  const parts = [],
-    combinators = [],
-    specificity = [0, 0, 0];
-  let at = 0;
-  while (at < source.length) {
-    const tests = [];
-    if (source[at] === '*') at++;
-    else if (!'.#[:'.includes(source[at])) {
-      const id = cssIdentifier(source, at);
-      if (!id) return null;
-      tests.push(['tag', id.value.toLowerCase()]);
-      specificity[2]++;
-      at = id.end;
-    }
-    while (at < source.length && !/[\s>+~]/.test(source[at])) {
-      const token = source[at++];
-      if (token === '.' || token === '#') {
-        const id = cssIdentifier(source, at);
-        if (!id) return null;
-        tests.push([token, id.value]);
-        specificity[token === '#' ? 0 : 1]++;
-        at = id.end;
-      } else if (token === '[') {
-        let end = at,
-          quote = '';
-        for (; end < source.length; end++) {
-          const c = source[end];
-          if (c === '\\') {
-            end++;
-            continue;
-          }
-          if (quote) {
-            if (c === quote) quote = '';
-            continue;
-          }
-          if (c === '"' || c === "'") quote = c;
-          else if (c === ']') break;
-        }
-        if (end === source.length) return null;
-        const value = source.slice(at, end).trim();
-        const match = value.match(
-          /^([\w-]+)\s*(?:([~|^$*]?=)\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([\w-]+))\s*([is])?)?$/i,
-        );
-        if (!match) return null;
-        tests.push([
-          'attr',
-          match[1].toLowerCase(),
-          match[2],
-          match[3] ?? match[4] ?? match[5],
-          match[6]?.toLowerCase(),
-        ]);
-        specificity[1]++;
-        at = end + 1;
-      } else if (token === ':' && source.slice(at).match(/^root(?![\w-])/i)) {
-        tests.push(['root']);
-        specificity[1]++;
-        at += 4;
-      } else return null;
-    }
-    parts.push(tests);
-    if (parts.length > 128) return null;
-    const before = at;
-    while (/\s/.test(source[at] || '')) at++;
-    if (at === source.length) break;
-    let combinator = ' ';
-    if (/[>+~]/.test(source[at])) {
-      combinator = source[at++];
-      while (/\s/.test(source[at] || '')) at++;
-    } else if (before === at) return null;
-    if (at === source.length) return null;
-    combinators.push(combinator);
-  }
-  return { parts, combinators, specificity };
-}
-function matchesStaticPart(node, tests, ctx) {
-  if (node?.kind !== 'element') return false;
-  for (const [kind, name, op, expected, flag] of tests) {
-    if (kind === 'tag' && node.type.toLowerCase() !== name) return false;
-    if (kind === '#' && node.props.id !== name) return false;
-    if (
-      kind === '.' &&
-      !String(node.props.class || '')
-        .split(/\s+/)
-        .includes(name)
-    )
-      return false;
-    if (kind === 'root' && ctx.parents.has(node.id)) return false;
-    if (kind !== 'attr') continue;
-    if (!has(node.props, name)) return false;
-    if (!op) continue;
-    let actual = String(node.props[name]),
-      value = expected.replace(/\\(.)/g, '$1');
-    if (flag === 'i') {
-      actual = actual.replace(/[A-Z]/g, (c) => c.toLowerCase());
-      value = value.replace(/[A-Z]/g, (c) => c.toLowerCase());
-    }
-    if (op === '=' && actual !== value) return false;
-    if (op === '~=' && (!value || /\s/.test(value) || !actual.split(/\s+/).includes(value)))
-      return false;
-    if (op === '|=' && actual !== value && !actual.startsWith(value + '-')) return false;
-    if (op === '^=' && (!value || !actual.startsWith(value))) return false;
-    if (op === '$=' && (!value || !actual.endsWith(value))) return false;
-    if (op === '*=' && (!value || !actual.includes(value))) return false;
-  }
-  return true;
-}
-function selectorMatches(node, plan, ctx) {
-  const cache = new Map();
-  const match = (current, index) => {
-    if (!current) return false;
-    const key = current.id + ':' + index;
-    if (cache.has(key)) return cache.get(key);
-    let result = false;
-    if (matchesStaticPart(current, plan.parts[index], ctx)) {
-      if (!index) result = true;
-      else {
-        const combinator = plan.combinators[index - 1],
-          previous = (n) =>
-            combinator === '+' || combinator === '~'
-              ? ctx.previousElements.get(n.id)
-              : ctx.parents.get(n.id);
-        for (let n = previous(current); n; n = previous(n)) {
-          if (match(n, index - 1)) {
-            result = true;
-            break;
-          }
-          if (combinator === '>' || combinator === '+') break;
-        }
-      }
-    }
-    cache.set(key, result);
-    return result;
-  };
-  return match(node, plan.parts.length - 1);
 }
 // Balanced var() substitution, including nested fallback values and case-sensitive names.
 function substituteCssVariables(source, lookup, depth = 0, inspectFallback = false) {
@@ -1524,63 +1362,9 @@ function restoreHtmlMetadata(target, source, meta, ctx) {
   }
 }
 
-function collectCss(ctx) {
-  ctx.parents = new Map();
-  ctx.previousElements = new Map();
-  walk(ctx.input.root, (n, p) => {
-    if (p) ctx.parents.set(n.id, p);
-    let previous;
-    for (const child of n.children || [])
-      if (child.kind === 'element') {
-        if (previous) ctx.previousElements.set(child.id, previous);
-        previous = child;
-      }
-    if (n.type === 'style') {
-      const ast = parseCssAnimationStylesheet(textContent(n));
-      for (const rule of ast.rules) {
-        if (rule.kind !== 'rule' || !rule.declarations) continue;
-        if (rule.parent) {
-          ctx.report(
-            'warning',
-            'CONDITIONAL_CSS',
-            'Conditional CSS remains in portable metadata; static XAML cannot reproduce responsive conditions.',
-            n,
-            true,
-          );
-          continue;
-        }
-        const selectors = splitCssList(rule.header).map(compileStaticSelector);
-        // CSS rejects an entire non-forgiving selector list when one selector is invalid.
-        if (selectors.some((plan) => !plan)) {
-          ctx.report(
-            'warning',
-            'DYNAMIC_SELECTOR',
-            `Selector list ${rule.header.trim()} requires a browser selector/state adapter.`,
-            n,
-            true,
-          );
-          continue;
-        }
-        const values = rule.declarations
-          .filter((d) => d.property)
-          .map((d) => [
-            d.property.startsWith('--') ? d.property : d.property.toLowerCase(),
-            d.value,
-          ]);
-        for (const plan of selectors) ctx.cssRules.push({ plan, values });
-      }
-    }
-    if (n.type === 'link' && /stylesheet/i.test(n.props.rel || ''))
-      ctx.report(
-        'warning',
-        'EXTERNAL_CSS',
-        `External stylesheet ${n.props.href || ''} is preserved but not fetched during compilation.`,
-        n,
-        true,
-      );
-  });
-}
 function resolvedCss(node, ctx) {
+  if (ctx.options.renderSnapshot instanceof Map)
+    return ctx.options.renderSnapshot.get(node.id)?.css || {};
   ctx.cssCache ??= new Map();
   if (ctx.cssCache.has(node.id)) return ctx.cssCache.get(node.id);
   const parent = ctx.parents?.get(node.id),
@@ -1588,29 +1372,56 @@ function resolvedCss(node, ctx) {
     values = Object.fromEntries(
       Object.entries(inherited).filter(([key]) => key.startsWith('--') || inheritedCss.has(key)),
     ),
-    winners = new Map();
-  const add = (entries, rank) => {
+    winners = new Map(),
+    candidates = new Map();
+  const add = (entries, rank, layer = ctx.cssLayers) => {
     for (const [key, raw] of entries) {
       const important = /!\s*important\s*$/i.test(raw),
-        priority = [important ? 1 : 0, ...rank],
+        priority = [
+          important ? 1 : 0,
+          rank[0],
+          important ? -(layer?.rank ?? -1) : (layer?.rank ?? -1),
+          ...rank.slice(1),
+        ],
         value = String(raw).replace(/\s*!\s*important\s*$/i, '');
       const assign = (property, component) => {
-        if (
-          !winners.has(property) ||
-          compareCssPriority(priority, winners.get(property).priority) >= 0
-        )
-          winners.set(property, { value, priority, component });
+        if (!candidates.has(property)) candidates.set(property, []);
+        candidates.get(property).push({ value, priority, component, layer, inline: rank[0] === 1 });
       };
       if (has(boxCss, key)) boxCss[key].forEach((property, index) => assign(property, index));
       else assign(key);
     }
   };
   // These semantic inline defaults precede all author declarations, including '*'.
-  if (['strong', 'b'].includes(node.type)) add([['font-weight', 'bolder']], [0, 0, 0, 0]);
-  if (['em', 'i'].includes(node.type)) add([['font-style', 'italic']], [0, 0, 0, 0]);
+  if (['strong', 'b'].includes(node.type))
+    add([['font-weight', 'bolder']], [0, 0, 0, 0], { rank: -1 });
+  if (['em', 'i'].includes(node.type)) add([['font-style', 'italic']], [0, 0, 0, 0], { rank: -1 });
   for (const rule of ctx.cssRules)
-    if (selectorMatches(node, rule.plan, ctx)) add(rule.values, [0, ...rule.plan.specificity]);
+    if (ctx.matchCssRule(node, rule)) add(rule.values, [0, ...rule.plan.specificity], rule.layer);
   add(styleEntries(node.props.style), [1, 0, 0, 0]);
+  for (const [property, entries] of candidates) {
+    entries.reverse().sort((a, b) => compareCssPriority(b.priority, a.priority));
+    let remaining = entries;
+    while (remaining.length) {
+      const entry = remaining[0],
+        keyword = entry.value.trim().toLowerCase();
+      if (keyword === 'revert-layer') {
+        remaining = remaining.filter(
+          (candidate) =>
+            candidate.layer !== entry.layer ||
+            candidate.inline !== entry.inline ||
+            candidate.priority[0] !== entry.priority[0],
+        );
+      } else if (keyword === 'revert') {
+        // Only the semantic inline user-agent defaults are modeled below author origin.
+        remaining = remaining.filter((candidate) => candidate.layer?.rank === -1);
+        if (entry.layer?.rank === -1) break;
+      } else {
+        winners.set(property, entry);
+        break;
+      }
+    }
+  }
   const custom = Object.fromEntries(Object.entries(values).filter(([key]) => key.startsWith('--')));
   for (const [key, { value }] of winners)
     if (key.startsWith('--')) {
@@ -1696,6 +1507,66 @@ function resolvedCss(node, ctx) {
   if (values.color?.toLowerCase() === 'currentcolor') values.color = inherited.color || 'black';
   for (const key of ['background-color', 'border-color'])
     if (values[key]?.toLowerCase() === 'currentcolor') values[key] = values.color || 'black';
+  if (ctx.options.environment) {
+    const env = ctx.options.environment;
+    const rootFont = ctx.cssRootFont ?? env.rootFontSize ?? env.initialFontSize ?? 16;
+    const inheritedFont = parseFloat(inherited['font-size']) || rootFont;
+    if (values['font-size']) {
+      const size = resolveCssLength(values['font-size'], {
+        ...env,
+        fontSize: inheritedFont,
+        rootFontSize: rootFont,
+        percentBase: inheritedFont,
+      });
+      if (size !== null && size >= 0) values['font-size'] = size + 'px';
+    }
+    if (node === ctx.input.root && /^[-+\d.]+px$/.test(values['font-size'] || ''))
+      ctx.cssRootFont = parseFloat(values['font-size']);
+    const parentWidth = /^[-+\d.]+px$/.test(inherited.width || '')
+      ? parseFloat(inherited.width)
+      : undefined;
+    const parentHeight = /^[-+\d.]+px$/.test(inherited.height || '')
+      ? parseFloat(inherited.height)
+      : undefined;
+    const lengthEnv = {
+      ...env,
+      rootFontSize: rootFont,
+      fontSize: parseFloat(values['font-size']) || inheritedFont,
+    };
+    for (const property of [
+      'width',
+      'height',
+      'min-width',
+      'max-width',
+      'min-height',
+      'max-height',
+      'left',
+      'right',
+      'top',
+      'bottom',
+      'gap',
+      'row-gap',
+      'column-gap',
+      'border-radius',
+    ]) {
+      if (values[property] === undefined || !/[a-z%()]/i.test(values[property])) continue;
+      const percentBase = /height|top|bottom/.test(property) ? parentHeight : parentWidth;
+      const size = resolveCssLength(values[property], { ...lengthEnv, percentBase });
+      if (size !== null) values[property] = size + 'px';
+    }
+    for (const property of ['margin', 'padding', 'border-width']) {
+      if (values[property] === undefined) continue;
+      const parts = splitCssList(values[property], ' ');
+      const resolved = parts.map((part) =>
+        resolveCssLength(part, {
+          ...lengthEnv,
+          percentBase: property === 'border-width' ? undefined : parentWidth,
+        }),
+      );
+      if (resolved.every((v) => v !== null))
+        values[property] = resolved.map((v) => v + 'px').join(' ');
+    }
+  }
   ctx.cssCache.set(node.id, values);
   return values;
 }
@@ -1825,7 +1696,11 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
       };
   }
   const css = resolvedCss(node, ctx),
-    type = meta?.type || inferXamlType(node, css, inlineContext),
+    captured = ctx.options.renderSnapshot?.get(node.id),
+    type =
+      captured?.container && !inlineContext
+        ? 'Canvas'
+        : meta?.type || inferXamlType(node, css, inlineContext),
     local = localName(type),
     props = {},
     n = element(type, props);
@@ -2067,6 +1942,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   for (const child of node.children) {
     if (
       child === header ||
+      (captured?.container && child.kind === 'text' && !child.text.trim()) ||
       (scalarContent && ['text', 'cdata'].includes(child.kind)) ||
       (child.kind === 'text' && !child.text.trim() && !textHost && !mixed && node.type !== 'pre')
     )
@@ -2120,6 +1996,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   }
   if (local === 'Grid') placeHtmlGrid(node, n, css, ctx);
   if (meta) restoreXamlMetadata(n, node, meta, css, ctx);
+  if (captured) applyCapturedLayout(n, node, captured, ctx);
   diagnoseNativeProperties(n, ctx, node);
   for (const [key] of Object.entries(node.props))
     if (!usedAttrs.has(key) && !key.startsWith('data-xamora-') && !['open', 'alt'].includes(key))
@@ -2167,6 +2044,68 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   }
   n.props = props;
   return n;
+}
+function applyCapturedLayout(target, source, record, ctx) {
+  if (record.inline || inlineXamlTypes.has(localName(target.type))) return;
+  const props = target.props,
+    round = (v) => String(Math.round(v * 10000) / 10000);
+  const parent = ctx.parents.get(source.id),
+    parentRecord = ctx.options.renderSnapshot.get(parent?.id);
+  if (parentRecord && !parentRecord.container) return;
+  props.Width = round(record.bounds.width);
+  props.Height = round(record.bounds.height);
+  props.Margin = '0';
+  delete props.MinWidth;
+  delete props.MaxWidth;
+  delete props.MinHeight;
+  delete props.MaxHeight;
+  props.HorizontalAlignment = 'Left';
+  props.VerticalAlignment = 'Top';
+  if (parentRecord?.container) {
+    props['Canvas.Left'] = round(record.bounds.x - parentRecord.bounds.x);
+    props['Canvas.Top'] = round(record.bounds.y - parentRecord.bounds.y);
+    if (record.zIndex !== undefined) props['Panel.ZIndex'] = String(record.zIndex);
+  }
+  if (record.clip) props.ClipToBounds = 'True';
+  if (!record.visible)
+    props[ctx.options.framework === 'Avalonia' ? 'IsVisible' : 'Visibility'] =
+      ctx.options.framework === 'Avalonia' ? 'False' : 'Hidden';
+  if (ctx.options.framework === 'Avalonia') delete props.Visibility;
+  if (record.container) {
+    const decoration = { Width: props.Width, Height: props.Height, IsHitTestVisible: 'False' };
+    for (const key of ['BorderBrush', 'BorderThickness', 'CornerRadius'])
+      if (props[key] !== undefined) {
+        decoration[key] = props[key];
+        delete props[key];
+      }
+    const radius = resolveCssLength(record.radius || '0');
+    if (radius !== null && radius > 0) decoration.CornerRadius = String(radius);
+    for (const key of [
+      'Padding',
+      'Foreground',
+      'FontFamily',
+      'FontSize',
+      'FontWeight',
+      'FontStyle',
+      'TextAlignment',
+      'TextWrapping',
+    ])
+      delete props[key];
+    if (decoration.BorderThickness && !/^(?:0[, ]*)+$/.test(decoration.BorderThickness))
+      target.children.unshift(element('Border', decoration));
+  } else if (localName(target.type) === 'TextBlock') {
+    // Border paint is not a native TextBlock property. Keep a diagnostic instead of invalid XAML.
+    if (props.BorderThickness && !/^(?:0[, ]*)+$/.test(props.BorderThickness))
+      ctx.report(
+        'warning',
+        'BROWSER_TEXT_BORDER',
+        'A text border requires a native Border wrapper.',
+        source,
+        true,
+      );
+    delete props.BorderThickness;
+    delete props.BorderBrush;
+  }
 }
 function diagnoseNativeProperties(node, ctx, source) {
   const type = localName(node.type),
@@ -2599,11 +2538,7 @@ function cssSeconds(value = '0s') {
 }
 function importAnimations(ctx, root) {
   if (ctx.options.framework === 'Avalonia') {
-    let found = false;
-    walk(ctx.input.root, (node) => {
-      if (node.type === 'style' && parseCssAnimationStylesheet(textContent(node)).keyframes.length)
-        found = true;
-    });
+    const found = ctx.cssKeyframes?.length > 0;
     if (found)
       ctx.report(
         'warning',
@@ -2622,8 +2557,7 @@ function importAnimations(ctx, root) {
   walk(root, (node) => {
     if (localName(node.type) === 'Storyboard') retainedStory = true;
   });
-  walk(ctx.input.root, (node) => {
-    if (node.type !== 'style') return;
+  for (const { rule, node } of ctx.cssKeyframes || []) {
     if (retainedStory && has(node.props, 'data-xamora-compiled-animations')) {
       ctx.report(
         'warning',
@@ -2632,11 +2566,10 @@ function importAnimations(ctx, root) {
         node,
         true,
       );
-      return;
+      continue;
     }
-    for (const def of parseCssAnimationStylesheet(textContent(node)).keyframes)
-      definitions.set(def.name, def);
-  });
+    definitions.set(rule.name, rule);
+  }
   walk(ctx.input.root, (target) => {
     if (target.kind !== 'element') return;
     const css = resolvedCss(target, ctx),
@@ -2919,14 +2852,17 @@ function sanitizeCompiledHtml(root, ctx) {
   });
 }
 function convertHtml(ctx) {
-  collectCss(ctx);
+  collectCompilerCss(ctx);
   const body = htmlBody(ctx.input),
     visible = body.children.filter(
       (n) =>
         (n.kind === 'element' && !['script', 'style', 'link', 'meta'].includes(n.type)) ||
         (n.kind === 'text' && n.text.trim()),
     ),
-    single = visible.length === 1 && visible[0].kind === 'element',
+    single =
+      !ctx.options.renderSnapshot?.has(body.id) &&
+      visible.length === 1 &&
+      visible[0].kind === 'element',
     root = single
       ? htmlToXamlNode(visible[0], ctx)
       : element('UserControl', {}, [htmlToXamlNode(body, ctx)].filter(Boolean));
@@ -2983,6 +2919,38 @@ export function compileDocument(input, options = {}) {
   try {
     if (!['xaml', 'html'].includes(from) || !['xaml', 'html'].includes(to))
       throw Error('Compiler languages must be xaml or html.');
+    for (const [key, maximum] of Object.entries({
+      maxStylesheets: 4096,
+      maxStylesheetDepth: 128,
+      maxStylesheetBytes: 50_000_000,
+      maxCssRules: 200000,
+      maxSelectorSteps: 20_000_000,
+    }))
+      if (
+        settings[key] !== undefined &&
+        (!Number.isSafeInteger(settings[key]) || settings[key] < 1 || settings[key] > maximum)
+      )
+        throw RangeError(`${key} must be a positive integer no greater than ${maximum}.`);
+    for (const key of ['resolveStylesheet', 'containerEnvironment'])
+      if (settings[key] !== undefined && typeof settings[key] !== 'function')
+        throw TypeError(`${key} must be a function.`);
+    if (settings.environment != null) {
+      if (typeof settings.environment !== 'object' || Array.isArray(settings.environment))
+        throw TypeError('environment must be an object.');
+      for (const key of [
+        'width',
+        'height',
+        'fontSize',
+        'rootFontSize',
+        'initialFontSize',
+        'resolution',
+      ])
+        if (
+          settings.environment[key] !== undefined &&
+          (!Number.isFinite(settings.environment[key]) || settings.environment[key] < 0)
+        )
+          throw RangeError(`environment.${key} must be a finite nonnegative number.`);
+    }
     if (!['WPF', 'Avalonia'].includes(settings.framework))
       throw Error(
         'Semantic conversion currently targets WPF or Avalonia. Other frameworks require a target adapter.',
@@ -3040,6 +3008,7 @@ export function compileDocument(input, options = {}) {
         preserved: settings.preserveMetadata !== false,
         sourceNodeCount: countNodes(doc.root),
         targetNodeCount: countNodes(output.root),
+        ...(ctx.cssEnvironmentReport ? { css: ctx.cssEnvironmentReport } : {}),
       },
     };
   } catch (error) {
