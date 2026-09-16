@@ -3,6 +3,15 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 const base = process.env.PAGES_URL || 'https://wieslawsoltes.github.io/XamoraStudio/';
 const files = [
+  'core/compiler-css.js',
+  'core/compiler-native.js',
+  'core/compiler-browser.js',
+  'examples/CompilerFidelityLab/index.html',
+  'examples/CompilerFidelityLab/lab.js',
+  'examples/CompilerFidelityLab/lab.css',
+  'examples/CompilerFidelityLab/fixture.html',
+  'examples/CompilerFidelityLab/theme.css',
+  'examples/CompilerFidelityLab/base.css',
   'controls/code-viewport.js',
   'examples/VirtualEditorLab/index.html',
   'examples/VirtualEditorLab/lab.js',
