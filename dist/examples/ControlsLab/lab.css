@@ -1,0 +1,7 @@
+body { margin: 0; font: 14px system-ui, sans-serif; background: #f5f6fa; color: #252635; }
+header, nav { padding: 12px 24px; } h1 { margin: 0 0 6px; font-size: 22px; }
+nav { display: flex; gap: 8px; flex-wrap: wrap; } button { padding: 6px 10px; cursor: pointer; }
+#workspace { margin: 0 24px; height: 65vh; min-height: 320px; }
+#status { display: block; padding: 14px 24px; }
+.lab-panel { box-sizing: border-box; height: 100%; overflow: auto; padding: 18px; }
+.lab-text { width: 100%; height: 100%; box-sizing: border-box; padding: 12px; resize: none; }

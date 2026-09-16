@@ -23,7 +23,7 @@ for (const entry of current.entries) {
     ? JSON.parse(await readFile(resolve(entry.directory, 'package.json'), 'utf8'))
     : {};
   const exports = { '.': conditional('index'), './package.json': './package.json' };
-  for (const source of entry.sources)
+  for (const source of [...entry.sources, ...(entry.reexports || [])])
     if (!source.name.startsWith('cli/')) exports['./' + source.name] = conditional(source.name);
   for (const asset of entry.assets || [])
     exports['./' + asset.split('/').at(-1)] = './dist/assets/' + asset.split('/').at(-1);
@@ -73,9 +73,10 @@ for (const entry of current.entries) {
     resolve(entry.directory, 'package.json'),
     JSON.stringify(manifest, null, 2) + '\n',
   );
-  await writeFile(
-    resolve(entry.directory, 'README.md'),
-    `# ${entry.name}\n\n${entry.description}.\n\nThis package is built from the same canonical modules used by Xamora Studio. ESM and CommonJS consumers share modules across package boundaries; all public entry points include TypeScript declarations. Browser applications can use a bundler${entry.standalone ? ' or the self-contained `./browser` entry' : ''}.\n\nSee [package architecture and installation](https://github.com/wieslawsoltes/XamoraStudio/blob/main/docs/PACKAGES.md), [runtime guide](https://github.com/wieslawsoltes/XamoraStudio/blob/main/docs/WEB-RUNTIME.md), and [source](https://github.com/wieslawsoltes/XamoraStudio).\n\nMIT licensed.\n`,
-  );
+  if (!(await exists(resolve(entry.directory, 'README.md'))))
+    await writeFile(
+      resolve(entry.directory, 'README.md'),
+      `# ${entry.name}\n\n${entry.description}.\n\nThis package is built from the same canonical modules used by Xamora Studio. ESM and CommonJS consumers share modules across package boundaries; all public entry points include TypeScript declarations. Browser applications can use a bundler${entry.standalone ? ' or the self-contained `./browser` entry' : ''}.\n\nSee [package architecture and installation](https://github.com/wieslawsoltes/XamoraStudio/blob/main/docs/PACKAGES.md), [runtime guide](https://github.com/wieslawsoltes/XamoraStudio/blob/main/docs/WEB-RUNTIME.md), and [source](https://github.com/wieslawsoltes/XamoraStudio).\n\nMIT licensed.\n`,
+    );
 }
 console.log(`Updated ${current.entries.length} package manifests for ${project.version}.`);

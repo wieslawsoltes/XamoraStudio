@@ -153,6 +153,7 @@ export class DockingStudio {
       'show-inspector',
     );
     this.control = new DockWorkspace(this.workspace, this.model, {
+      keyboardScope: 'document',
       beforeActivate: (id) => this.beforeActivate(id),
       onChange: (label) => this.layoutChanged(label),
       onVisibility: (id, visible) => this.visibility(id, visible),

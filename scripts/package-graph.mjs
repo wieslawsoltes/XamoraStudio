@@ -31,7 +31,9 @@ export async function graph({ allowMissing = false } = {}) {
     entry.name = packageName(entry.id);
     entry.directory = resolve(root, 'packages', entry.id);
     entry.sources = sourceModules(entry);
-    entry.dependencies = new Set(entry.contracts ? [] : ['@wieslawsoltes/xamora-contracts']);
+    entry.dependencies = new Set(
+      entry.contracts || entry.typeContracts === false ? [] : ['@wieslawsoltes/xamora-contracts'],
+    );
     for (const module of entry.sources) {
       if (owners.has(module.source)) throw Error(`Duplicate source ownership: ${module.source}`);
       owners.set(module.source, { entry, ...module });
@@ -39,6 +41,19 @@ export async function graph({ allowMissing = false } = {}) {
         contents.set(module.source, await readFile(resolve(root, module.source), 'utf8'));
       else if (!allowMissing)
         throw Error(`Package ${entry.name} is missing canonical source ${module.source}`);
+    }
+  }
+  // Compatibility entry points only re-export the canonical owner; no duplicate constructors.
+  for (const entry of entries) {
+    const names = new Set(entry.sources.map((source) => source.name));
+    for (const alias of entry.reexports || []) {
+      if (!/^[a-z][a-z0-9/-]*$/.test(alias.name) || alias.name === 'index' || names.has(alias.name))
+        throw Error(`Invalid or duplicate compatibility entry: ${entry.name}/${alias.name}`);
+      names.add(alias.name);
+      const owner = owners.get(alias.source);
+      if (!owner || owner.entry === entry)
+        throw Error(`Missing external owner for ${entry.name}/${alias.name}`);
+      entry.dependencies.add(owner.entry.name);
     }
   }
   const relativeImports = (source) =>

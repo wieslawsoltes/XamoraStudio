@@ -1,0 +1,17 @@
+# Reusable controls
+
+## Boundaries and compatibility
+
+The standalone controls use the same canonical `dist/` source modules as Studio; they are not parallel implementations. `@wieslawsoltes/xamora-control-primitives` owns menus, scroll strips and density preferences. `@wieslawsoltes/xamora-docking` owns the DOM-free docking model and the DOM workspace. Docking depends only on the primitives package, not the application, parser, renderer or document model.
+
+`@wieslawsoltes/xamora-controls` retains its original exports as generated compatibility reexports. A canonical module has one package owner, so old and new package paths resolve the same constructors. Normal package imports are unbundled. Opt-in `./browser` bundles include their dependency closure; do not mix those bundles with unbundled constructors in the same object graph.
+
+CSS is packaged beside its declared dependencies. The build rewrites source-relative stylesheet imports to the flattened package asset directory and rejects missing imports. Studio-specific layout rules remain in `dist/styles/`; reusable control styles live in `dist/controls/` and include standalone defaults.
+
+## Docking integration
+
+Create a `DockLayout`, construct a `DockWorkspace` with a sized host, mount your own panel nodes and call `render()`. The application retains ownership of the model and document data. `unmount(id)` returns a detached content node; `dispose()` releases observers and listeners, returns remaining content to the host and leaves the model usable.
+
+Shortcuts are scoped to the owning workspace by default, allowing two independent workspaces in one page. Studio explicitly selects document-wide keyboard routing to retain its original behavior. Dialogs and another workspace's content are excluded from routing.
+
+See `packages/docking/README.md`, `packages/control-primitives/README.md` and the runnable `dist/examples/ControlsLab/` example. APIs, CSS, ESM/CommonJS entry points and TypeScript declarations are included in package artifacts. No npm publication is performed by extraction or validation.
