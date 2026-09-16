@@ -651,12 +651,19 @@ export class Studio {
     );
   }
   renderInspector() {
-    this.propertyGrid?.dispose();
-    this.propertyGrid = null;
+    const host = this.inspectorHost();
+    // Docking renders each inspector into a separate host. Only release the grid
+    // when its own panel is replaced, not when another inspector is refreshed.
+    if (
+      this.propertyGrid &&
+      (host.contains(this.propertyGrid.host) || !this.propertyGrid.host.isConnected)
+    ) {
+      this.propertyGrid.dispose();
+      this.propertyGrid = null;
+    }
     $$('[data-right]').forEach((b) =>
       b.classList.toggle('active', b.dataset.right === this.rightTab),
     );
-    const host = this.inspectorHost();
     if (this.rightTab === 'notes') {
       this.renderNotes();
       return;
@@ -709,15 +716,16 @@ export class Studio {
         ),
       ]),
     ].filter((name) => name && !name.startsWith('xmlns'));
-    this.propertyGrid = new PropertyGrid($('#all-properties'), {
+    this.propertyGrid = new PropertyGrid($('#all-properties', host), {
       searchable: false,
       eventMode: 'external',
       properties: names.map((name) => ({ name, value: p[name] })),
       fieldRenderer: (property) =>
         this.field(property.name, property.name, property.value, null, true),
     });
-    $('#property-search')?.addEventListener('input', (event) =>
-      this.propertyGrid?.setFilter(event.target.value),
+    const grid = this.propertyGrid;
+    $('#property-search', host)?.addEventListener('input', (event) =>
+      grid.setFilter(event.target.value),
     );
   }
   colorField(key, value) {
