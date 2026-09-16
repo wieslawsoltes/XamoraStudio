@@ -106,3 +106,45 @@ This suite qualifies its fixture inventory, not every native property/control or
 ## References
 
 [Selectors Level 4](https://www.w3.org/TR/selectors-4/), [Media Queries Level 4](https://www.w3.org/TR/mediaqueries-4/), [Cascade Level 5](https://www.w3.org/TR/css-cascade-5/), [CSS Values Level 4](https://www.w3.org/TR/css-values-4/), [WPF XamlReader](https://learn.microsoft.com/en-us/dotnet/api/system.windows.markup.xamlreader), [Avalonia headless testing](https://docs.avaloniaui.net/docs/testing/setting-up-the-headless-platform).
+
+## Capture state, privacy and lifecycle
+
+`compileRenderedDocument` omits password input values by default, including the
+current DOM value, the authored value attribute and that control's prior Xamora
+round-trip metadata. The source DOM is not modified. A
+`BROWSER_PASSWORD_REDACTED` informational diagnostic records the omission without
+including a value. Set `includePasswordValues: true` only when the application
+explicitly intends to serialize passwords. This is a password-control policy,
+not a general-purpose secret scanner: text, scripts, arbitrary attributes and
+other application data remain the caller's responsibility. Static conversion of
+an explicitly supplied source string keeps its existing source-preservation contract.
+
+Avalonia password controls use `TextBox.PasswordChar`; WPF uses `PasswordBox`.
+Reverse conversion retains an HTML password input even without source metadata.
+Unsupported WPF password read-only/text-layout properties are diagnosed instead
+of generating unloadable XAML. Explicitly empty select state (`selectedIndex = -1`)
+and mixed checkboxes are taken from live DOM properties: the latter becomes native
+`IsThreeState="True" IsChecked="{x:Null}"`. This samples state; it does not install a
+new native interaction model or make HTML indeterminate state an HTML attribute.
+
+Measured Canvas coordinates are physical offsets, so the capture containers use
+`FlowDirection="LeftToRight"` even when the source layout is right-to-left. Text
+and native control content retain their own computed direction. Synthetic direct
+text hosts do not apply their parent's opacity a second time.
+
+The observer also samples form resets (including externally associated forms),
+ancestor scrolling, toggle events and stylesheet link completion. These are
+frame-coalesced like ordinary edits. Programmatic CSSOM changes and direct value
+assignments without events still require `refresh()`. Initialization rolls back
+listeners and observers if setup or the initial result callback throws; late
+queued callbacks cannot reconnect a disposed observer.
+
+The capture regression suite runs against source and packaged compiler entrypoints.
+Native fixtures additionally cover redacted/opt-in passwords, empty selection,
+mixed checkbox state and physical RTL placement. These extend the same native
+qualification harness; they are not pixel-identical typography or assistive-
+technology certification.
+
+Specifications used for this boundary: [HTML password inputs](<https://html.spec.whatwg.org/multipage/input.html#password-state-(type=password)>),
+[CSS group opacity](https://www.w3.org/TR/css-color-4/#transparency), and
+[Avalonia TextBox masking](https://docs.avaloniaui.net/controls/input/text-input/textbox).

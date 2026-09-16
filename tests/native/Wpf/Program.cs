@@ -58,6 +58,7 @@ internal static class Program
                 var expectedValue = property.Value;
                 bool matches = expectedValue.ValueKind switch
                 {
+                    JsonValueKind.Null => value is null,
                     JsonValueKind.Number => value is not null && Math.Abs(Convert.ToDouble(value, CultureInfo.InvariantCulture) - expectedValue.GetDouble()) < 0.01,
                     JsonValueKind.True or JsonValueKind.False => value is bool flag && flag == expectedValue.GetBoolean(),
                     JsonValueKind.Array => value is Thickness t && new[] { t.Left, t.Top, t.Right, t.Bottom }.Zip(expectedValue.EnumerateArray().Select(v => v.GetDouble())).All(pair => Math.Abs(pair.First - pair.Second) < 0.01),

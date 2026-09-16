@@ -2,6 +2,8 @@ import type { CompilerOptions, CompilerResult } from './semantic-compiler.js';
 export interface RenderedCompilerOptions extends CompilerOptions {
   /** Default 10000; maximum 15000. */
   maxRenderedNodes?: number;
+  /** Omitted by default, including authored values and password-control metadata. */
+  includePasswordValues?: boolean;
 }
 /** Capture a caller-owned connected DOM. No navigation, source execution or implicit resource loading. */
 export declare function compileRenderedDocument(

@@ -1073,6 +1073,7 @@ function xamlToHtmlNode(node, ctx, parentType = '', preserveSpace = false) {
         'LastChildFill',
         'Text',
         'Password',
+        'PasswordChar',
         'Content',
         'Header',
         'IsExpanded',
@@ -1092,7 +1093,9 @@ function xamlToHtmlNode(node, ctx, parentType = '', preserveSpace = false) {
         true,
       );
   }
-  if (type === 'TextBox' && tag === 'input') props.type = 'text';
+  if (type === 'TextBox' && tag === 'input')
+    props.type =
+      literalProps.PasswordChar && literalProps.PasswordChar !== '\0' ? 'password' : 'text';
   if (
     preserveSpace &&
     ['TextBlock', 'Run', 'Span', 'Bold', 'Italic', 'Underline', 'Hyperlink'].includes(type)
@@ -2030,6 +2033,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   if (local === 'Grid') placeHtmlGrid(node, n, css, ctx);
   if (meta) restoreXamlMetadata(n, node, meta, css, ctx);
   if (captured) applyCapturedLayout(n, node, captured, ctx);
+  adaptNativePassword(n, node, ctx);
   adaptNativeTextLayout(n, node, ctx);
   diagnoseNativeProperties(n, ctx, node);
   for (const [key] of Object.entries(node.props))
@@ -2081,8 +2085,19 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
 }
 function applyCapturedLayout(target, source, record, ctx) {
   if (record.inline || inlineXamlTypes.has(localName(target.type))) return;
-  const props = target.props,
-    round = (v) => String(Math.round(v * 10000) / 10000);
+  const props = target.props;
+  // These IDL states have no reliable HTML attribute representation. Capture is
+  // authoritative even when a previous source-metadata baseline selected an item.
+  if (localName(target.type) === 'ComboBox' && record.selectedIndex !== undefined)
+    props.SelectedIndex = String(record.selectedIndex);
+  if (
+    ['CheckBox', 'RadioButton'].includes(localName(target.type)) &&
+    record.checked !== undefined
+  ) {
+    props.IsChecked = record.indeterminate ? '{x:Null}' : record.checked ? 'True' : 'False';
+    if (record.indeterminate) props.IsThreeState = 'True';
+  }
+  const round = (v) => String(Math.round(v * 10000) / 10000);
   const parent = ctx.parents.get(source.id),
     parentRecord = ctx.options.renderSnapshot.get(parent?.id);
   if (parentRecord && !parentRecord.container) return;
@@ -2106,6 +2121,9 @@ function applyCapturedLayout(target, source, record, ctx) {
       ctx.options.framework === 'Avalonia' ? 'False' : 'Hidden';
   if (ctx.options.framework === 'Avalonia') delete props.Visibility;
   if (record.container) {
+    // Canvas offsets are physical browser coordinates. Mirroring the native
+    // container would reverse them again; leaf controls keep their text direction.
+    props.FlowDirection = 'LeftToRight';
     const decoration = { Width: props.Width, Height: props.Height, IsHitTestVisible: 'False' };
     for (const key of ['BorderBrush', 'BorderThickness', 'CornerRadius'])
       if (props[key] !== undefined) {
@@ -2139,6 +2157,28 @@ function applyCapturedLayout(target, source, record, ctx) {
       );
     delete props.BorderThickness;
     delete props.BorderBrush;
+  }
+}
+function adaptNativePassword(target, source, ctx) {
+  if (localName(target.type) !== 'PasswordBox') return;
+  if (ctx.options.framework === 'Avalonia') {
+    target.type = 'TextBox';
+    target.props.PasswordChar = '●';
+    if (has(target.props, 'Password')) target.props.Text = target.props.Password;
+    delete target.props.Password;
+  } else {
+    for (const key of ['TextAlignment', 'TextWrapping', 'IsReadOnly']) {
+      if (!has(target.props, key)) continue;
+      if (key === 'IsReadOnly' || !ctx.options.renderSnapshot?.has(source.id))
+        ctx.report(
+          'warning',
+          'NATIVE_PASSWORD_PROPERTY',
+          `${key} requires a WPF password-control adapter.`,
+          source,
+          true,
+        );
+      delete target.props[key];
+    }
   }
 }
 function adaptNativeTextLayout(target, source, ctx) {
