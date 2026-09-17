@@ -594,6 +594,7 @@ html[data-density] .topbar .ux-command-trigger {
   grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
   gap: 6px;
 }
+:is(.studio, .dock-browser-host) .prop-field label,
 .dark :is(.studio, .dock-browser-host) .prop-field label {
   color: var(--ux-muted);
 }
