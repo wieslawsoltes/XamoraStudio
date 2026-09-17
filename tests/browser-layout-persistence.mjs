@@ -5,14 +5,14 @@ import { readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-const root = fileURLToPath(new URL('../dist/', import.meta.url));
+const root = resolve(fileURLToPath(new URL('../dist/', import.meta.url)));
 const server = createServer(async (request, response) => {
   try {
     let file = resolve(
       root,
       '.' + decodeURIComponent(new URL(request.url, 'http://localhost').pathname),
     );
-    if (!file.startsWith(root)) throw Error('Outside root');
+    if (file !== root && !file.startsWith(root + sep)) throw Error('Outside root');
     if ((await stat(file)).isDirectory()) file = resolve(file, 'index.html');
     response
       .writeHead(200, {
@@ -50,7 +50,8 @@ try {
         await arg.evaluate((value) => value?.stack || String(value)).catch(() => message.text()),
       );
   });
-  await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  const response = await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  assert.equal(response?.status(), 200, 'The test server must serve the Studio entry point');
   await ready();
   const before = await page.evaluate(() => {
     const s = window.xamora.studio;
