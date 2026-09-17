@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = refs/heads/fix/compiler-capture-fidelity
-          test "$(git rev-parse HEAD^)" = da0e4778aac7fdfa6dbe13124615484fd9d307bf
+          test "$(git hash-object dist/core/semantic-compiler.js)" = cdbb14437e2f16313ddbe4975fd98cfd12e211a4
           gh api "repos/$GITHUB_REPOSITORY/git/blobs/edddae28a96352f34f173a68ee214224c3d96d34" --jq .content | base64 --decode > "$RUNNER_TEMP/capture-fix.patch"
           echo "89fb3c587130c20ed11db796a6079d3d6e3e450a4ad65874ecfa7cf72316be3d  $RUNNER_TEMP/capture-fix.patch" | sha256sum --check
           git apply --check "$RUNNER_TEMP/capture-fix.patch"
