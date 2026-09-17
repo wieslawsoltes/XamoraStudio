@@ -215,7 +215,10 @@ export class DockBrowserWindows {
     host.append(surface, parking, live);
     document.body.append(bar, host);
     Object.assign(record, { host, surface, parking, live, title, bar });
+    const styleCopies = new Map();
+    let inheritedProperties = new Set();
     const syncStyles = () => {
+      if (record.releasing || this.disposed || c.disposed) return;
       document.documentElement.className = c.document.documentElement.className;
       document.documentElement.style.cssText = c.document.documentElement.style.cssText;
       for (const [target, source] of [
@@ -232,20 +235,43 @@ export class DockBrowserWindows {
       document.body.style.cssText = c.document.body.style.cssText;
       host.className =
         c.host.className.replace(/\bdock-(dragging|gesturing)\b/g, '') + ' dock-browser-host';
-      const nodes = [...c.document.querySelectorAll('head link[rel="stylesheet"],head style')].map(
-        (node) => {
-          const clone = node.cloneNode(true);
-          if (node.tagName === 'LINK') clone.href = node.href;
-          return clone;
-        },
-      );
-      styles.replaceChildren(...nodes);
+      // Keep unchanged style/link nodes mounted: unrelated activation and density changes
+      // must not reload stylesheets or briefly remove the popup's theme.
+      const sources = [...c.document.querySelectorAll('head link[rel="stylesheet"],head style')];
+      for (const [source, { clone }] of styleCopies)
+        if (!sources.includes(source)) {
+          clone.remove();
+          styleCopies.delete(source);
+        }
+      sources.forEach((source, index) => {
+        const signature = source.outerHTML + ':' + !!source.disabled;
+        let copy = styleCopies.get(source);
+        if (!copy || copy.signature !== signature) {
+          const clone = source.cloneNode(true);
+          if (source.tagName === 'LINK') clone.href = source.href;
+          clone.disabled = source.disabled;
+          copy?.clone.remove();
+          copy = { clone, signature };
+          styleCopies.set(source, copy);
+        }
+        if (styles.children[index] !== copy.clone)
+          styles.insertBefore(copy.clone, styles.children[index] || null);
+      });
       const computed = c.window.getComputedStyle?.(c.host);
-      if (computed)
+      if (computed) {
+        const current = new Set();
         for (let i = 0; i < computed.length; ++i) {
           const key = computed.item(i);
-          if (key.startsWith('--')) host.style.setProperty(key, computed.getPropertyValue(key));
+          if (key.startsWith('--')) {
+            current.add(key);
+            host.style.setProperty(key, computed.getPropertyValue(key));
+          }
         }
+        // Removed custom properties must not remain as stale inline overrides in the popup.
+        for (const key of inheritedProperties)
+          if (!current.has(key)) host.style.removeProperty(key);
+        inheritedProperties = current;
+      }
     };
     try {
       syncStyles();
@@ -257,13 +283,18 @@ export class DockBrowserWindows {
           attributes: true,
           characterData: true,
         });
-        for (const node of [c.document.documentElement, c.document.body, c.host])
+        // A reusable control may inherit its theme from a container, not just body/html.
+        for (let node = c.host; node; node = node.parentElement)
           observer.observe(node, {
             attributes: true,
             attributeFilter: ['class', 'style', 'data-theme', 'data-density', 'lang', 'dir'],
           });
         record.cleanups.push(() => observer.disconnect());
       }
+      // Linked stylesheet completion changes computed tokens without a DOM mutation.
+      c.document.head.addEventListener('load', syncStyles, true);
+      record.cleanups.push(() => c.document.head.removeEventListener('load', syncStyles, true));
+      record.cleanups.push(() => styleCopies.clear());
       c.bindDocument(document, host, record.cleanups);
       this.bindTransfer(host, record.cleanups);
       const leaving = () => this.return(record.id);

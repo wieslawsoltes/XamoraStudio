@@ -316,3 +316,83 @@ test('dynamic panel registration and idempotent mounting retain unrelated browse
   assert.equal(node.parentNode, null);
   valid(f.model);
 });
+
+const settleStyles = () => new Promise((resolve) => setTimeout(resolve, 10));
+
+test('popup theme observation includes nested containers without replacing styles or live frames', async (t) => {
+  const f = fixture(t);
+  const style = f.document.createElement('style');
+  style.textContent = ':root { --probe: light; } .dark { --probe: dark; }';
+  f.document.head.append(style);
+  const wrapper = f.document.createElement('section');
+  f.host.before(wrapper);
+  wrapper.append(f.host);
+  const id = f.control.openWindow('one');
+  const record = f.control.windows.get(id);
+  const clone = record.document.querySelector('.dock-browser-styles style');
+  const frame = record.frame;
+  let readings = 0;
+  const compute = f.window.getComputedStyle.bind(f.window);
+  f.window.getComputedStyle = (...args) => {
+    readings++;
+    return compute(...args);
+  };
+  // happy-dom does not compute inherited CSS variables; real-browser tests assert their values.
+  for (const owner of [f.document.body, wrapper]) {
+    const before = readings;
+    owner.classList.add('dark');
+    await settleStyles();
+    assert(readings > before, 'theme change recomputed the inherited presentation');
+    if (owner === f.document.body) assert(record.document.body.classList.contains('dark'));
+    const after = readings;
+    owner.classList.remove('dark');
+    await settleStyles();
+    assert(readings > after, 'theme removal recomputed the inherited presentation');
+    assert(!record.document.body.classList.contains('dark'));
+  }
+  f.document.documentElement.dataset.density = 'comfortable';
+  await settleStyles();
+  assert.equal(record.document.documentElement.dataset.density, 'comfortable');
+  assert.equal(record.document.querySelector('.dock-browser-styles style'), clone);
+  assert.equal(record.frame, frame);
+  assert.equal(f.control.contents.get('one'), f.nodes.get('one'));
+});
+
+test('removed inherited custom properties release popup inline overrides', async (t) => {
+  const f = fixture(t);
+  f.host.style.setProperty('--temporary-theme-token', 'old-theme');
+  const id = f.control.openWindow('one');
+  const record = f.control.windows.get(id);
+  assert.equal(record.host.style.getPropertyValue('--temporary-theme-token'), 'old-theme');
+  f.host.style.removeProperty('--temporary-theme-token');
+  await settleStyles();
+  assert.equal(record.host.style.getPropertyValue('--temporary-theme-token'), '');
+});
+
+test('popup stylesheet synchronization preserves order and updates only changed sources', async (t) => {
+  const f = fixture(t);
+  const a = f.document.createElement('style'),
+    b = f.document.createElement('style');
+  a.textContent = ':root { --first: 1; }';
+  b.textContent = ':root { --second: 2; }';
+  f.document.head.append(a, b);
+  const id = f.control.openWindow('one');
+  const record = f.control.windows.get(id);
+  const copies = record.document.querySelector('.dock-browser-styles');
+  const original = [...copies.children];
+  a.textContent = ':root { --first: 3; }';
+  await settleStyles();
+  assert.equal(copies.children[0].textContent, a.textContent);
+  assert.equal(copies.children[1], original[1]);
+  f.document.head.insertBefore(b, a);
+  await settleStyles();
+  assert.equal(copies.children[0], original[1]);
+  b.remove();
+  await settleStyles();
+  assert.equal(copies.children.length, 1);
+  assert.equal(copies.children[0].textContent, a.textContent);
+  f.control.returnWindow(id);
+  a.textContent = ':root { --first: 4; }';
+  await settleStyles();
+  assert.equal(copies.children[0].textContent, ':root { --first: 3; }');
+});

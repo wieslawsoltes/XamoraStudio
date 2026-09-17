@@ -129,7 +129,27 @@
     },
     "./scroll-buttons.css": "./dist/assets/scroll-buttons.css",
     "./docking.css": "./dist/assets/docking.css",
-    "./density.css": "./dist/assets/density.css"
+    "./density.css": "./dist/assets/density.css",
+    "./dock-browser-windows": {
+      "import": {
+        "types": "./dist/esm/dock-browser-windows.d.ts",
+        "default": "./dist/esm/dock-browser-windows.js"
+      },
+      "require": {
+        "types": "./dist/cjs/dock-browser-windows.d.cts",
+        "default": "./dist/cjs/dock-browser-windows.cjs"
+      }
+    },
+    "./document-scope": {
+      "import": {
+        "types": "./dist/esm/document-scope.d.ts",
+        "default": "./dist/esm/document-scope.js"
+      },
+      "require": {
+        "types": "./dist/cjs/document-scope.d.cts",
+        "default": "./dist/cjs/document-scope.cjs"
+      }
+    }
   },
   "files": [
     "dist",

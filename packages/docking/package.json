@@ -52,6 +52,16 @@
     "./browser": {
       "types": "./dist/esm/index.d.ts",
       "default": "./dist/browser/index.js"
+    },
+    "./dock-browser-windows": {
+      "import": {
+        "types": "./dist/esm/dock-browser-windows.d.ts",
+        "default": "./dist/esm/dock-browser-windows.js"
+      },
+      "require": {
+        "types": "./dist/cjs/dock-browser-windows.d.cts",
+        "default": "./dist/cjs/dock-browser-windows.cjs"
+      }
     }
   },
   "files": [

@@ -13,7 +13,7 @@ const server = createServer(async (request, response) => {
       response
         .writeHead(200, { 'Content-Type': 'text/html' })
         .end(
-          '<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><link rel="stylesheet" href="/packages/docking/dist/assets/docking.css"><main id="host" style="height:600px"></main>',
+          '<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><link rel="stylesheet" href="/packages/docking/dist/assets/docking.css"><style>.nested-dark { --packed-theme: dark; }</style><div id="theme-container"><main id="host" style="height:600px"></main></div>',
         );
       return;
     }
@@ -96,7 +96,7 @@ try {
   await page.evaluate(() => {
     const s = window.xamora.studio;
     s.density.set('comfortable');
-    document.body.classList.add('dark');
+    if (!s.dark) s.command('theme');
   });
   await source.waitForFunction(
     () =>
@@ -104,6 +104,30 @@ try {
       document.body.classList.contains('dark'),
   );
   assert.equal(await source.evaluate(() => document.compatMode), 'CSS1Compat');
+  // Validate both directions through the actual Studio command, not a synthetic class edit.
+  const themeToken = (p) =>
+    p.evaluate(() => {
+      const host =
+        document.querySelector('.dock-browser-host') || window.xamora.docking.control.host;
+      return getComputedStyle(host).getPropertyValue('--panel').trim();
+    });
+  assert.equal(await themeToken(source), await themeToken(page));
+  await source.evaluate(() => {
+    window.themeStyles = [...document.querySelector('.dock-browser-styles').children];
+    window.themeFrame = document.querySelector('.dock-floating');
+  });
+  await page.evaluate(() => window.xamora.studio.command('theme'));
+  await source.waitForFunction(() => !document.body.classList.contains('dark'));
+  assert.equal(await themeToken(source), await themeToken(page));
+  assert(
+    await source.evaluate(
+      () =>
+        window.themeFrame === document.querySelector('.dock-floating') &&
+        window.themeStyles.every(
+          (node, i) => document.querySelector('.dock-browser-styles').children[i] === node,
+        ),
+    ),
+  );
   // Context menu and keyboard navigation are attached to the child document, not the opener.
   await source.locator('[data-dock-panel="xaml"]').click({ button: 'right' });
   assert(await source.locator('.dock-menu').isVisible());
@@ -223,6 +247,25 @@ try {
   await page.locator('#open-two').click();
   const b = await next;
   await a.getByLabel('one', { exact: true }).fill('Transferred buffer');
+  await page.evaluate(() =>
+    document.querySelector('#theme-container').classList.add('nested-dark'),
+  );
+  for (const popup of [a, b])
+    await popup.waitForFunction(
+      () =>
+        getComputedStyle(document.querySelector('.dock-browser-host'))
+          .getPropertyValue('--packed-theme')
+          .trim() === 'dark',
+    );
+  await page.evaluate(() =>
+    document.querySelector('#theme-container').classList.remove('nested-dark'),
+  );
+  for (const popup of [a, b])
+    await popup.waitForFunction(
+      () =>
+        document.querySelector('.dock-browser-host').style.getPropertyValue('--packed-theme') ===
+        '',
+    );
   // Real DragEvent/DataTransfer handlers, dispatched deterministically across two browser documents.
   await a
     .locator('.dock-transfer-grip')

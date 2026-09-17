@@ -150,3 +150,41 @@ test('distribution files preserve assets, license, executable CLI mode and missi
   entry.assets.push('missing.bin');
   await assert.rejects(copyPackageFiles(entry, output, root), /Missing package asset missing.bin/);
 });
+
+test('module exports must expose canonical and compatibility runtime and type subpaths', () => {
+  const exported = (name) => ({
+    import: { types: `./dist/esm/${name}.d.ts`, default: `./dist/esm/${name}.js` },
+    require: { types: `./dist/cjs/${name}.d.cts`, default: `./dist/cjs/${name}.cjs` },
+  });
+  const entry = {
+    name: 'test-package',
+    dependencies: new Set(),
+    sources: [{ name: 'document-scope' }, { name: 'cli/index' }],
+    reexports: [{ name: 'dock-browser-windows' }],
+  };
+  const manifest = {
+    version: '1.0.0',
+    exports: {
+      './document-scope': exported('document-scope'),
+      './dock-browser-windows': exported('dock-browser-windows'),
+    },
+  };
+  validateManifest(entry, manifest, '1.0.0');
+  for (const name of ['document-scope', 'dock-browser-windows']) {
+    const missing = structuredClone(manifest);
+    delete missing.exports['./' + name];
+    assert.throws(
+      () => validateManifest(entry, missing, '1.0.0'),
+      /Missing or invalid import export/,
+    );
+    for (const kind of ['import', 'require'])
+      for (const target of ['types', 'default']) {
+        const wrong = structuredClone(manifest);
+        wrong.exports['./' + name][kind][target] = './incorrect-path';
+        assert.throws(
+          () => validateManifest(entry, wrong, '1.0.0'),
+          /Missing or invalid .* export/,
+        );
+      }
+  }
+});
