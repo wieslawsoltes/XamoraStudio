@@ -1,0 +1,270 @@
+name: Prepare verified multiwindow repairs
+on:
+  push:
+    branches: [feat/docking-browser-windows]
+    paths: [.github/workflows/multiwindow-repair-tree.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Apply locally validated repair and create Git tree only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = d5b7eb8741b2f096730dd247a4e0b477d6b0945d
+          cat > "$RUNNER_TEMP/multiwindow.patch" <<'PATCH'
+          diff --git a/dist/controls/dock-browser-windows.js b/dist/controls/dock-browser-windows.js
+          index 40ec659..dc25422 100644
+          --- a/dist/controls/dock-browser-windows.js
+          +++ b/dist/controls/dock-browser-windows.js
+          @@ -181,11 +181,12 @@ export class DockBrowserWindows {
+                 if (text !== undefined) node.textContent = text;
+                 return node;
+               };
+          -    if (!document.doctype)
+          -      document.insertBefore(
+          -        document.implementation.createDocumentType('html', '', ''),
+          -        document.documentElement,
+          -      );
+          +    // Rendering mode is chosen by the parser, not by inserting a DocumentType node.
+          +    // Initialize only the fresh, validated blank window, before portals or listeners exist.
+          +    // This static shell never interpolates project content or executes application scripts.
+          +    document.open();
+          +    document.write('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
+          +    document.close();
+               const viewport = document.createElement('meta');
+               viewport.name = 'viewport';
+               viewport.content = 'width=device-width,initial-scale=1';
+          diff --git a/dist/controls/dock-workspace.js b/dist/controls/dock-workspace.js
+          index 0c49395..cc496ba 100644
+          --- a/dist/controls/dock-workspace.js
+          +++ b/dist/controls/dock-workspace.js
+          @@ -711,6 +711,7 @@ export class DockWorkspace extends EventTarget {
+                 document.removeEventListener('keydown', onKey, true);
+                 window.removeEventListener('blur', onCancel);
+                 this.cancelGesture = null;
+          +      this.gestureDocument = null;
+                 document.body.classList.remove('dock-gesturing');
+               };
+               const onMove = (e) => {
+          @@ -726,7 +727,10 @@ export class DockWorkspace extends EventTarget {
+                 cancel?.();
+               };
+               const onKey = (e) => {
+          -      if (e.key === 'Escape') {
+          +      if (
+          +        e.key === 'Escape' &&
+          +        !e.target.closest?.('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]')
+          +      ) {
+                   e.preventDefault();
+                   e.stopImmediatePropagation();
+                   onCancel();
+          @@ -734,6 +738,7 @@ export class DockWorkspace extends EventTarget {
+               };
+               this.cancelGesture?.();
+               this.cancelGesture = onCancel;
+          +    this.gestureDocument = document;
+               document.addEventListener('pointermove', onMove, true);
+               document.addEventListener('pointerup', onUp, true);
+               document.addEventListener('pointercancel', onCancel, true);
+          @@ -1317,7 +1322,9 @@ export class DockWorkspace extends EventTarget {
+                 !this.cancelGesture
+               )
+                 return;
+          -    if (this.menu) {
+          +    if (e.target.closest?.('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]'))
+          +      return;
+          +    if (this.menu?.ownerDocument === document) {
+                 const items = [...this.menu.querySelectorAll('button:not(:disabled)')],
+                   at = items.indexOf(document.activeElement);
+                 if (['ArrowDown', 'ArrowUp', 'Escape', 'Home', 'End'].includes(e.key)) {
+          @@ -1335,20 +1342,18 @@ export class DockWorkspace extends EventTarget {
+                   return;
+                 }
+               }
+          -    if (e.key === 'Escape' && this.cancelGesture) {
+          +    if (e.key === 'Escape' && this.cancelGesture && this.gestureDocument === document) {
+                 e.preventDefault();
+                 e.stopImmediatePropagation();
+                 this.cancelGesture();
+                 return;
+               }
+          -    if (e.key === 'Escape' && this.flyout) {
+          +    if (e.key === 'Escape' && this.flyout && document === this.document) {
+                 e.preventDefault();
+                 e.stopImmediatePropagation();
+                 this.closeFlyout();
+                 return;
+               }
+          -    if (e.target.closest('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]'))
+          -      return;
+               const mod = e.ctrlKey || e.metaKey;
+               if (e.key === 'F6') {
+                 e.preventDefault();
+          diff --git a/dist/controls/document-scope.js b/dist/controls/document-scope.js
+          index c73776d..3cc3f92 100644
+          --- a/dist/controls/document-scope.js
+          +++ b/dist/controls/document-scope.js
+          @@ -23,7 +23,9 @@ export class DocumentScope {
+                 this.focusedDocument = document;
+               };
+               const remove = () => {
+          -      if (!this.documents.delete(document)) return;
+          +      // A caller may keep an old disposer after re-registering the same document.
+          +      if (this.documents.get(document) !== entry) return;
+          +      this.documents.delete(document);
+                 for (const [id, item] of this.frames)
+                   if (item.view === entry.window) {
+                     item.view.cancelAnimationFrame(item.nativeId);
+          diff --git a/tests/docking-window-routing.test.mjs b/tests/docking-window-routing.test.mjs
+          new file mode 100644
+          index 0000000..4a6e4a3
+          --- /dev/null
+          +++ b/tests/docking-window-routing.test.mjs
+          @@ -0,0 +1,117 @@
+          +import test from 'node:test';
+          +import assert from 'node:assert/strict';
+          +import { Window } from 'happy-dom';
+          +import { controlDOM } from './control-fixture.mjs';
+          +import { DockLayout } from '../dist/core/docking.js';
+          +import { DockWorkspace } from '../dist/controls/docking.js';
+          +import { DocumentScope } from '../dist/controls/document-scope.js';
+          +import { DialogHost } from '../dist/controls/dialog-host.js';
+          +
+          +function fixture(t) {
+          +  const dom = controlDOM(t);
+          +  const model = new DockLayout([
+          +    { id: 'one', kind: 'document' },
+          +    { id: 'two', kind: 'document' },
+          +  ]);
+          +  const control = new DockWorkspace(dom.host(), model, {
+          +    keyboardScope: 'document',
+          +    browserWindows: { openWindow: () => new Window() },
+          +  });
+          +  for (const id of ['one', 'two']) {
+          +    const input = dom.document.createElement('textarea');
+          +    input.value = 'unsaved ' + id;
+          +    control.mount(id, input);
+          +  }
+          +  const one = control.windows.get(control.openWindow('one'));
+          +  const two = control.windows.get(control.openWindow('two'));
+          +  t.after(() => control.dispose());
+          +  return { ...dom, model, control, one, two };
+          +}
+          +function key(document, target, value) {
+          +  const event = new document.defaultView.KeyboardEvent('keydown', {
+          +    key: value,
+          +    bubbles: true,
+          +    cancelable: true,
+          +  });
+          +  target.dispatchEvent(event);
+          +  return event;
+          +}
+          +
+          +test('a popup menu never consumes text-navigation keys in another browser document', (t) => {
+          +  const { control, one, two } = fixture(t);
+          +  const tab = one.host.querySelector('[data-dock-panel="one"]');
+          +  control.context({ target: tab }, 'one');
+          +  const menu = control.menu;
+          +  const input = control.contents.get('two');
+          +  input.focus();
+          +  for (const value of ['ArrowDown', 'ArrowUp', 'Home', 'End', 'Escape']) {
+          +    assert.equal(key(two.document, input, value).defaultPrevented, false, value);
+          +    assert.equal(control.menu, menu);
+          +    assert.equal(two.document.activeElement, input);
+          +  }
+          +  const button = menu.querySelector('button:not(:disabled)');
+          +  assert.equal(key(one.document, button, 'ArrowDown').defaultPrevented, true);
+          +  assert.equal(key(one.document, one.document.activeElement, 'Escape').defaultPrevented, true);
+          +  assert.equal(control.menu, null);
+          +});
+          +
+          +test('an owner-document modal handles Escape before an older docking menu', (t) => {
+          +  const { control, one } = fixture(t);
+          +  control.context({ target: one.host.querySelector('[data-dock-panel="one"]') }, 'one');
+          +  const menu = control.menu;
+          +  const root = one.document.createElement('div');
+          +  one.document.body.append(root);
+          +  const dialogs = new DialogHost(root);
+          +  t.after(() => dialogs.dispose());
+          +  const dialog = dialogs.open({ title: 'Owned dialog', html: '<input aria-label="value">' });
+          +  const input = dialog.querySelector('input');
+          +  input.focus();
+          +  key(one.document, input, 'Escape');
+          +  assert.equal(dialogs.isOpen, false, 'Escape must reach the modal handler');
+          +  assert.equal(control.menu, menu, 'A modal key must not operate underlying docking chrome');
+          +});
+          +
+          +test('Escape in another browser document cannot cancel an active pointer gesture', (t) => {
+          +  const { control, one, two } = fixture(t);
+          +  let canceled = 0;
+          +  control.gesture(
+          +    {
+          +      target: control.contents.get('one'),
+          +      pointerId: 1,
+          +      preventDefault() {},
+          +      stopPropagation() {},
+          +    },
+          +    () => {},
+          +    () => {},
+          +    () => canceled++,
+          +  );
+          +  const input = control.contents.get('two');
+          +  assert.equal(key(two.document, input, 'Escape').defaultPrevented, false);
+          +  assert.equal(canceled, 0);
+          +  assert.equal(key(one.document, control.contents.get('one'), 'Escape').defaultPrevented, true);
+          +  assert.equal(canceled, 1);
+          +  assert.equal(control.cancelGesture, null);
+          +});
+          +
+          +test('a stale portal disposer cannot unregister a replacement registration for the same document', (t) => {
+          +  const dom = controlDOM(t);
+          +  const scope = new DocumentScope(dom.document, dom.host());
+          +  const popup = new Window();
+          +  t.after(() => {
+          +    scope.dispose();
+          +    popup.close();
+          +  });
+          +  let calls = 0;
+          +  scope.listen(dom.document, 'input', () => calls++);
+          +  const old = scope.add(popup.document);
+          +  old();
+          +  const current = scope.add(popup.document);
+          +  old();
+          +  assert.equal(scope.documents.has(popup.document), true);
+          +  popup.document.dispatchEvent(new popup.Event('input'));
+          +  assert.equal(calls, 1);
+          +  current();
+          +  assert.equal(scope.documents.has(popup.document), false);
+          +  popup.document.dispatchEvent(new popup.Event('input'));
+          +  assert.equal(calls, 1);
+          +});
+          PATCH
+          git apply --check "$RUNNER_TEMP/multiwindow.patch"
+          git apply "$RUNNER_TEMP/multiwindow.patch"
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          paths = ['dist/controls/dock-browser-windows.js', 'dist/controls/dock-workspace.js', 'dist/controls/document-scope.js', 'tests/docking-window-routing.test.mjs']
+          tree = [dict(path=p, mode='100644', type='blob', content=Path(p).read_text()) for p in paths]
+          tree.append(dict(path='.github/workflows/multiwindow-repair-tree.yml', mode='100644', type='blob', sha=None))
+          payload = dict(base_tree=subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip(), tree=tree)
+          Path(os.environ['RUNNER_TEMP'], 'repair-tree-input.json').write_text(json.dumps(payload))
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/git/trees" --method POST --input "$RUNNER_TEMP/repair-tree-input.json" > "$RUNNER_TEMP/repair-tree.json"
+          test "$(jq -r .sha "$RUNNER_TEMP/repair-tree.json")" = c093490a12d9e597ecd487f17d26b3b3d55626d6
+          echo "Verified tree c093490a12d9e597ecd487f17d26b3b3d55626d6; no refs were updated."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-multiwindow-tree
+          path: ${{ runner.temp }}/repair-tree.json
+          retention-days: 1
