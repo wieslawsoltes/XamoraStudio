@@ -1,7 +1,7 @@
 /** Real Chromium popups: Studio editing and canonical/packaged standalone docking hosts. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile, stat, mkdir } from 'node:fs/promises';
+import { readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -101,7 +101,7 @@ try {
   await source.waitForFunction(
     () =>
       document.documentElement.dataset.density === 'comfortable' &&
-      !document.body.classList.contains('light'),
+      document.body.classList.contains('dark'),
   );
   assert.equal(await source.evaluate(() => document.compatMode), 'CSS1Compat');
   // Validate both directions through the actual Studio command, not a synthetic class edit.
@@ -112,12 +112,15 @@ try {
       return getComputedStyle(host).getPropertyValue('--panel').trim();
     });
   assert.equal(await themeToken(source), await themeToken(page));
+  const darkToken = await themeToken(source);
+  assert(darkToken, 'The popup must have a resolved panel theme');
   await source.evaluate(() => {
     window.themeStyles = [...document.querySelector('.dock-browser-styles').children];
     window.themeFrame = document.querySelector('.dock-floating');
   });
   await page.evaluate(() => window.xamora.studio.command('theme'));
-  await source.waitForFunction(() => document.body.classList.contains('light'));
+  await source.waitForFunction(() => !document.body.classList.contains('dark'));
+  assert.notEqual(await themeToken(source), darkToken, 'The computed theme must actually change');
   assert.equal(await themeToken(source), await themeToken(page));
   assert(
     await source.evaluate(
@@ -127,6 +130,9 @@ try {
           (node, i) => document.querySelector('.dock-browser-styles').children[i] === node,
         ),
     ),
+  );
+  console.log(
+    'Multiwindow: shared source/property edits, find, density and both theme directions passed.',
   );
   // Context menu and keyboard navigation are attached to the child document, not the opener.
   await source.locator('[data-dock-panel="xaml"]').click({ button: 'right' });
@@ -215,6 +221,9 @@ try {
   await lab.locator('[data-browser-return]').click();
   assert.equal(await page.getByLabel('Example text').inputValue(), 'Standalone live buffer');
 
+  console.log(
+    'Multiwindow: Studio recovery, history, file lifecycle and standalone live buffer passed.',
+  );
   // Repeat transfers using the built npm browser bundle, with no Studio dependencies.
   await page.goto(base + '/packed/');
   await page.evaluate(async () => {
@@ -319,8 +328,18 @@ try {
   );
 } catch (error) {
   await mkdir('test-results', { recursive: true });
-  for (const [i, p] of (page?.context().pages() || []).entries())
+  await writeFile('test-results/docking-window-error.txt', String(error.stack || error));
+  for (const [i, p] of (page?.context().pages() || []).entries()) {
     await p.screenshot({ path: `test-results/docking-window-${i}.png` }).catch(() => {});
+    const state = await p
+      .evaluate(() => ({
+        url: location.href,
+        html: document.documentElement.outerHTML,
+        focus: document.activeElement?.outerHTML,
+      }))
+      .catch((error) => ({ error: String(error) }));
+    await writeFile(`test-results/docking-window-${i}.json`, JSON.stringify(state, null, 2));
+  }
   console.error({ errors, failures });
   throw error;
 } finally {
