@@ -7,6 +7,8 @@ on:
 permissions:
   contents: read
 jobs:
+  native:
+    uses: ./.github/workflows/native-compiler.yml
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -43,7 +45,7 @@ jobs:
           include-hidden-files: true
   publish:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: test
+    needs: [test, native]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
