@@ -498,7 +498,12 @@ export class HtmlWorkspace extends WorkspaceComponent {
       this.inspector();
     }
     s.rightTab = selected;
-    if (s.docking.lastRight !== selected) {
+    if (
+      s.docking.lastRight !== selected &&
+      !s.docking.refreshing &&
+      !s.docking.refreshingPanels &&
+      !s.docking.syncingDocuments
+    ) {
       s.docking.lastRight = selected;
       s.docking.control.show(selected === 'design' ? 'properties' : selected);
     }

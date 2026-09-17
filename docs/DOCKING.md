@@ -131,3 +131,22 @@ The Density selector and View → Interface density change title/tab spacing wit
 All tool/document tabs, including floating groups and auto-hide rails, can be dragged. Drag a tab to move one window; drag a title bar to move its group. Tab-strip hits take precedence over outer workspace edges, blank tab-strip space appends, and a blue insertion line shows ordering. Hover near either edge during dragging to scroll overflowing tabs. Ctrl/⌘ continues to force a floating drop.
 
 Horizontal tab strips and the shell command bars have left/right scroll buttons. Scrollbars are hidden while touchpad scrolling, keyboard tab navigation, and active-tab reveal remain available. Navigation buttons isolate editing keys from the design canvas. Tab offsets persist when other windows are docked or a strip is rebuilt. The reusable `ScrollButtons` control and its CSS are available outside the app.
+
+## Selection and document lifecycle invariants
+
+Opening a background document registers and docks it without changing the active document,
+selected tool tabs, or keyboard target. `DockLayout.dock(..., { activate: false })` is the
+explicit background-insertion API. Studio switches documents only after insertion completes.
+Full document refreshes do not interpret temporary inspector/sidebar rendering modes as
+requests to show another tool window.
+
+Deferred focus and auto-hide hover callbacks are revision-checked: a later activation,
+layout change, removal or disposal invalidates earlier requests. Focus from an independent
+workspace with the same panel identifiers cannot activate this workspace. Whole-group moves
+retain their selected member; closing a document prefers the adjacent document or another
+document group before falling back to a tool group.
+
+Registry changes publish one coherent model snapshot. Layout undo/redo survives document
+registration/removal through reconciliation, including saved editor-mode snapshots. Undo
+cannot resurrect an unregistered panel or discard a newly registered one. These layout
+operations remain separate from document content history and pending-source validation.

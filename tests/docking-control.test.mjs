@@ -400,3 +400,33 @@ test('invalid XAML leaves mode, window arrangement, and history untouched', () =
   assert.equal(m.history.length, count);
   f.cleanup();
 });
+
+test('adding background stores does not switch the editable document or selected tool panels', () => {
+  const f = studioFixture();
+  f.docking.control.activate('toolkit');
+  const original = f.s.doc.id;
+  const selected = new Map(
+    dockGroups(f.docking.model.state).map((group) => [group.id, group.active]),
+  );
+  f.s.addStore(parseXaml('<Grid/>', { name: 'Background.xaml' }));
+  assert.equal(f.s.doc.id, original);
+  assert.equal(f.docking.model.state.activePanel, 'toolkit');
+  for (const group of dockGroups(f.docking.model.state))
+    assert.equal(group.active, selected.get(group.id));
+  f.s.switchDocument(f.s.stores.length - 1);
+  assert.equal(f.s.doc.name, 'Background.xaml');
+  assert.equal(locatePanel(f.docking.model.state, 'toolkit').group.active, 'toolkit');
+  f.cleanup();
+});
+
+test('a routine full render reconciles sidebar render modes without activating tool windows', () => {
+  const f = studioFixture();
+  const active = f.docking.model.state.activePanel;
+  f.s.leftTab = 'assets';
+  f.s.rightTab = 'raw';
+  f.s.render();
+  assert.equal(f.docking.model.state.activePanel, active);
+  assert.equal(locatePanel(f.docking.model.state, 'layers').group.active, 'layers');
+  assert.equal(locatePanel(f.docking.model.state, 'properties').group.active, 'properties');
+  f.cleanup();
+});

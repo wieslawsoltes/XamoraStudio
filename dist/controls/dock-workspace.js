@@ -51,6 +51,7 @@ export class DockWorkspace extends EventTarget {
     this.flyout = null;
     this.drag = null;
     this.disposed = false;
+    this.activationRevision = 0;
     this.visible = new Set();
     this.strips = new Map();
     this.tabScroll = new Map();
@@ -62,6 +63,7 @@ export class DockWorkspace extends EventTarget {
     this.live.setAttribute('aria-live', 'polite');
     host.append(this.parking, this.shell, this.live);
     this.changed = (event) => {
+      this.activationRevision++;
       if (event.label === 'Raise floating window') {
         this.paintZ();
       } else if (
@@ -77,6 +79,7 @@ export class DockWorkspace extends EventTarget {
     this.keydown = (e) => this.key(e);
     document.addEventListener('keydown', this.keydown, true);
     this.outside = (e) => {
+      clearTimeout(this.hoverTimer);
       if (this.flyout && !e.target.closest('.dock-flyout,.dock-auto-tab,.dock-menu'))
         this.closeFlyout();
       if (this.menu && !this.menu.contains(e.target)) this.closeMenu();
@@ -85,7 +88,13 @@ export class DockWorkspace extends EventTarget {
     this.contentFocus = (e) => {
       if (this.rendering) return;
       const id = e.target.closest('[data-dock-content]')?.dataset.dockContent;
-      if (id && this.visible.has(id) && id !== this.model.state.activePanel) this.activate(id);
+      if (
+        id &&
+        this.contents.get(id)?.contains(e.target) &&
+        this.visible.has(id) &&
+        id !== this.model.state.activePanel
+      )
+        this.activate(id);
       if (
         e.type === 'focusin' &&
         this.flyout &&
@@ -133,8 +142,15 @@ export class DockWorkspace extends EventTarget {
       this.model.activate(id);
       this.render();
     } else this.model.activate(id);
+    const revision = ++this.activationRevision;
     requestAnimationFrame(() => {
-      if (this.disposed) return;
+      if (
+        this.disposed ||
+        revision !== this.activationRevision ||
+        this.model.state.activePanel !== id ||
+        !this.model.panels.has(id)
+      )
+        return;
       this.revealTab(id);
       if (focus) this.focus(id);
     });
@@ -170,6 +186,11 @@ export class DockWorkspace extends EventTarget {
   }
   render() {
     if (this.disposed) return;
+    if (this.rendering) {
+      this.renderAgain = true;
+      return;
+    }
+    clearTimeout(this.hoverTimer);
     for (const [id, strip] of this.strips) {
       this.tabScroll.set(id, strip.viewport.scrollLeft);
       strip.dispose();
@@ -207,7 +228,16 @@ export class DockWorkspace extends EventTarget {
         tab.onmouseenter = () => {
           if (this.drag) return;
           clearTimeout(this.hoverTimer);
-          this.hoverTimer = setTimeout(() => this.activate(id), 350);
+          const revision = this.activationRevision;
+          this.hoverTimer = setTimeout(() => {
+            if (
+              !this.disposed &&
+              revision === this.activationRevision &&
+              tab.isConnected &&
+              locatePanel(this.model.state, id)?.kind === 'autoHide'
+            )
+              this.activate(id);
+          }, 350);
         };
         tab.onmouseleave = () => clearTimeout(this.hoverTimer);
         tab.oncontextmenu = (e) => this.context(e, id);
@@ -304,6 +334,11 @@ export class DockWorkspace extends EventTarget {
     this.renderedGroups = new Map(dockGroups(d).map((g) => [g.id, g.active]));
     this.renderedFlyout = this.flyout;
     this.rendering = false;
+    if (this.renderAgain) {
+      this.renderAgain = false;
+      this.render();
+      return;
+    }
     this.dispatchEvent(new Event('resize'));
   }
   revealTab(id) {

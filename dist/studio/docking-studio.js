@@ -232,7 +232,8 @@ export class DockingStudio {
         this.lastLeft = selected;
         this.renderingLeft = false;
       }
-      if (changed && !this.refreshing) this.control.show(selected);
+      if (changed && !this.refreshing && !this.refreshingPanels && !this.syncingDocuments)
+        this.control.show(selected);
     };
     s.renderInspector = () => {
       if (this.renderingRight) return;
@@ -249,10 +250,17 @@ export class DockingStudio {
         this.lastRight = selected;
         this.renderingRight = false;
       }
-      if (changed && !this.refreshing) this.control.show(rightId(selected));
+      if (changed && !this.refreshing && !this.refreshingPanels && !this.syncingDocuments)
+        this.control.show(rightId(selected));
     };
     s.render = () => {
-      render();
+      const refreshingPanels = this.refreshingPanels;
+      this.refreshingPanels = true;
+      try {
+        render();
+      } finally {
+        this.refreshingPanels = refreshingPanels;
+      }
       if (!this.refreshing) {
         this.syncDocuments();
         this.refreshProblems();
@@ -295,8 +303,7 @@ export class DockingStudio {
       for (const [id, host] of this.documentHosts)
         if (!ids.has(id)) {
           const panel = 'document:' + id;
-          this.control.contents.delete(panel);
-          host.remove();
+          this.control.unmount(panel);
           this.documentHosts.delete(id);
           this.passiveRenderers.delete(id);
           this.model.unregister(panel);
@@ -319,7 +326,13 @@ export class DockingStudio {
           const target = dockGroups(this.model.state).find(
             (g) => g.kind === 'document' && g.panels.some((p) => p.startsWith('document:')),
           );
-          this.model.dock(id, target?.id || this.model.state.root?.id, target ? 'center' : 'left');
+          this.model.dock(
+            id,
+            target?.id || this.model.state.root?.id,
+            target ? 'center' : 'left',
+            undefined,
+            { activate: false },
+          );
         }
       }
     } finally {
@@ -422,7 +435,7 @@ export class DockingStudio {
     for (const strip of this.control.strips.values()) strip.update();
   }
   layoutChanged(label) {
-    if (this.refreshing) return;
+    if (this.refreshing || this.syncingDocuments) return;
     const id = this.model.state.activePanel;
     if (LEFT[id]) {
       this.s.leftTab = id;
