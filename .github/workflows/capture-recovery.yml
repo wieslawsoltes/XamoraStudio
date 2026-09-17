@@ -1,0 +1,32 @@
+name: Snapshot capture review workspace
+on:
+  push:
+    branches: [chore/capture-recovery-20260917]
+    paths: [.github/workflows/capture-recovery.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Archive current source and locked build tools
+        run: |
+          git bundle create "$RUNNER_TEMP/capture.bundle" HEAD refs/remotes/origin/main
+          tar -czf "$RUNNER_TEMP/capture-review.tar.gz" --exclude='./.git' --exclude='./test-results' .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capture-review-workspace
+          path: |
+            ${{ runner.temp }}/capture-review.tar.gz
+            ${{ runner.temp }}/capture.bundle
+          retention-days: 1
