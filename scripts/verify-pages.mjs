@@ -38,6 +38,8 @@ const files = [
   'core/compiler-selectors.js',
   'core/compiler-environment.js',
   'core/compiler-css.js',
+  'core/compiler-logical.js',
+  'docs/NATIVE-COMPILER-CI.md',
   'core/compiler-browser.js',
   'core/compiler-resources.js',
   'docs/RESPONSIVE-COMPILER.md',

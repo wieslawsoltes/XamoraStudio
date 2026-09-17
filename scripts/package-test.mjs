@@ -243,7 +243,14 @@ try {
       ),
     );
   }
-  const typeConsumer = `import {compileRenderedDocument, observeRenderedDocument} from '@wieslawsoltes/xamora-compiler';
+  const typeConsumer = `import {cssBoxLonghands, physicalCssProperty, cssBoxFamily, type CssFlowContext} from '@wieslawsoltes/xamora-compiler/compiler-logical';
+const flow: CssFlowContext = {direction:'rtl','writing-mode':'horizontal-tb'};
+const physical: string|null = physicalCssProperty('padding-inline-start', flow);
+const expanded: string[]|null = cssBoxLonghands('padding-inline');
+const family: string|null = cssBoxFamily('inline-size',flow); void [physical,expanded,family];
+// @ts-expect-error Flow inputs are strings, not a numeric direction.
+physicalCssProperty('inline-size', {direction:2});
+import {compileRenderedDocument, observeRenderedDocument} from '@wieslawsoltes/xamora-compiler';
 compileRenderedDocument(globalThis.document.body, {includePasswordValues:false});
 observeRenderedDocument(globalThis.document.body, {includePasswordValues:false, onResult(result) {void result.source;}}).dispose();
 // @ts-expect-error Password capture must be an explicit boolean.
@@ -293,7 +300,7 @@ import {DocumentStore,createDocument,element,type DesignDocument} from '@wieslaw
   await writeFile(join(consumer, 'consumer.ts'), typeConsumer);
   await writeFile(
     join(consumer, 'consumer.cts'),
-    `import dialogs=require('@wieslawsoltes/xamora-dialogs');import controls=require('@wieslawsoltes/xamora-controls');const modal:controls.DialogHost=new dialogs.DialogHost(globalThis.document.createElement('div'));modal.dispose();import propertyGrid=require('@wieslawsoltes/xamora-property-grid');const grid:controls.PropertyGrid=new propertyGrid.PropertyGrid(globalThis.document.createElement('div'),{properties:[{name:'Flag',type:'boolean',value:false}]});grid.dispose();import model=require('@wieslawsoltes/xamora-model');import runtime=require('@wieslawsoltes/xamora-runtime');const document:model.DesignDocument=model.createDocument(model.element('Grid'));const store=new model.DocumentStore(document);void[store,runtime.mountXaml];\n`,
+    `import logical=require('@wieslawsoltes/xamora-compiler/compiler-logical');const flow:logical.CssFlowContext={direction:'rtl'};const mapped:string|null=logical.physicalCssProperty('inline-size',flow);void mapped;import dialogs=require('@wieslawsoltes/xamora-dialogs');import controls=require('@wieslawsoltes/xamora-controls');const modal:controls.DialogHost=new dialogs.DialogHost(globalThis.document.createElement('div'));modal.dispose();import propertyGrid=require('@wieslawsoltes/xamora-property-grid');const grid:controls.PropertyGrid=new propertyGrid.PropertyGrid(globalThis.document.createElement('div'),{properties:[{name:'Flag',type:'boolean',value:false}]});grid.dispose();import model=require('@wieslawsoltes/xamora-model');import runtime=require('@wieslawsoltes/xamora-runtime');const document:model.DesignDocument=model.createDocument(model.element('Grid'));const store=new model.DocumentStore(document);void[store,runtime.mountXaml];\n`,
   );
   run(
     process.execPath,

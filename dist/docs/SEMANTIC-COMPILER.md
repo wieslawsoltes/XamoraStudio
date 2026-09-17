@@ -68,7 +68,11 @@ when an intermediate ancestor does not satisfy a preceding relationship.
 Declarations stay ordered, including duplicates. Importance, inline precedence and
 source order are compared without numeric specificity overflow. Margin, padding and
 border-width shorthands participate as individual side declarations before conversion
-to native thickness. Custom properties are case-sensitive, inherit their computed
+to native thickness. Logical dimensions, two-sided logical spacing and inset aliases
+share that cascade after direction and writing mode are resolved. Source-preserving
+reverse edits and vertical/cross-flow limitations are documented in
+[logical conversion](RESPONSIVE-COMPILER.md#logical-dimensions-spacing-and-offsets).
+Custom properties are case-sensitive, inherit their computed
 values, support balanced nested fallbacks, and detect cycles including dependencies in
 unused fallbacks. Invalid variable substitution uses unset semantics, not an earlier
 cascaded declaration. Resolution is bounded to 64 levels and 65,536 characters;

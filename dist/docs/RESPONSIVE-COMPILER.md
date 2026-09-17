@@ -41,6 +41,65 @@ Named, anonymous and nested cascade layers preserve declaration order and revers
 
 Lengths support absolute units; `em`/`rem`; viewport units with explicit viewport inputs; and bounded dimensional `calc`, `min`, `max`, `clamp`. Percentages need a known containing dimension. Static conversion does not guess intrinsic/shrink-to-fit sizes or solve an entire browser formatting context. Use live capture for actual border-box geometry.
 
+## Logical dimensions, spacing and offsets
+
+Static conversion handles `inline-size`/`block-size`, their `min-`/`max-` forms,
+`margin-inline`/`margin-block`, `padding-inline`/`padding-block`,
+`border-inline-width`/`border-block-width`, and `inset-inline`/`inset-block`,
+including individual `-start`/`-end` longhands. Physical `inset` also expands to
+four sides. Border colors, border styles and logical corner radii are not part of
+this mapping.
+
+```js
+const result = compileDocument(`
+  <button style="direction:rtl;inline-size:180px;block-size:44px;
+    padding-inline:6px 14px;padding-inline-start:9px!important">Save</button>
+`, { from: 'html', framework: 'WPF', Parser });
+// Width="180" Height="44" Padding="14,0,9,0" FlowDirection="RightToLeft"
+```
+
+The cascade resolves inherited/custom-property-driven `direction` and
+`writing-mode` before mapping logical names. Logical and physical declarations
+then compete for the same dimension or side using their original specificity,
+importance, layer and declaration order. Logical pairs expand to two components,
+not four. Invalid literal pair counts do not enter the cascade; invalid values
+produced by variable substitution unset their winning components and emit losses
+instead of resurrecting lower declarations. This remains a supported-property
+converter rather than an exhaustive CSS grammar validator.
+
+Unchanged logical inline CSS retains its original comments, spacing and duplicate
+fallbacks when portable metadata is enabled. Editing an XAML dimension, thickness
+or offset removes competing inline aliases for that family and writes the edited
+physical values. A required `!important` override is retained, including when the
+original winning logical rule came from an external stylesheet. Direction edits
+preserve concrete native thickness values rather than remapping them twice.
+Removing an offset emits `auto`; removing a size or box emits `initial`. Unrelated
+CSS and retained stylesheets are not rewritten. Native automatic margins have no
+equivalent numeric thickness: they remain explicit `CSS_VALUE` losses, while
+`auto` Canvas offsets are omitted rather than emitted as invalid numeric values.
+
+Horizontal left-to-right and right-to-left boxes are covered by browser and native
+fixtures. Geometry can also be mapped for `vertical-rl`, `vertical-lr`,
+`sideways-rl` and `sideways-lr`, but **vertical/sideways native text and formatting
+contexts are not implemented**. These modes always emit `CSS_WRITING_MODE`, also
+in live capture, and fail strict conversion. `text-orientation` is retained as
+flow context, not translated to a native text layout.
+
+Explicit logical `inherit` across different parent/child flow directions uses the
+parent's physical computed side, matching the tested Chromium behavior. The CSS
+Logical Properties draft describes logical-property inheritance differently, so
+such cases emit `CSS_LOGICAL_INHERITANCE` and fail strict conversion instead of
+claiming specification-wide equivalence. Browser versions may differ here.
+
+The dependency-free mapping helpers are also exported from
+`@wieslawsoltes/xamora-compiler/compiler-logical`: `cssBoxLonghands`,
+`physicalCssProperty`, `cssBoxFamily`, and the `CssFlowContext` type. They map
+already-computed property names; they do not parse values or run the cascade.
+Unknown names are returned unchanged by `physicalCssProperty`; an unknown writing
+mode returns `null` for a logical name. See the
+[CSS Logical Properties draft](https://www.w3.org/TR/css-logical-1/) and
+[CSS Writing Modes](https://www.w3.org/TR/css-writing-modes-4/) for definitions.
+
 ## External resource ownership
 
 Imports resolve relative to their owning stylesheet. The first HTML `base` is respected. Top-level import ordering, import media/supports/layer qualifiers, repeated imports, cycle termination and URL-token rebasing are handled without changing source strings in portable metadata. Disabled, alternate and nonmatching stylesheets do not enter the cascade. Missing resources stay `EXTERNAL_CSS` losses.
@@ -97,7 +156,7 @@ The observer coalesces resize, DOM mutations, ancestor/stylesheet mutations, inp
 
 ## Actual native qualification
 
-`tests/native/generate-fixtures.mjs` produces the target XAML using the real compiler. Each target receives narrow/wide static fixtures with metadata both on and off, plus two measured browser layouts. Expected static values are independently specified; measured values come from Chromium, not from the generated XAML.
+`tests/native/generate-fixtures.mjs` produces the target XAML using the real compiler. Each target receives narrow/wide static fixtures with metadata both on and off, plus two measured browser layouts, two RTL/form-state captures, and four logical-box direction/metadata combinations (twelve fixtures per target). Expected static values are independently specified; measured values come from Chromium, not from the generated XAML.
 
 `native-compiler.yml` loads these fixtures using WPF on Windows (.NET 10) and Avalonia 12.1.1 on Linux (.NET 10, headless platform). The runners measure/arrange real framework controls and assert their dimensions, attached placement, text, padding and selection. WPF additionally saves and reloads the native object tree. Qualification JSON reports record the actual runtime, assembly, cases and assertions; the workflow result is the authority on whether a revision passed.
 
