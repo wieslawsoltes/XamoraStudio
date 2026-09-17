@@ -2194,6 +2194,36 @@ function adaptNativePassword(target, source, ctx) {
 }
 function adaptNativeTextLayout(target, source, ctx) {
   const type = localName(target.type);
+  if (['ComboBox', 'ListBox'].includes(type)) {
+    // Selectors own an item collection, not a text layout. Lower inherited text
+    // properties onto item content without adding items or changing selection.
+    const keys = ['TextAlignment', 'TextWrapping', 'TextDecorations'].filter((key) =>
+      has(target.props, key),
+    );
+    const items = target.children.filter((child) =>
+      ['ComboBoxItem', 'ListBoxItem'].includes(localName(child.type || '')),
+    );
+    for (const item of items) {
+      const host =
+        item.children.length === 1 && localName(item.children[0].type || '') === 'TextBlock'
+          ? item.children[0]
+          : item;
+      for (const key of keys) if (!has(host.props, key)) host.props[key] = target.props[key];
+      if (host === item) adaptNativeTextLayout(item, source, ctx);
+    }
+    for (const key of keys) {
+      if (!items.length && target.children.some((child) => child.kind === 'element'))
+        ctx.report(
+          'warning',
+          'NATIVE_TEXT_LAYOUT',
+          `${type}.${key} requires an item-text template adapter for custom items.`,
+          source,
+          true,
+        );
+      delete target.props[key];
+    }
+    return;
+  }
   if (
     ![
       'Button',

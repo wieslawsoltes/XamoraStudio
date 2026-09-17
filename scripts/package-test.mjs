@@ -244,10 +244,10 @@ try {
     );
   }
   const typeConsumer = `import {compileRenderedDocument, observeRenderedDocument} from '@wieslawsoltes/xamora-compiler';
-compileRenderedDocument(document.body, {includePasswordValues:false});
-observeRenderedDocument(document.body, {includePasswordValues:false, onResult(result) {void result.source;}}).dispose();
+compileRenderedDocument(globalThis.document.body, {includePasswordValues:false});
+observeRenderedDocument(globalThis.document.body, {includePasswordValues:false, onResult(result) {void result.source;}}).dispose();
 // @ts-expect-error Password capture must be an explicit boolean.
-compileRenderedDocument(document.body, {includePasswordValues:'false'});
+compileRenderedDocument(globalThis.document.body, {includePasswordValues:'false'});
 import { ObjectPropertyGrid, type ObjectPropertyChange, editObjectProperty } from '@wieslawsoltes/xamora-property-grid';
 const nestedGrid = new ObjectPropertyGrid(globalThis.document.createElement('div'), {value:{items:[1]},onChange(change:ObjectPropertyChange){void change.path;return true;}});
 nestedGrid.setProperty(['items',0],2); nestedGrid.addProperty([], 'nested', {value:true}); nestedGrid.dispose();
