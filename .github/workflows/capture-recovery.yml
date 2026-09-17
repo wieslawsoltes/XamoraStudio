@@ -12,6 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: 9882666fe6b9a0aa1c7b6bc3dd595791210eacc7
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -19,14 +20,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Archive current source and locked build tools
+      - name: Archive exact merged source and locked build tools
         run: |
-          git bundle create "$RUNNER_TEMP/capture.bundle" HEAD refs/remotes/origin/main
-          tar -czf "$RUNNER_TEMP/capture-review.tar.gz" --exclude='./.git' --exclude='./test-results' .
+          test "$(git rev-parse HEAD)" = 9882666fe6b9a0aa1c7b6bc3dd595791210eacc7
+          git bundle create "$RUNNER_TEMP/merged-compiler.bundle" HEAD
+          tar -czf "$RUNNER_TEMP/merged-compiler.tar.gz" --exclude='./.git' --exclude='./test-results' .
       - uses: actions/upload-artifact@v4
         with:
-          name: capture-review-workspace
+          name: merged-compiler-review
           path: |
-            ${{ runner.temp }}/capture-review.tar.gz
-            ${{ runner.temp }}/capture.bundle
+            ${{ runner.temp }}/merged-compiler.tar.gz
+            ${{ runner.temp }}/merged-compiler.bundle
           retention-days: 1
