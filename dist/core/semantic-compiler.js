@@ -1073,6 +1073,7 @@ function xamlToHtmlNode(node, ctx, parentType = '', preserveSpace = false) {
         'LastChildFill',
         'Text',
         'Password',
+        'PasswordChar',
         'Content',
         'Header',
         'IsExpanded',
@@ -1092,7 +1093,9 @@ function xamlToHtmlNode(node, ctx, parentType = '', preserveSpace = false) {
         true,
       );
   }
-  if (type === 'TextBox' && tag === 'input') props.type = 'text';
+  if (type === 'TextBox' && tag === 'input')
+    props.type =
+      literalProps.PasswordChar && literalProps.PasswordChar !== '\0' ? 'password' : 'text';
   if (
     preserveSpace &&
     ['TextBlock', 'Run', 'Span', 'Bold', 'Italic', 'Underline', 'Hyperlink'].includes(type)
@@ -1596,7 +1599,7 @@ function inferXamlType(node, css, inlineContext = false) {
   if (node.type === 'input')
     return (
       { password: 'PasswordBox', checkbox: 'CheckBox', radio: 'RadioButton', range: 'Slider' }[
-        node.props.type
+        String(node.props.type || '').toLowerCase()
       ] || 'TextBox'
     );
   const map = {
@@ -2031,6 +2034,15 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   if (meta) restoreXamlMetadata(n, node, meta, css, ctx);
   if (captured) applyCapturedLayout(n, node, captured, ctx);
   adaptNativeTextLayout(n, node, ctx);
+  // Avalonia masks its TextBox; it does not expose WPF's PasswordBox control.
+  if (ctx.options.framework === 'Avalonia' && localName(n.type) === 'PasswordBox') {
+    n.type = 'TextBox';
+    props.PasswordChar = '*';
+    if (has(props, 'Password')) {
+      props.Text = props.Password;
+      delete props.Password;
+    }
+  }
   diagnoseNativeProperties(n, ctx, node);
   for (const [key] of Object.entries(node.props))
     if (!usedAttrs.has(key) && !key.startsWith('data-xamora-') && !['open', 'alt'].includes(key))

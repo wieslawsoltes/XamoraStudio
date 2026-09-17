@@ -277,3 +277,7 @@ CSS length math and live browser-layout capture/observation. The CLI accepts
 exposes viewport/media options. Read [Responsive compiler contracts](docs/RESPONSIVE-COMPILER.md)
 for the API, loader policy, measured-layout limits and WPF/Avalonia qualification.
 New source APIs require a checkout build; this increment does not publish npm packages.
+
+### Responsive compiler example
+
+[Compiler Fidelity Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/CompilerFidelityLab/) captures editable native XAML from live browser layouts at mobile, tablet and desktop widths. Select WPF or Avalonia, edit the source controls, and inspect the fidelity diagnostics before exporting. Password values are excluded by default. This demo uses the canonical compiler, not a separate renderer.

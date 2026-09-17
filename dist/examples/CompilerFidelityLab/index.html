@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Xamora · Compiler Fidelity Lab</title>
+    <link rel="stylesheet" href="lab.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <span class="eyebrow">XAMORA / COMPILER</span>
+        <h1>Responsive fidelity lab</h1>
+        <p>
+          Inspect real browser layout, capture editable native XAML, and review
+          every fidelity diagnostic.
+        </p>
+      </div>
+      <a href="../../">Open Studio ↗</a>
+    </header>
+    <main>
+      <section class="toolbar" aria-label="Capture settings">
+        <label
+          >Browser viewport
+          <select id="viewport">
+            <option value="380">Mobile · 380 px</option>
+            <option value="600">Tablet · 600 px</option>
+            <option value="900" selected>Desktop · 900 px</option>
+          </select></label
+        >
+        <label
+          >Native target
+          <select id="framework">
+            <option>WPF</option>
+            <option>Avalonia</option>
+          </select></label
+        >
+        <label class="toggle"
+          ><input id="live" type="checkbox" checked /> Recapture interactions
+          and layout</label
+        >
+        <button id="capture" type="button">Capture now</button
+        ><button id="download" type="button" disabled>Download XAML</button>
+      </section>
+      <p id="status" role="status" aria-live="polite">
+        Loading the example and its external stylesheets…
+      </p>
+      <section class="panes">
+        <div class="panel">
+          <h2>
+            Live source
+            <span
+              >External CSS · media · container queries · pseudo-states</span
+            >
+          </h2>
+          <div class="viewport">
+            <iframe
+              id="source"
+              title="Interactive responsive source"
+              sandbox="allow-same-origin"
+              src="fixture.html"
+            ></iframe>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>
+            Native XAML
+            <span>Measured geometry · editable controls · source mapping</span>
+          </h2>
+          <textarea
+            id="output"
+            readonly
+            spellcheck="false"
+            aria-label="Generated native XAML"
+          ></textarea>
+        </div>
+      </section>
+      <section class="panel diagnostics">
+        <h2>Fidelity report</h2>
+        <p>
+          Each result captures one browser state. Text stays editable; native
+          fonts, control themes, generated content, media and unsupported paints
+          are reported rather than treated as equivalent. Arbitrary scripts are
+          not translated.
+        </p>
+        <div id="diagnostics"></div>
+      </section>
+    </main>
+    <script type="module" src="lab.js"></script>
+  </body>
+</html>

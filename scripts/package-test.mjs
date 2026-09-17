@@ -243,7 +243,15 @@ try {
       ),
     );
   }
-  const typeConsumer = `import { ObjectPropertyGrid, type ObjectPropertyChange, editObjectProperty } from '@wieslawsoltes/xamora-property-grid';
+  const typeConsumer = `import { compileResponsiveVariants, compileRenderedDocument, type ResponsiveCompilerResult } from '@wieslawsoltes/xamora-compiler';
+const profiles: ResponsiveCompilerResult = compileResponsiveVariants('<html><body/></html>', { variants: [{name:'phone',width:380,height:700}] as const });
+const captured = compileRenderedDocument(globalThis.document.body, { includePasswordValues: false });
+// @ts-expect-error Width and height are required for each named environment.
+compileResponsiveVariants('', {variants:[{name:'missing'}]});
+// @ts-expect-error Password consent must be an explicit boolean, not text.
+compileRenderedDocument(globalThis.document.body, {includePasswordValues:'true'});
+void [profiles, captured];
+import { ObjectPropertyGrid, type ObjectPropertyChange, editObjectProperty } from '@wieslawsoltes/xamora-property-grid';
 const nestedGrid = new ObjectPropertyGrid(globalThis.document.createElement('div'), {value:{items:[1]},onChange(change:ObjectPropertyChange){void change.path;return true;}});
 nestedGrid.setProperty(['items',0],2); nestedGrid.addProperty([], 'nested', {value:true}); nestedGrid.dispose();
 editObjectProperty({a:1},['a'],2);

@@ -62,6 +62,11 @@ export function compileRenderedDocument(root, options = {}) {
     throw TypeError('A connected Element in a live Window is required.');
   if (nonvisual.has(root.localName) || root.localName === 'html')
     throw TypeError('Capture a body or visual subtree, not a document head/html wrapper.');
+  if (
+    options.includePasswordValues !== undefined &&
+    typeof options.includePasswordValues !== 'boolean'
+  )
+    throw TypeError('includePasswordValues must be a boolean.');
   const maxNodes = options.maxRenderedNodes ?? 10000;
   if (!Number.isSafeInteger(maxNodes) || maxNodes < 1 || maxNodes > 15000)
     throw RangeError('maxRenderedNodes must be between 1 and 15000.');
@@ -109,7 +114,17 @@ export function compileRenderedDocument(root, options = {}) {
     };
     snapshot.set(n.id, record);
     if (tag === 'input') {
-      n.props.value = native.value;
+      // Redact both authored and current values before semantic/round-trip metadata
+      // is generated. Reading a live DOM must not export passwords by default.
+      const redact = native.type === 'password' && options.includePasswordValues !== true;
+      n.props.value = redact ? '' : native.value;
+      if (redact)
+        issue(
+          'BROWSER_PASSWORD_REDACTED',
+          'Password input values were omitted. Explicit includePasswordValues consent is required to export them.',
+          n,
+          false,
+        );
       if (native.checked) n.props.checked = '';
       else delete n.props.checked;
     }
@@ -314,9 +329,10 @@ export function observeRenderedDocument(root, options = {}) {
   if (
     options.observeMedia !== undefined &&
     (!Array.isArray(options.observeMedia) ||
+      options.observeMedia.length > 256 ||
       options.observeMedia.some((q) => typeof q !== 'string'))
   )
-    throw TypeError('observeMedia must be an array of media queries.');
+    throw TypeError('observeMedia must be an array of at most 256 media queries.');
   const { onResult, onError, ...compilerOptions } = options;
   let disposed = false,
     frame = 0,
@@ -357,12 +373,7 @@ export function observeRenderedDocument(root, options = {}) {
     target.addEventListener(name, schedule, true);
     listeners.push(() => target.removeEventListener(name, schedule, true));
   };
-  const resize = new window.ResizeObserver(schedule);
-  resize.observe(root);
-  const mutation = new window.MutationObserver(() => {
-    observeChildren();
-    schedule();
-  });
+  let resize, mutation, ancestors;
   const observed = new Set();
   function observeChildren() {
     const live = new Set([root, ...root.querySelectorAll('*')]);
@@ -377,56 +388,72 @@ export function observeRenderedDocument(root, options = {}) {
         observed.add(n);
       }
   }
-  observeChildren();
-  mutation.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
-  // Ancestor class/style changes and stylesheet replacement can change descendant layout.
-  const ancestors = new window.MutationObserver(schedule);
-  for (let n = root.parentElement; n; n = n.parentElement)
-    ancestors.observe(n, { attributes: true });
-  if (root.ownerDocument.head)
-    ancestors.observe(root.ownerDocument.head, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      characterData: true,
-    });
-  for (const name of [
-    'input',
-    'change',
-    'focusin',
-    'focusout',
-    'pointerover',
-    'pointerout',
-    'pointerdown',
-    'pointerup',
-    'scroll',
-    'load',
-    'animationend',
-    'transitionend',
-  ])
-    listen(root, name);
-  for (const name of ['resize', 'hashchange']) listen(window, name);
-  if (root.ownerDocument.fonts) listen(root.ownerDocument.fonts, 'loadingdone');
-  const media = (
-    options.observeMedia || [
-      '(prefers-color-scheme: dark)',
-      '(prefers-reduced-motion: reduce)',
-      '(forced-colors: active)',
-    ]
-  ).map((query) => window.matchMedia(query));
-  for (const query of media) listen(query, 'change');
   const dispose = () => {
     if (disposed) return;
     disposed = true;
     if (frame) window.cancelAnimationFrame(frame);
     frame = 0;
-    mutation.disconnect();
-    ancestors.disconnect();
-    resize.disconnect();
+    mutation?.disconnect();
+    ancestors?.disconnect();
+    resize?.disconnect();
     observed.clear();
-    for (const stop of listeners) stop();
+    for (const stop of listeners.splice(0)) stop();
   };
+  // Setup is transactional too: a failing observer/media adapter must not leave
+  // resize observers or capturing event listeners attached to the caller's DOM.
   try {
+    resize = new window.ResizeObserver(schedule);
+    mutation = new window.MutationObserver(() => {
+      observeChildren();
+      schedule();
+    });
+    ancestors = new window.MutationObserver(schedule);
+    observeChildren();
+    mutation.observe(root, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true,
+    });
+    for (let n = root.parentElement; n; n = n.parentElement)
+      ancestors.observe(n, { attributes: true });
+    if (root.ownerDocument.head)
+      ancestors.observe(root.ownerDocument.head, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+    for (const name of [
+      'input',
+      'change',
+      'focusin',
+      'focusout',
+      'pointerover',
+      'pointerout',
+      'pointerdown',
+      'pointerup',
+      'scroll',
+      'load',
+      'animationend',
+      'transitionend',
+    ])
+      listen(root, name);
+    for (const name of ['resize', 'scroll', 'hashchange']) listen(window, name);
+    // Linked stylesheets can finish loading outside the captured subtree.
+    listen(root.ownerDocument, 'load');
+    if (root.ownerDocument.fonts) {
+      listen(root.ownerDocument.fonts, 'loadingdone');
+      if (root.ownerDocument.fonts.status === 'loading')
+        void root.ownerDocument.fonts.ready.then(schedule, schedule);
+    }
+    const queries = new Set([
+      '(prefers-color-scheme: dark)',
+      '(prefers-reduced-motion: reduce)',
+      '(forced-colors: active)',
+      ...(options.observeMedia || []),
+    ]);
+    for (const query of queries) listen(window.matchMedia(query), 'change');
     refresh();
   } catch (error) {
     dispose();
@@ -439,5 +466,48 @@ export function observeRenderedDocument(root, options = {}) {
     get revision() {
       return revision;
     },
+  };
+}
+
+/** Compile named point-in-time profiles; the caller selects/apply results in its native host. */
+export function compileResponsiveVariants(input, { variants, ...options } = {}) {
+  if (!Array.isArray(variants) || !variants.length || variants.length > 32)
+    throw RangeError('Provide between 1 and 32 explicit environment variants.');
+  const names = new Set();
+  // Validate the whole request before invoking any caller-provided compiler hooks.
+  const profiles = variants.map((variant) => {
+    if (
+      !variant ||
+      typeof variant.name !== 'string' ||
+      !/^[a-zA-Z][\w-]{0,63}$/.test(variant.name) ||
+      names.has(variant.name)
+    )
+      throw TypeError('Variant names must be unique portable identifiers.');
+    names.add(variant.name);
+    if (![variant.width, variant.height].every((v) => Number.isFinite(v) && v > 0 && v <= 100000))
+      throw RangeError('Every variant needs a finite positive width and height, at most 100000.');
+    const { name, ...values } = variant;
+    const environment = {
+      type: 'screen',
+      ...options.environment,
+      ...values,
+      // A stale base viewport must not disagree with the named profile's media width.
+      viewport: { width: variant.width, height: variant.height },
+    };
+    return { name, environment };
+  });
+  const results = profiles.map((profile) => ({
+    ...profile,
+    result: compileDocument(input, {
+      ...options,
+      from: 'html',
+      to: 'xaml',
+      environment: profile.environment,
+    }),
+  }));
+  return {
+    version: 1,
+    success: results.every((profile) => profile.result.success),
+    profiles: results,
   };
 }

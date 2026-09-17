@@ -18,7 +18,7 @@ for (const framework of ['WPF', 'Avalonia'])
   </style></head><body><div id="layout" style="width:400px;height:300px">
   <button id="target">Caption</button><textarea id="edit" readonly style="width:150px;height:70px">first\nsecond</textarea>
   <select id="choice" style="width:120px;height:30px"><option>A</option><option selected>B</option></select>
-  <p id="rich" style="font-size:18px">One <strong>bold</strong> end</p></div></body></html>`;
+  <input id="password" style="width:140px" type="password" value="explicit fixture value"/><p id="rich" style="font-size:18px">One <strong>bold</strong> end</p></div></body></html>`;
       const result = compileDocument(source, {
         from: 'html',
         Parser,
@@ -56,6 +56,11 @@ for (const framework of ['WPF', 'Avalonia'])
           edit: { Text: 'first\nsecond', IsReadOnly: true, AcceptsReturn: true },
           choice: { SelectedIndex: 1 },
           rich: { FontSize: 18 },
+          // Static conversion receives explicit source; live capture redacts below.
+          password:
+            framework === 'WPF'
+              ? { Width: 140 }
+              : { PasswordChar: '*', Text: 'explicit fixture value' },
         },
         diagnostics: result.diagnostics,
       });
@@ -76,7 +81,7 @@ if (process.argv.includes('--browser')) {
   try {
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
     await page.setContent(
-      '<!doctype html><html><head><style>*{box-sizing:border-box}body{margin:0}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px;border:2px solid black}section{padding:8px;background:#eee}p{font:16px Arial}</style></head><body><main id="layout"><section id="first"><p id="text">Native layout sample text</p></section><section id="second"><button id="action">Go</button></section><section id="third">Direct text</section></main></body></html>',
+      '<!doctype html><html><head><style>*{box-sizing:border-box}body{margin:0}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px;border:2px solid black}section{padding:8px;background:#eee}p{font:16px Arial}</style></head><body><main id="layout"><section id="first"><p id="text">Native layout sample text</p></section><section id="second"><button id="action">Go</button><input id="capturedPassword" type="password" value="never exported" style="width:100px;height:28px"></section><section id="third">Direct text</section></main></body></html>',
     );
     const rendered = await page.evaluate(async (code) => {
       const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
@@ -90,7 +95,15 @@ if (process.argv.includes('--browser')) {
           const result = compileRenderedDocument(root, { framework, preserveMetadata: false });
           if (!result.success) throw Error(JSON.stringify(result.diagnostics));
           const expected = {};
-          for (const id of ['layout', 'first', 'second', 'third', 'text', 'action']) {
+          for (const id of [
+            'layout',
+            'first',
+            'second',
+            'third',
+            'text',
+            'action',
+            'capturedPassword',
+          ]) {
             const el = document.getElementById(id),
               r = el.getBoundingClientRect();
             expected[id] = { Width: r.width, Height: r.height };
@@ -100,6 +113,10 @@ if (process.argv.includes('--browser')) {
               expected[id]['Canvas.Top'] = r.y - p.y;
             }
           }
+          expected.capturedPassword[framework === 'WPF' ? 'Password' : 'Text'] = '';
+          if (framework === 'Avalonia') expected.capturedPassword.PasswordChar = '*';
+          if (result.source.includes('never exported'))
+            throw Error('Captured native fixture leaked a password.');
           cases.push({
             framework,
             name: `rendered-${width}`,

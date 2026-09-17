@@ -211,3 +211,11 @@ Semantic references: [CSS cascade](https://www.w3.org/TR/css-cascade-3/),
 [absolute lengths](https://www.w3.org/TR/css-values-3/#absolute-lengths),
 [relative font weights](https://www.w3.org/TR/css-fonts-4/#relative-weights), and
 [WPF TextBlock inlines](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/textblock).
+
+## Responsive profile batches and capture privacy
+
+`compileResponsiveVariants(input, { variants, ...options })` returns `{ version: 1, success, profiles }`. Each profile has its `name`, independent effective `environment`, and full conversion `result`. Supply one to 32 unique portable names and positive dimensions no larger than 100000 CSS pixels. Requests are validated before compiler hooks run. Profile width/height take precedence over stale base viewport dimensions. The host selects the profile and applies the output; this API does not inject native responsive behavior.
+
+`compileRenderedDocument` and its observer omit password input values by default, including the authored `value` attribute from round-trip metadata. `includePasswordValues: true` is an explicit opt-in. An informational `BROWSER_PASSWORD_REDACTED` diagnostic does not count as a semantic loss. Other source text is not scanned for secrets.
+
+Observer installation is transactional, additional media listeners preserve the defaults, and document loads/ancestor scrolling also trigger recapture. CSSOM-only edits and continuous animations still need explicit `refresh()` calls as documented above. [Compiler Fidelity Lab](https://wieslawsoltes.github.io/XamoraStudio/examples/CompilerFidelityLab/) demonstrates source editing, viewport/target switching, diagnostics and export; the deployed copy uses the same library.

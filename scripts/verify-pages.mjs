@@ -72,6 +72,12 @@ const files = [
   'examples/PropertyGridLab/index.html',
   'examples/DialogLab/index.html',
   'examples/DialogLab/lab.js',
+  'examples/CompilerFidelityLab/index.html',
+  'examples/CompilerFidelityLab/lab.js',
+  'examples/CompilerFidelityLab/lab.css',
+  'examples/CompilerFidelityLab/fixture.html',
+  'examples/CompilerFidelityLab/base.css',
+  'examples/CompilerFidelityLab/theme.css',
 ];
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const expected = new Map(
