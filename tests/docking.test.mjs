@@ -207,11 +207,13 @@ test('layout reconciliation drops stale extension panels and retains new ones as
   assert.equal(locatePanel(m.state, 'extension:new').kind, 'hidden');
   check(m);
 });
-test('registration resets stale layout history so undo cannot lose a new panel', () => {
+test('registration reconciles layout history so undo cannot lose a new panel', () => {
   const m = model();
   m.float('layers');
   m.register({ id: 'extension:new', kind: 'tool' });
-  assert.equal(m.undo(), false);
+  assert.equal(m.undo(), true);
+  assert.equal(locatePanel(m.state, 'extension:new').kind, 'hidden');
+  assert.equal(locatePanel(m.state, 'layers').floating, null);
   check(m);
 });
 test('invalid panel identifiers and unbounded imported layouts are rejected', () => {
@@ -368,4 +370,62 @@ test('editor mode snapshots are serialized but cannot recursively contain snapsh
   bad.modeRestore.modeRestore = before;
   assert.throws(() => m.load(bad), /Nested/);
   assert.equal(m.serialize(), serialized);
+});
+
+test('background document insertion preserves every existing selected tab and keyboard target', () => {
+  const m = model();
+  m.activate('toolkit');
+  const selected = new Map(dockGroups(m.state).map((g) => [g.id, g.active]));
+  const active = m.state.activePanel;
+  m.register({ id: 'document:new', kind: 'document' });
+  m.dock('document:new', groupOf(m, 'document:one').id, 'center', undefined, { activate: false });
+  assert.equal(m.state.activePanel, active);
+  for (const group of dockGroups(m.state)) assert.equal(group.active, selected.get(group.id));
+  check(m);
+});
+test('removing an active document emits one complete registry/layout snapshot and selects its neighbor', () => {
+  const m = model();
+  m.activate('document:one');
+  const events = [];
+  m.addEventListener('change', (event) => {
+    check(m);
+    assert.equal(m.panels.has('document:one'), false);
+    events.push(event.label);
+  });
+  m.unregister('document:one');
+  assert.deepEqual(events, ['Unregister panel']);
+  assert.equal(m.state.activePanel, 'document:two');
+});
+test('registry reconciliation preserves layout undo and never resurrects removed documents', () => {
+  const m = model();
+  m.float('toolkit');
+  m.register({ id: 'document:new', kind: 'document' });
+  assert.ok(m.history.length);
+  m.unregister('document:one');
+  while (m.undo()) {
+    check(m);
+    assert.equal(locatePanel(m.state, 'document:one'), null);
+    assert.ok(locatePanel(m.state, 'document:new'));
+  }
+  while (m.redo()) check(m);
+});
+test('floating and moving whole groups preserve the selected member instead of selecting the first', () => {
+  const m = model();
+  m.activate('toolkit');
+  const panels = [...groupOf(m, 'toolkit').panels];
+  m.float(panels);
+  assert.equal(groupOf(m, 'toolkit').active, 'toolkit');
+  assert.equal(m.state.activePanel, 'toolkit');
+  m.dock(panels, groupOf(m, 'properties').id, 'bottom');
+  assert.equal(groupOf(m, 'toolkit').active, 'toolkit');
+  check(m);
+});
+test('closing the last document in a group activates another document, not the first tool group', () => {
+  const m = model();
+  m.hide(['document:one', 'document:two']);
+  m.activate('xaml');
+  m.show('document:one');
+  m.hide('document:one');
+  assert.equal(m.state.activePanel, 'xaml');
+  check(m);
 });

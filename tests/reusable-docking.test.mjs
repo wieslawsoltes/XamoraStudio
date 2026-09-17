@@ -130,3 +130,32 @@ test('flattened stylesheet imports point at declared packaged assets, preserving
     /Undeclared CSS import/,
   );
 });
+
+test('deferred show focus cannot steal a newer document or tool activation', (t) => {
+  const dom = controlDOM(t),
+    { control, model, input } = workspace(dom);
+  let focusCount = 0;
+  input.addEventListener('focus', () => focusCount++);
+  control.show('one');
+  control.activate('two');
+  dom.flushFrames();
+  assert.equal(model.state.activePanel, 'two');
+  assert.equal(focusCount, 0);
+  control.show('one');
+  model.hide('one');
+  dom.flushFrames();
+  assert.equal(model.state.activePanel, 'two');
+  assert.equal(focusCount, 0);
+  control.dispose();
+});
+
+test('a second workspace using the same panel identifiers cannot activate this workspace on focus', (t) => {
+  const dom = controlDOM(t),
+    a = workspace(dom),
+    b = workspace(dom);
+  a.control.activate('two');
+  b.input.dispatchEvent(new dom.window.FocusEvent('focusin', { bubbles: true }));
+  assert.equal(a.model.state.activePanel, 'two');
+  a.control.dispose();
+  b.control.dispose();
+});

@@ -114,6 +114,7 @@ export declare class DockLayout extends EventTarget {
     targetId: string | null,
     position?: DockPosition,
     index?: number,
+    options?: { activate?: boolean },
   ): boolean;
   float(ids: string | string[], rect?: DockRect): boolean;
   dockBack(id: string): boolean;

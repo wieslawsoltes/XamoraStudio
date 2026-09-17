@@ -106,6 +106,7 @@ function replaceNode(layout, id, replacement) {
   for (const f of layout.floating) f.root = replace(f.root);
 }
 function detach(layout, ids) {
+  const activePlace = locatePanel(layout, layout.activePanel);
   for (const group of dockGroups(layout)) {
     const before = group.panels,
       at = before.indexOf(group.active);
@@ -116,6 +117,38 @@ function detach(layout, ids) {
   for (const edge of edges)
     layout.autoHide[edge] = layout.autoHide[edge].filter((id) => !ids.includes(id));
   layout.hidden = layout.hidden.filter((id) => !ids.includes(id));
+  if (ids.includes(layout.activePanel)) {
+    const groups = dockGroups(layout).filter((group) => group.panels.length);
+    layout.activePanel =
+      activePlace?.group?.active ||
+      groups.find((group) => group.kind === activePlace?.group?.kind)?.active ||
+      groups[0]?.active ||
+      null;
+  }
+}
+/** Preserve the selected member when moving an entire tab group. */
+function movingActive(layout, ids) {
+  return ids.includes(layout.activePanel)
+    ? layout.activePanel
+    : dockGroups(layout).find((group) => ids.includes(group.active))?.active || ids[0];
+}
+/** Registry changes migrate layout history instead of reviving removed panels on undo. */
+function reconcileRegistry(layout, known) {
+  const draft = copy(layout);
+  const old = new Set([
+    ...dockGroups(draft).flatMap((group) => group.panels),
+    ...Object.values(draft.autoHide).flat(),
+    ...draft.hidden,
+  ]);
+  detach(
+    draft,
+    [...old].filter((id) => !known.has(id)),
+  );
+  for (const id of known) if (!old.has(id)) draft.hidden.push(id);
+  draft.pinned = draft.pinned.filter((id) => known.has(id));
+  for (const id of Object.keys(draft.placements)) if (!known.has(id)) delete draft.placements[id];
+  if (draft.modeRestore) draft.modeRestore = reconcileRegistry(draft.modeRestore, known);
+  return validateDockLayout(normalize(draft), known);
 }
 function remember(layout, id) {
   const place = locatePanel(layout, id);
@@ -405,27 +438,28 @@ export class DockLayout extends EventTarget {
     if (this.batchActive) throw Error('Register panels outside a layout batch.');
     if (!safeId(panel.id) || this.panels.has(panel.id))
       throw Error('Panel identifier is invalid or already registered.');
+    const known = new Set([...this.panels.keys(), panel.id]);
+    const state = reconcileRegistry(this.state, known);
+    const history = this.history.map((entry) => reconcileRegistry(entry, known));
+    const future = this.future.map((entry) => reconcileRegistry(entry, known));
     this.panels.set(panel.id, panel);
-    this.state.hidden.push(panel.id);
-    this.history = [];
-    this.future = [];
+    this.state = state;
+    this.history = history;
+    this.future = future;
     this.emit('Register panel');
     return panel.id;
   }
   unregister(id) {
     if (this.batchActive) throw Error('Unregister panels outside a layout batch.');
     if (!this.panels.has(id)) return;
-    this.transaction('Remove panel', (d) => {
-      detach(d, [id]);
-      d.hidden.push(id);
-      d.pinned = d.pinned.filter((p) => p !== id);
-      delete d.placements[id];
-    });
+    const known = new Set([...this.panels.keys()].filter((key) => key !== id));
+    const state = reconcileRegistry(this.state, known);
+    const history = this.history.map((entry) => reconcileRegistry(entry, known));
+    const future = this.future.map((entry) => reconcileRegistry(entry, known));
     this.panels.delete(id);
-    this.state.hidden = this.state.hidden.filter((p) => p !== id);
-    this.history = [];
-    this.future = [];
-    normalize(this.state);
+    this.state = state;
+    this.history = history;
+    this.future = future;
     this.emit('Unregister panel');
   }
   require(ids) {
@@ -470,10 +504,13 @@ export class DockLayout extends EventTarget {
       saved?.index,
     );
   }
-  dock(ids, targetId, position = 'center', index) {
+  dock(ids, targetId, position = 'center', index, { activate = true } = {}) {
     ids = this.require(ids);
     if (!['center', ...edges].includes(position)) throw Error('Invalid dock position.');
     return this.transaction('Dock panels', (d) => {
+      const active = movingActive(d, ids),
+        previousActive = d.activePanel;
+      const selected = new Map(dockGroups(d).map((group) => [group.id, group.active]));
       let target = targetId ? findDock(d, targetId) : null;
       if (targetId && !target) throw Error('Dock target no longer exists.');
       if (position === 'center' && target?.type !== 'group' && target)
@@ -507,7 +544,7 @@ export class DockLayout extends EventTarget {
         let at =
           requested - targetBefore.slice(0, requested).filter((id) => ids.includes(id)).length;
         target.panels.splice(Math.max(0, at), 0, ...ids);
-        target.active = ids[0];
+        target.active = active;
       } else {
         const group = dockGroup(
           ids,
@@ -532,8 +569,12 @@ export class DockLayout extends EventTarget {
             edge: edges.includes(position) ? position : d.placements[id]?.edge || 'right',
             kind: target.kind,
           };
-      d.activePanel = ids[0];
-      d.zoomedGroup = null;
+      target.active = active;
+      d.activePanel = activate ? active : previousActive;
+      if (!activate) {
+        for (const group of dockGroups(d))
+          if (group.panels.includes(selected.get(group.id))) group.active = selected.get(group.id);
+      } else d.zoomedGroup = null;
     });
   }
   float(ids, rect) {
@@ -541,12 +582,14 @@ export class DockLayout extends EventTarget {
     rect = rect ||
       this.state.placements[ids[0]]?.floatingRect || { x: 100, y: 70, width: 440, height: 330 };
     return this.transaction('Float panels', (d) => {
+      const active = movingActive(d, ids);
       for (const id of ids) remember(d, id);
       detach(d, ids);
       const root = dockGroup(
         ids,
         ids.some((id) => this.panels.get(id).kind === 'document') ? 'document' : 'tool',
       );
+      root.active = active;
       d.floating.push({
         id: uid(),
         root,
@@ -558,7 +601,7 @@ export class DockLayout extends EventTarget {
         },
         maximized: false,
       });
-      d.activePanel = ids[0];
+      d.activePanel = active;
       d.zoomedGroup = null;
     });
   }
@@ -669,20 +712,7 @@ export class DockLayout extends EventTarget {
     const d = copy(layout);
     validateDockLayout(d);
     if (reconcile) {
-      const keep = new Set(this.panels.keys()),
-        old = new Set([
-          ...dockGroups(d).flatMap((g) => g.panels),
-          ...Object.values(d.autoHide).flat(),
-          ...d.hidden,
-        ]);
-      detach(
-        d,
-        [...old].filter((id) => !keep.has(id)),
-      );
-      for (const id of keep) if (!old.has(id)) d.hidden.push(id);
-      d.pinned = d.pinned.filter((id) => keep.has(id));
-      for (const id of Object.keys(d.placements)) if (!keep.has(id)) delete d.placements[id];
-      normalize(d);
+      Object.assign(d, reconcileRegistry(d, new Set(this.panels.keys())));
     }
     validateDockLayout(d, new Set(this.panels.keys()));
     return this.transaction('Load window layout', (state) => {
