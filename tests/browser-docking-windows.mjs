@@ -64,7 +64,7 @@ try {
   await page.evaluate(() => {
     const s = window.xamora.studio;
     s.importText(
-      '<Grid Width="640" Height="480"><Button x:Name="PopupButton" Content="Start" Width="160" Height="48"/></Grid>',
+      '<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width="640" Height="480"><Button x:Name="PopupButton" Content="Start" Width="160" Height="48"/></Grid>',
       'Popup.xaml',
     );
     s.store.select([s.doc.root.children[0].id]);
@@ -101,7 +101,7 @@ try {
   await source.waitForFunction(
     () =>
       document.documentElement.dataset.density === 'comfortable' &&
-      document.body.classList.contains('dark'),
+      !document.body.classList.contains('light'),
   );
   assert.equal(await source.evaluate(() => document.compatMode), 'CSS1Compat');
   // Validate both directions through the actual Studio command, not a synthetic class edit.
@@ -117,7 +117,7 @@ try {
     window.themeFrame = document.querySelector('.dock-floating');
   });
   await page.evaluate(() => window.xamora.studio.command('theme'));
-  await source.waitForFunction(() => !document.body.classList.contains('dark'));
+  await source.waitForFunction(() => document.body.classList.contains('light'));
   assert.equal(await themeToken(source), await themeToken(page));
   assert(
     await source.evaluate(
