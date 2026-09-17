@@ -173,9 +173,11 @@ export class DockWorkspace extends EventTarget {
     for (const [other, content] of this.contents)
       if (other !== id && content === node)
         throw Error('A content node can only belong to one panel.');
-    if (this.contents.get(id) !== node) this.unmount(id);
+    if (this.contents.get(id) === node) return node;
+    this.unmount(id);
     this.contents.set(id, node);
-    for (const record of this.windows?.records.values() || []) record.signature = null;
+    const record = this.windows?.get(locatePanel(this.model.state, id)?.floating?.id);
+    if (record) record.signature = null;
     node.dataset.dockContent = id;
     this.parking.append(node);
     return node;
@@ -185,7 +187,8 @@ export class DockWorkspace extends EventTarget {
     const node = this.contents.get(id);
     if (!node) return null;
     this.contents.delete(id);
-    for (const record of this.windows?.records.values() || []) record.signature = null;
+    const record = this.windows?.get(locatePanel(this.model.state, id)?.floating?.id);
+    if (record) record.signature = null;
     delete node.dataset.dockContent;
     node.remove();
     return node;

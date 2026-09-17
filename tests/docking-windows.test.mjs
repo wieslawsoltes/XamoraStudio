@@ -289,3 +289,30 @@ test('editor buffer and undo stay live after adoption; owner-modal return focus 
   assert(editor.window === f.window, 'realm or node identity');
   assert.equal(editor.input.value, 'before');
 });
+
+test('dynamic panel registration and idempotent mounting retain unrelated browser frames', (t) => {
+  const f = fixture(t),
+    id = f.control.openWindow('one');
+  const r = f.control.windows.get(id),
+    frame = r.frame,
+    node = f.nodes.get('one');
+  const parent = node.parentNode;
+  f.control.mount('one', node);
+  assert.equal(node.parentNode, parent, 'idempotent mounting must not park a live editor');
+  f.model.register({ id: 'new', kind: 'document' });
+  f.control.mount('new', f.document.createElement('div'));
+  f.control.render();
+  assert.equal(r.frame, frame, 'file creation must not rebuild an unrelated popup');
+  f.control.unmount('new');
+  f.model.unregister('new');
+  assert.equal(r.frame, frame, 'file closure must not rebuild an unrelated popup');
+  const replacement = f.document.createElement('textarea');
+  replacement.value = 'replacement editor';
+  f.control.mount('one', replacement);
+  f.control.render();
+  assert.notEqual(r.frame, frame, 'replacing a hosted panel invalidates that host');
+  assert(r.frame.contains(replacement));
+  assert.equal(replacement.ownerDocument, r.document);
+  assert.equal(node.parentNode, null);
+  valid(f.model);
+});
