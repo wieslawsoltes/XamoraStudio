@@ -1,0 +1,53 @@
+name: Repair native selector text layout
+on:
+  push:
+    branches: [fix/compiler-capture-fidelity]
+    paths: [.github/workflows/repair-native-items.yml]
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply exact reviewed patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/fix/compiler-capture-fidelity
+          test "$(git rev-parse HEAD^)" = da0e4778aac7fdfa6dbe13124615484fd9d307bf
+          gh api "repos/$GITHUB_REPOSITORY/git/blobs/edddae28a96352f34f173a68ee214224c3d96d34" --jq .content | base64 --decode > "$RUNNER_TEMP/capture-fix.patch"
+          echo "89fb3c587130c20ed11db796a6079d3d6e3e450a4ad65874ecfa7cf72316be3d  $RUNNER_TEMP/capture-fix.patch" | sha256sum --check
+          git apply --check "$RUNNER_TEMP/capture-fix.patch"
+          git apply "$RUNNER_TEMP/capture-fix.patch"
+          rm .github/workflows/repair-native-items.yml
+      - run: npm ci
+      - name: Validate exact candidate
+        run: |
+          npm run format:check
+          npm run check
+          npm test
+          npm run build
+          npm run release:check
+          git add --all
+          test "$(git write-tree)" = 2331555379e271e5b50046abd79a5a695cf25d5b
+      - name: Commit verified source on task branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD --staged --worktree .github/workflows
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'fix: lower selector text layout to item content and repair strict consumer scope'
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/fix/compiler-capture-fidelity
