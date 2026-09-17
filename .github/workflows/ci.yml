@@ -32,6 +32,14 @@ jobs:
         run: npx playwright install --with-deps --only-shell chromium
       - name: Browser designer, runtime, and compiler checks
         run: npm run test:browser
+      - name: UI review snapshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-review-snapshots
+          path: test-results/ux/
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
