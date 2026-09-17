@@ -44,7 +44,18 @@ try {
   await page.goto(base);
   await page.waitForFunction(() => !!window.xamora?.studio.experience);
   const baseline = await page.evaluate(() => JSON.stringify(window.xamora.getDocument()));
+  const inspector = page.locator('[data-inspector-host="design"]');
+  assert.equal(await inspector.locator('.ux-inspector-disclosure').count(), 2);
+  assert.equal(await inspector.locator('.ux-inspector-disclosure[open]').count(), 0);
+  const identity = await inspector.locator('#inspector-name').boundingBox();
+  assert(
+    identity.y < 430,
+    'Selected layer identity and basic properties must precede long action lists',
+  );
   await page.screenshot({ path: 'test-results/ux/01-desktop.png' });
+  await inspector.locator('[data-inspector-section="appearance"] > summary').click();
+  assert(await inspector.locator('[data-action="motion-brush"]').isVisible());
+  await inspector.locator('[data-inspector-section="appearance"] > summary').click();
   await page.locator('.ux-command-trigger').click();
   const search = page.locator('#ide-command-search');
   await search.fill('density comfortable');
@@ -93,6 +104,15 @@ try {
   await page.evaluate(() => {
     if (!window.xamora.studio.dark) window.xamora.studio.command('theme');
   });
+  assert(
+    await page
+      .locator('.toolbar')
+      .evaluate(
+        (el) =>
+          getComputedStyle(el).color ===
+          getComputedStyle(el.querySelector('[data-tool="hand"]')).color,
+      ),
+  );
   await page.screenshot({ path: 'test-results/ux/03-dark.png' });
   await page.locator('.ux-guide-trigger').click();
   await page.locator('.ux-guide-dialog').waitFor();

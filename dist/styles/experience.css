@@ -71,6 +71,7 @@ html[data-density] .topbar .ux-command-trigger {
   color: white;
 }
 .studio .toolbar {
+  color: var(--text);
   border-bottom: 1px solid var(--ux-line);
 }
 .studio .toolbar .view-toggle {
@@ -430,6 +431,9 @@ html[data-density] .topbar .ux-command-trigger {
 }
 #toast {
   visibility: hidden;
+  transition:
+    opacity 120ms,
+    transform 120ms;
   pointer-events: none;
   display: flex;
   align-items: center;
@@ -537,5 +541,71 @@ html[data-density] .topbar .ux-command-trigger {
   .ux-guide-card,
   .ide-menu-popup {
     border-color: CanvasText;
+  }
+}
+
+/* Keep common geometry fields close to the selected layer; advanced actions remain one click away. */
+:is(.studio, .dock-browser-host) .ux-inspector-disclosure {
+  border-bottom: 1px solid var(--ux-line);
+}
+:is(.studio, .dock-browser-host) .ux-inspector-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  list-style: none;
+  color: var(--text);
+}
+.ux-inspector-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.ux-inspector-disclosure > summary::before {
+  content: '›';
+  font-size: 16px;
+  width: 10px;
+}
+.ux-inspector-disclosure[open] > summary::before {
+  content: '⌄';
+}
+.ux-inspector-disclosure > summary > span {
+  flex: 1;
+}
+.ux-inspector-disclosure > summary > small {
+  color: var(--ux-muted);
+  font-weight: 400;
+  font-size: 10px;
+}
+.ux-inspector-disclosure > summary:focus-visible {
+  outline: 2px solid var(--ux-accent);
+  outline-offset: -2px;
+}
+.ux-inspector-disclosure > summary:hover {
+  background: var(--hover);
+}
+.ux-inspector-disclosure .panel-section {
+  border-bottom: 0;
+}
+.ux-inspector-disclosure .blend-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 6px;
+}
+.dark :is(.studio, .dock-browser-host) .prop-field label {
+  color: var(--ux-muted);
+}
+.studio .density-picker {
+  color: var(--text);
+}
+@media (pointer: coarse) {
+  :is(.studio, .dock-browser-host) .ux-inspector-disclosure > summary {
+    min-height: 44px;
+  }
+  #toast .toast-dismiss {
+    min-height: 44px;
+    min-width: 44px;
   }
 }

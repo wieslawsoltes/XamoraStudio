@@ -1,3 +1,4 @@
+import { InspectorDisclosure } from './inspector-disclosure.js';
 import { CommandPalette } from './command-palette.js';
 import { commandCatalog } from './command-search.js';
 import { notify } from './ui.js';
@@ -10,6 +11,19 @@ export class ExperienceWorkspace {
     studio.experience = this;
     this.cleanups = [];
     this.palette = new CommandPalette(studio);
+    this.inspector = new InspectorDisclosure();
+    const renderInspector = studio.renderInspector;
+    const decorateInspector = (...args) => {
+      const result = renderInspector.apply(studio, args);
+      this.inspector.decorate(studio.docking.control.contents.get('properties'));
+      return result;
+    };
+    studio.renderInspector = decorateInspector;
+    this.inspector.decorate(studio.docking.control.contents.get('properties'));
+    this.cleanups.push(() => {
+      if (studio.renderInspector === decorateInspector) studio.renderInspector = renderInspector;
+      this.inspector.restore(studio.docking.control.contents.get('properties'));
+    });
     const palette = studio.commandPalette;
     const open = () => {
       const target = this.commandTarget;
@@ -28,6 +42,12 @@ export class ExperienceWorkspace {
       command.setAttribute('aria-haspopup', 'dialog');
       this.listen(command, 'pointerdown', () => {
         this.commandTarget = studio.documentScope?.activeElement || document.activeElement;
+      });
+      this.listen(command, 'pointercancel', () => {
+        this.commandTarget = null;
+      });
+      this.listen(command, 'blur', () => {
+        this.commandTarget = null;
       });
     }
     const guide = document.createElement('button');
@@ -140,11 +160,11 @@ export class ExperienceWorkspace {
       [
         'file',
         'Start with a document',
-        'Create an HTML page or bring existing XAML and HTML into your solution.',
+        'Create a XAML view or HTML page, or add existing files to your solution.',
+        'new:UserControl',
+        'New XAML view',
         'new-html',
         'New HTML page',
-        'add-files',
-        'Add existing files',
       ],
       [
         'pointer',
@@ -167,7 +187,7 @@ export class ExperienceWorkspace {
       [
         'code',
         'Validate and deliver',
-        'Review diagnostics before exporting. Native framework previews require their own runtime qualification.',
+        'Check source errors, then export your design and save a portable project backup.',
         'problems',
         'Review problems',
         'export',
@@ -176,7 +196,7 @@ export class ExperienceWorkspace {
     ];
     s.modal(
       'Your workspace, your way',
-      `<div class="ux-guide"><div class="ux-guide-intro"><span class="badge">WORKSPACE GUIDE</span><h3>From an idea to a working interface.</h3><p>A few useful starting points. Every command is also available from search.</p></div><div class="ux-guide-grid">${cards.map(([glyph, title, description, first, firstLabel, second, secondLabel]) => `<section class="ux-guide-card">${icon(glyph)}<h4>${title}</h4><p>${description}</p><div><button type="button" class="button" data-guide-command="${first}">${firstLabel}</button><button type="button" class="button quiet" data-guide-command="${second}">${secondLabel}</button></div></section>`).join('')}</div><div class="ux-guide-note"><strong>Local by design.</strong> Your workspace is stored in this browser, not synced to a cloud account. Export your project to keep a portable backup.</div><div class="ux-guide-footer"><button type="button" class="button primary" data-guide-command="commands">Search all commands</button><button type="button" class="button" data-guide-command="help">Keyboard shortcuts</button></div></div>`,
+      `<div class="ux-guide"><div class="ux-guide-intro"><span class="badge">WORKSPACE GUIDE</span><h3>From an idea to a working interface.</h3><p>A few useful starting points. Every command is also available from search.</p></div><div class="ux-guide-grid">${cards.map(([glyph, title, description, first, firstLabel, second, secondLabel]) => `<section class="ux-guide-card">${icon(glyph)}<h4>${title}</h4><p>${description}</p><div><button type="button" class="button" data-guide-command="${first}">${firstLabel}</button><button type="button" class="button quiet" data-guide-command="${second}">${secondLabel}</button></div></section>`).join('')}</div><div class="ux-guide-note"><strong>Local by design.</strong> Your workspace is stored in this browser, not synced to a cloud account. Export your project to keep a portable backup.</div><div class="ux-guide-footer"><button type="button" class="button primary" data-guide-command="commands">Search all commands</button><button type="button" class="button" data-guide-command="add-files">Add existing files</button><button type="button" class="button" data-guide-command="help">Keyboard shortcuts</button></div></div>`,
       [],
       true,
     );
