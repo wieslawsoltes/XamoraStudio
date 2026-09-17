@@ -1,0 +1,42 @@
+name: Prepare docking workspace
+on:
+  push:
+    branches: [fix/docking-lifecycle]
+    paths: [.github/workflows/docking-prepare.yml, tools/docking-patch.mjs]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/docking-lifecycle
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply reviewed docking changes when present
+        run: |
+          if [ -f tools/docking-patch.mjs ]; then
+            node tools/docking-patch.mjs
+            npx prettier --write dist/controls/dock-workspace.js dist/core/docking.js dist/studio tests/docking*.test.mjs
+            rm tools/docking-patch.mjs .github/workflows/docking-prepare.yml
+            git config user.name 'wieslawsoltes'
+            git config user.email '2297442+wieslawsoltes@users.noreply.github.com'
+            git add -A
+            git diff --cached --quiet || git commit -m 'fix: preserve docking selection through document and panel lifecycle'
+            git push origin HEAD:fix/docking-lifecycle
+          fi
+      - run: |
+          git archive --format=tar HEAD > /tmp/xamora-source.tar
+          tar -czf /tmp/xamora-tools.tgz node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docking-source
+          path: |
+            /tmp/xamora-source.tar
+            /tmp/xamora-tools.tgz
+          retention-days: 2
