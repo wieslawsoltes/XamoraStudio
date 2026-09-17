@@ -160,18 +160,27 @@ try {
     ),
   );
   const text = await input.inputValue();
-  await source.locator('[data-browser-return]').click();
+  await Promise.all([
+    source.waitForEvent('close', { timeout: 10000 }),
+    source.locator('[data-browser-return]').click(),
+  ]);
   await page.waitForFunction(() => window.xamora.docking.windows().length === 0);
   assert.equal(await page.locator('.code-input').inputValue(), text);
   // Undo closes the physical host. Redo restores intent in-app, without bypassing popup permissions.
   const again = await openTab(page, 'xaml');
-  await page.evaluate(() => window.xamora.docking.model.undo());
+  await Promise.all([
+    again.waitForEvent('close', { timeout: 10000 }),
+    page.evaluate(() => window.xamora.docking.model.undo()),
+  ]);
   await page.waitForFunction(() => window.xamora.docking.windows().length === 0);
   assert(again.isClosed());
   await page.evaluate(() => window.xamora.docking.model.redo());
   assert.equal(await page.evaluate(() => window.xamora.docking.pendingWindows().length), 1);
   const restored = await openTab(page, 'xaml');
-  await page.evaluate(() => window.xamora.docking.windows()[0].window.location.reload());
+  await Promise.all([
+    restored.waitForEvent('close', { timeout: 10000 }),
+    page.evaluate(() => window.xamora.docking.windows()[0].window.location.reload()),
+  ]);
   await page.waitForFunction(() => window.xamora.docking.windows().length === 0);
   assert(
     restored.isClosed(),
@@ -211,14 +220,20 @@ try {
   });
   assert(fileActions);
   // Owner navigation reclaims and closes dependent hosts, not orphaned duplicate editor applications.
-  await page.goto(base + '/examples/ControlsLab/');
+  await Promise.all([
+    last.waitForEvent('close', { timeout: 10000 }),
+    page.goto(base + '/examples/ControlsLab/'),
+  ]);
   assert(last.isClosed());
   await page.waitForFunction(() => !!window.controlsLab);
   const labPending = page.waitForEvent('popup');
   await page.locator('#popout').click();
   const lab = await labPending;
   await lab.getByLabel('Example text').fill('Standalone live buffer');
-  await lab.locator('[data-browser-return]').click();
+  await Promise.all([
+    lab.waitForEvent('close', { timeout: 10000 }),
+    lab.locator('[data-browser-return]').click(),
+  ]);
   assert.equal(await page.getByLabel('Example text').inputValue(), 'Standalone live buffer');
 
   console.log(
@@ -286,29 +301,32 @@ try {
       );
     });
   const token = await page.evaluate(() => window.packed.control.windows.transfer.token);
-  await b.locator('.dock-group-body').evaluate((body, token) => {
-    const r = body.getBoundingClientRect(),
-      dataTransfer = new DataTransfer();
-    dataTransfer.setData('application/x-xamora-dock', token);
-    body.dispatchEvent(
-      new DragEvent('dragover', {
-        bubbles: true,
-        cancelable: true,
-        clientX: r.x + r.width / 2,
-        clientY: r.y + r.height / 2,
-        dataTransfer,
-      }),
-    );
-    body.dispatchEvent(
-      new DragEvent('drop', {
-        bubbles: true,
-        cancelable: true,
-        clientX: r.x + r.width / 2,
-        clientY: r.y + r.height / 2,
-        dataTransfer,
-      }),
-    );
-  }, token);
+  await Promise.all([
+    a.waitForEvent('close', { timeout: 10000 }),
+    b.locator('.dock-group-body').evaluate((body, token) => {
+      const r = body.getBoundingClientRect(),
+        dataTransfer = new DataTransfer();
+      dataTransfer.setData('application/x-xamora-dock', token);
+      body.dispatchEvent(
+        new DragEvent('dragover', {
+          bubbles: true,
+          cancelable: true,
+          clientX: r.x + r.width / 2,
+          clientY: r.y + r.height / 2,
+          dataTransfer,
+        }),
+      );
+      body.dispatchEvent(
+        new DragEvent('drop', {
+          bubbles: true,
+          cancelable: true,
+          clientX: r.x + r.width / 2,
+          clientY: r.y + r.height / 2,
+          dataTransfer,
+        }),
+      );
+    }, token),
+  ]);
   await page.waitForFunction(() => window.packed.control.windows.list().length === 1);
   assert(a.isClosed());
   assert.equal(
@@ -321,7 +339,11 @@ try {
     return ['one', 'two'].every((id) => control.contents.get(id).ownerDocument === record.document);
   });
   assert(same);
-  await page.evaluate(() => window.packed.control.dispose());
+  // A removed owner record does not imply Playwright has received the close event yet.
+  await Promise.all([
+    b.waitForEvent('close', { timeout: 10000 }),
+    page.evaluate(() => window.packed.control.dispose()),
+  ]);
   assert(b.isClosed());
   assert.equal(
     await page.getByRole('textbox', { name: 'one', exact: true }).inputValue(),

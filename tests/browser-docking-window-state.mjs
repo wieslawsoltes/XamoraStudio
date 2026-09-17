@@ -169,7 +169,10 @@ try {
   await page.evaluate(() => {
     window.windowState.saved = window.windowState.model.serialize();
   });
-  await split.locator('[data-browser-return]').click();
+  await Promise.all([
+    split.waitForEvent('close', { timeout: 10000 }),
+    split.locator('[data-browser-return]').click(),
+  ]);
   await page.waitForFunction(() => window.windowState.control.windows.list().length === 0);
   assert(
     await page.evaluate(
@@ -194,7 +197,10 @@ try {
         JSON.stringify(window.windowState.model.state.floating[0].root) === window.windowState.tree,
     ),
   );
-  await page.evaluate(() => window.windowState.control.dispose());
+  await Promise.all([
+    reopened.waitForEvent('close', { timeout: 10000 }),
+    page.evaluate(() => window.windowState.control.dispose()),
+  ]);
   await page.waitForFunction(() => window.windowState.control.windows.list().length === 0);
   assert.equal(
     await page.getByRole('textbox', { name: 'two', exact: true }).inputValue(),
