@@ -156,11 +156,12 @@ export class DockWorkspace extends EventTarget {
     return this.windows?.return(id) || false;
   }
   move(ids, target, position = 'center', index) {
+    if (this.disposed) return false;
     ids = this.model.require(ids);
     const active = ids.includes(this.model.state.activePanel)
       ? this.model.state.activePanel
-      : ids[0];
-    if (this.beforeActivate(active) === false) return false;
+      : dockGroups(this.model.state).find((group) => ids.includes(group.active))?.active || ids[0];
+    if (this.beforeActivate(active) === false || this.disposed) return false;
     return this.model.dock(ids, target, position, index);
   }
   dockBack(id) {
@@ -234,9 +235,8 @@ export class DockWorkspace extends EventTarget {
     else if (this.document.hasFocus?.() === false) this.window.focus?.();
     const node = this.contents.get(id);
     if (node?.closest('[hidden]')) return;
-    const target = node?.querySelector(
-      '[autofocus],textarea,input:not([type=hidden]),[tabindex="0"],button',
-    );
+    const selector = '[autofocus],textarea,input:not([type=hidden]),[tabindex="0"],button';
+    const target = node?.matches(selector) ? node : node?.querySelector(selector);
     if (target) target.focus({ preventScroll: true });
     else {
       const group = this.query(`[data-dock-panel="${id}"]`);
@@ -922,8 +922,7 @@ export class DockWorkspace extends EventTarget {
         setTimeout(() => document.removeEventListener('click', suppress, true), 0);
         try {
           if (drop) {
-            if (this.beforeActivate(ids[0]) === false) return;
-            this.model.dock(ids, drop.id, drop.position, drop.index);
+            if (this.move(ids, drop.id, drop.position, drop.index) === false) return;
             this.notify('Docked ' + this.title(ids[0]) + ' · ' + edgeNames[drop.position]);
           } else if (e.altKey && this.windows) {
             this.openWindow(ids, { sourceWindow: document.defaultView });
@@ -1222,7 +1221,9 @@ export class DockWorkspace extends EventTarget {
     const focused = this.menu?.contains(document.activeElement);
     this.menu?.remove();
     this.menu = null;
-    if (focused) this.menuReturn?.focus?.({ preventScroll: true });
+    const target = this.menuReturn;
+    this.menuReturn = null;
+    if (focused) target?.focus?.({ preventScroll: true });
   }
   context(event, id, anchor) {
     const document = event.target?.ownerDocument || this.document;
