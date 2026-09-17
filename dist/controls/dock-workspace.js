@@ -711,6 +711,7 @@ export class DockWorkspace extends EventTarget {
       document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', onCancel);
       this.cancelGesture = null;
+      this.gestureDocument = null;
       document.body.classList.remove('dock-gesturing');
     };
     const onMove = (e) => {
@@ -726,7 +727,10 @@ export class DockWorkspace extends EventTarget {
       cancel?.();
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') {
+      if (
+        e.key === 'Escape' &&
+        !e.target.closest?.('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]')
+      ) {
         e.preventDefault();
         e.stopImmediatePropagation();
         onCancel();
@@ -734,6 +738,7 @@ export class DockWorkspace extends EventTarget {
     };
     this.cancelGesture?.();
     this.cancelGesture = onCancel;
+    this.gestureDocument = document;
     document.addEventListener('pointermove', onMove, true);
     document.addEventListener('pointerup', onUp, true);
     document.addEventListener('pointercancel', onCancel, true);
@@ -1317,7 +1322,9 @@ export class DockWorkspace extends EventTarget {
       !this.cancelGesture
     )
       return;
-    if (this.menu) {
+    if (e.target.closest?.('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]'))
+      return;
+    if (this.menu?.ownerDocument === document) {
       const items = [...this.menu.querySelectorAll('button:not(:disabled)')],
         at = items.indexOf(document.activeElement);
       if (['ArrowDown', 'ArrowUp', 'Escape', 'Home', 'End'].includes(e.key)) {
@@ -1335,20 +1342,18 @@ export class DockWorkspace extends EventTarget {
         return;
       }
     }
-    if (e.key === 'Escape' && this.cancelGesture) {
+    if (e.key === 'Escape' && this.cancelGesture && this.gestureDocument === document) {
       e.preventDefault();
       e.stopImmediatePropagation();
       this.cancelGesture();
       return;
     }
-    if (e.key === 'Escape' && this.flyout) {
+    if (e.key === 'Escape' && this.flyout && document === this.document) {
       e.preventDefault();
       e.stopImmediatePropagation();
       this.closeFlyout();
       return;
     }
-    if (e.target.closest('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]'))
-      return;
     const mod = e.ctrlKey || e.metaKey;
     if (e.key === 'F6') {
       e.preventDefault();

@@ -181,11 +181,12 @@ export class DockBrowserWindows {
       if (text !== undefined) node.textContent = text;
       return node;
     };
-    if (!document.doctype)
-      document.insertBefore(
-        document.implementation.createDocumentType('html', '', ''),
-        document.documentElement,
-      );
+    // Rendering mode is chosen by the parser, not by inserting a DocumentType node.
+    // Initialize only the fresh, validated blank window, before portals or listeners exist.
+    // This static shell never interpolates project content or executes application scripts.
+    document.open();
+    document.write('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
+    document.close();
     const viewport = document.createElement('meta');
     viewport.name = 'viewport';
     viewport.content = 'width=device-width,initial-scale=1';

@@ -23,7 +23,9 @@ export class DocumentScope {
       this.focusedDocument = document;
     };
     const remove = () => {
-      if (!this.documents.delete(document)) return;
+      // A caller may keep an old disposer after re-registering the same document.
+      if (this.documents.get(document) !== entry) return;
+      this.documents.delete(document);
       for (const [id, item] of this.frames)
         if (item.view === entry.window) {
           item.view.cancelAnimationFrame(item.nativeId);
