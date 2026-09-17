@@ -22,9 +22,9 @@ no publishing or application secrets are passed to the native jobs.
 
 ## What the tests prove
 
-Each target loads eight generated fixtures: four static viewport/metadata
+Each target loads twelve generated fixtures: four static viewport/metadata
 combinations, two measured responsive layouts, and two RTL/form-state captures
-with password capture omitted or explicitly enabled. The runners exercise real
+with password capture omitted or explicitly enabled, plus four logical-box fixtures combining LTR/RTL with metadata on/off. Logical fixtures assert dimensions, direction, margin, padding, border thickness and text after logical/physical cascade, variable resolution and importance. The runners exercise real
 framework loading, measure/arrange, declared dimensions and attached placement,
 text, selection, checkbox state, flow direction and opacity. Reports and the
 exact XAML inputs are retained as per-target workflow artifacts.

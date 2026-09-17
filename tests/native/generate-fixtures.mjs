@@ -60,6 +60,47 @@ for (const framework of ['WPF', 'Avalonia'])
         diagnostics: result.diagnostics,
       });
     }
+// Logical/physical cascade cases are independently specified, including native
+// thickness order and both metadata modes. No target XAML is hand-authored.
+for (const framework of ['WPF', 'Avalonia'])
+  for (const direction of ['ltr', 'rtl'])
+    for (const preserveMetadata of [false, true]) {
+      const width = direction === 'ltr' ? 360 : 960;
+      const result = compileDocument(
+        `<html><head><style>
+        @layer base,theme;
+        @layer base{button{width:88px;padding:2px 4px;border-width:1px}}
+        @layer theme{button{inline-size:calc(25vw + 10px);block-size:44px;padding-inline:6px 14px;
+          margin-block:3px 7px;margin-inline-start:5px;border-inline-width:2px 4px}}
+        button{padding-inline-start:9px!important;direction:var(--flow)}
+        </style></head><body><button id="logical" style="--flow:${direction}">Logical caption</button></body></html>`,
+        {
+          from: 'html',
+          Parser,
+          framework,
+          preserveMetadata,
+          environment: { width, height: 600, type: 'screen' },
+        },
+      );
+      if (!result.success || result.losses.length) throw Error(JSON.stringify(result.diagnostics));
+      cases.push({
+        framework,
+        name: `logical-${direction}-${preserveMetadata ? 'metadata' : 'plain'}`,
+        source: result.source,
+        expected: {
+          logical: {
+            Width: width / 4 + 10,
+            Height: 44,
+            FlowDirection: direction === 'ltr' ? 'LeftToRight' : 'RightToLeft',
+            Padding: direction === 'ltr' ? [9, 2, 14, 2] : [14, 2, 9, 2],
+            Margin: direction === 'ltr' ? [5, 3, 0, 7] : [0, 3, 5, 7],
+            BorderThickness: direction === 'ltr' ? [2, 1, 4, 1] : [4, 1, 2, 1],
+            Content: 'Logical caption',
+          },
+        },
+        diagnostics: result.diagnostics,
+      });
+    }
 if (process.argv.includes('--browser')) {
   const bundle = await build({
     entryPoints: ['dist/core/compiler-browser.js'],

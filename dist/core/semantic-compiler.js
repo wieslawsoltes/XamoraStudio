@@ -28,6 +28,7 @@ import { ensureTransformPath } from './property-path.js';
 import { parseCssAnimationStylesheet, splitCssList } from './html-animation.js';
 import { collectCompilerCss } from './compiler-css.js';
 import { resolveCssLength } from './compiler-environment.js';
+import { cssBoxLonghands, physicalCssProperty, cssBoxFamily } from './compiler-logical.js';
 
 export const SEMANTIC_COMPILER_VERSION = 1;
 export const WEB_NAMESPACE = 'urn:xamora:web';
@@ -295,8 +296,14 @@ function styleObject(source = '') {
   }
   return result;
 }
+const flowCss = {
+  direction: ['ltr', 'rtl'],
+  'writing-mode': ['horizontal-tb', 'vertical-rl', 'vertical-lr', 'sideways-rl', 'sideways-lr'],
+  'text-orientation': ['mixed', 'upright', 'sideways'],
+};
+const cssWideKeywords = new Set(['inherit', 'initial', 'unset', 'revert', 'revert-layer']);
 const inheritedCss = new Set(
-  'color font-family font-size font-weight font-style line-height text-align white-space visibility cursor direction'.split(
+  'color font-family font-size font-weight font-style line-height text-align white-space visibility cursor direction writing-mode text-orientation'.split(
     ' ',
   ),
 );
@@ -306,6 +313,8 @@ const initialCss = {
   'font-style': 'normal',
   'text-align': 'start',
   direction: 'ltr',
+  'writing-mode': 'horizontal-tb',
+  'text-orientation': 'mixed',
   'white-space': 'normal',
   visibility: 'visible',
   opacity: '1',
@@ -559,6 +568,34 @@ function decodeMeta(value, ctx, node) {
       typeof result.generated !== 'object'
     )
       throw Error('Unknown portable metadata version or schema.');
+    if (result.logicalCss !== undefined) {
+      const flow = result.logicalCss;
+      const families = [
+        'margin',
+        'padding',
+        'border-width',
+        'inset',
+        'width',
+        'height',
+        'min-width',
+        'max-width',
+        'min-height',
+        'max-height',
+      ];
+      if (
+        !flow ||
+        typeof flow !== 'object' ||
+        !flowCss.direction.includes(flow.direction) ||
+        !flowCss['writing-mode'].includes(flow['writing-mode']) ||
+        !['important', 'families'].every(
+          (key) =>
+            Array.isArray(flow[key]) &&
+            flow[key].length <= families.length &&
+            flow[key].every((value) => families.includes(value)),
+        )
+      )
+        throw Error('Invalid portable logical CSS context.');
+    }
     return result;
   } catch (error) {
     ctx.report('warning', 'INVALID_METADATA', error.message, node, true);
@@ -622,7 +659,8 @@ function xamlThickness(value) {
 }
 function cssThickness(value) {
   const values = value.trim().split(/\s+/).map(number);
-  if (values.some((v) => v === null) || !values.length || values.length > 4) return null;
+  if (values.some((v) => v === null || v === 'Auto') || !values.length || values.length > 4)
+    return null;
   const [top, right = top, bottom = top, left = right] = values;
   // Cascading expands shorthands to four sides. Preserve the established compact
   // XAML spelling for uniform boxes after unit conversion and longhand overrides.
@@ -655,7 +693,10 @@ function cssValue(key, value, ctx, node) {
 }
 function xamlValue(key, value, css = {}) {
   value = String(value).replace(/\s*!important\s*$/i, '');
-  if (lengths.has(key)) return number(value);
+  if (lengths.has(key)) {
+    const result = number(value);
+    return result === 'Auto' && !['Width', 'Height'].includes(key) ? null : result;
+  }
   if (thickness.has(key)) return cssThickness(value);
   if (colors.has(key)) return toXamlColor(value);
   if (key === 'CornerRadius') {
@@ -1331,6 +1372,35 @@ function patchInlineCss(source, before, after) {
     }
   return result;
 }
+function restoreLogicalBoxEdits(originalCss, beforeCss, freshCss, source, meta) {
+  const flow = meta.logicalCss;
+  if (!flow) return;
+  const families = new Set();
+  for (const [key, cssKey] of Object.entries(cssProperties)) {
+    if (source.props[key] === meta.generated[key]) continue;
+    const family = cssBoxFamily(cssKey, flow);
+    if (family) families.add(family);
+  }
+  // A direction edit must not remap an unchanged concrete native thickness a
+  // second time through the original logical declarations.
+  if (source.props.FlowDirection !== meta.generated.FlowDirection)
+    for (const family of flow.families)
+      if (['padding', 'margin', 'border-width', 'inset'].includes(family)) families.add(family);
+  for (const family of families) {
+    let important = flow.important.includes(family);
+    for (const key of Object.keys(beforeCss)) {
+      if (cssBoxFamily(key, flow) !== family) continue;
+      important ||= /!\s*important\s*$/i.test(beforeCss[key]);
+      delete originalCss[key];
+    }
+    // Editing native offsets materializes all four members of the shared inset
+    // family. A removed offset becomes auto; a removed size/box becomes initial.
+    for (const key of family === 'inset' ? ['top', 'right', 'bottom', 'left'] : [family]) {
+      const value = freshCss[key] ?? (family === 'inset' ? 'auto' : 'initial');
+      originalCss[key] = value + (important ? ' !important' : '');
+    }
+  }
+}
 function restoreHtmlMetadata(target, source, meta, ctx) {
   const original = { ...meta.props },
     originalCss = styleObject(original.style),
@@ -1368,6 +1438,7 @@ function restoreHtmlMetadata(target, source, meta, ctx) {
       ])
         if (has(freshCss, cssKey)) originalCss[cssKey] = freshCss[cssKey];
     }
+  restoreLogicalBoxEdits(originalCss, beforeCss, freshCss, source, meta);
   original.style = patchInlineCss(original.style || '', beforeCss, originalCss);
   if (!original.style) delete original.style;
   Object.assign(target.props, original);
@@ -1396,6 +1467,7 @@ function resolvedCss(node, ctx) {
     ),
     winners = new Map(),
     candidates = new Map();
+  let declarationOrder = 0;
   const add = (entries, rank, layer = ctx.cssLayers) => {
     for (const [key, raw] of entries) {
       const important = /!\s*important\s*$/i.test(raw),
@@ -1405,12 +1477,43 @@ function resolvedCss(node, ctx) {
           important ? -(layer?.rank ?? -1) : (layer?.rank ?? -1),
           ...rank.slice(1),
         ],
-        value = String(raw).replace(/\s*!\s*important\s*$/i, '');
+        value = String(raw).replace(/\s*!\s*important\s*$/i, ''),
+        order = declarationOrder++,
+        longhands = cssBoxLonghands(key);
+      if (!/var\(/i.test(value)) {
+        const parts = splitCssList(value, ' '),
+          keyword = value.trim().toLowerCase();
+        const invalid =
+          (longhands &&
+            (parts.length < 1 ||
+              parts.length > longhands.length ||
+              (parts.length > 1 &&
+                parts.some((part) => cssWideKeywords.has(part.toLowerCase()))))) ||
+          (has(flowCss, key) && !flowCss[key].includes(keyword) && !cssWideKeywords.has(keyword));
+        if (invalid) {
+          ctx.report(
+            'info',
+            'CSS_INVALID_DECLARATION',
+            `${key} has an invalid declaration and does not enter the cascade.`,
+            node,
+          );
+          continue;
+        }
+      }
       const assign = (property, component) => {
         if (!candidates.has(property)) candidates.set(property, []);
-        candidates.get(property).push({ value, priority, component, layer, inline: rank[0] === 1 });
+        candidates.get(property).push({
+          value,
+          priority,
+          component,
+          layer,
+          order,
+          components: longhands?.length,
+          inline: rank[0] === 1,
+          property,
+        });
       };
-      if (has(boxCss, key)) boxCss[key].forEach((property, index) => assign(property, index));
+      if (longhands) longhands.forEach(assign);
       else assign(key);
     }
   };
@@ -1424,9 +1527,10 @@ function resolvedCss(node, ctx) {
   for (const rule of ctx.cssRules)
     if (ctx.matchCssRule(node, rule)) add(rule.values, [0, ...rule.plan.specificity], rule.layer);
   add(styleEntries(node.props.style), [1, 0, 0, 0]);
-  for (const [property, entries] of candidates) {
-    entries.reverse().sort((a, b) => compareCssPriority(b.priority, a.priority));
-    let remaining = entries;
+  const winner = (entries) => {
+    let remaining = [...entries].sort(
+      (a, b) => compareCssPriority(b.priority, a.priority) || b.order - a.order,
+    );
     while (remaining.length) {
       const entry = remaining[0],
         keyword = entry.value.trim().toLowerCase();
@@ -1441,11 +1545,16 @@ function resolvedCss(node, ctx) {
         // Only the semantic inline user-agent defaults are modeled below author origin.
         remaining = remaining.filter((candidate) => candidate.layer?.rank === -1);
         if (entry.layer?.rank === -1) break;
-      } else {
-        winners.set(property, entry);
-        break;
-      }
+      } else return entry;
     }
+    return undefined;
+  };
+  // Custom properties and flow dependencies must settle before logical and
+  // physical declarations can compete for the same native dimension or side.
+  for (const [key, entries] of candidates) {
+    if (!key.startsWith('--') && !has(flowCss, key)) continue;
+    const selected = winner(entries);
+    if (selected) winners.set(key, selected);
   }
   const custom = Object.fromEntries(Object.entries(values).filter(([key]) => key.startsWith('--')));
   for (const [key, { value }] of winners)
@@ -1470,8 +1579,7 @@ function resolvedCss(node, ctx) {
         return cssBoxValues(inherited[group])?.[sides.indexOf(key)];
     return undefined;
   };
-  for (const [key, entry] of winners) {
-    if (key.startsWith('--')) continue;
+  const resolveEntry = (key, entry) => {
     let value = substituteCssVariables(entry.value, lookup);
     if (value == null) {
       ctx.report(
@@ -1483,26 +1591,103 @@ function resolvedCss(node, ctx) {
       );
       value = 'unset';
     }
-    if (entry.component !== undefined) {
-      const components = cssBoxValues(value);
-      value = components?.[entry.component] ?? 'unset';
+    const keyword = value.trim().toLowerCase();
+    if (['inherit', 'initial', 'unset'].includes(keyword)) value = keyword;
+    else if (entry.component !== undefined) {
+      const parts = splitCssList(value, ' '),
+        components = parts.some((part) => cssWideKeywords.has(part.toLowerCase()))
+          ? null
+          : entry.components === 2
+            ? parts.length > 0 && parts.length <= 2
+              ? [parts[0], parts[1] ?? parts[0]]
+              : null
+            : cssBoxValues(value);
+      if (!components) {
+        ctx.report(
+          'warning',
+          'CSS_VALUE',
+          `${entry.property} has an invalid box shorthand value.`,
+          node,
+          true,
+        );
+        value = 'unset';
+      } else value = components[entry.component];
     }
-    if (value === 'inherit' && entry.component !== undefined) {
-      const group = Object.entries(boxCss).find(([, sides]) => sides.includes(key));
-      if (group && inherited[group[0]] !== undefined) {
-        put(values, key, cssBoxValues(inherited[group[0]])?.[entry.component] ?? '0');
-        continue;
-      }
+    if (
+      has(flowCss, key) &&
+      !cssWideKeywords.has(value) &&
+      !flowCss[key].includes(value.toLowerCase())
+    ) {
+      ctx.report(
+        'warning',
+        'CSS_VALUE',
+        `${key} has an invalid computed flow value; inheritance is used.`,
+        node,
+        true,
+      );
+      value = 'unset';
     }
     if (value === 'inherit' || (value === 'unset' && inheritedCss.has(key))) {
+      if (
+        value === 'inherit' &&
+        entry.property !== key &&
+        physicalCssProperty(entry.property, inherited) !== key
+      )
+        ctx.report(
+          'warning',
+          'CSS_LOGICAL_INHERITANCE',
+          'Cross-flow logical inheritance uses the physical computed parent side; browser and draft logical inheritance can differ.',
+          node,
+          true,
+        );
       if (inheritedValue(key) !== undefined) put(values, key, inheritedValue(key));
       else if (has(initialCss, key)) put(values, key, initialCss[key]);
+      else if (/^(?:margin|padding)-/.test(key)) put(values, key, '0');
       else delete values[key];
     } else if (value === 'initial' || value === 'unset') {
       if (has(initialCss, key)) put(values, key, initialCss[key]);
       else if (/^(?:margin|padding)-/.test(key)) put(values, key, '0');
       else delete values[key];
     } else put(values, key, value);
+  };
+  const flowKeys = new Set(['direction', 'writing-mode', 'text-orientation']);
+  for (const key of flowKeys) {
+    if (winners.has(key)) resolveEntry(key, winners.get(key));
+    if (values[key]) values[key] = values[key].toLowerCase();
+  }
+  const physicalCandidates = new Map();
+  const logicalFamilies = new Set();
+  let logical = false;
+  for (const [key, entries] of candidates) {
+    if (key.startsWith('--') || flowKeys.has(key)) continue;
+    const physical = physicalCssProperty(key, values);
+    if (physical !== key) {
+      logical = true;
+      const family = cssBoxFamily(key, values);
+      if (family) logicalFamilies.add(family);
+    }
+    // Unresolved writing modes retain the logical name and an ordinary loss
+    // diagnostic rather than choosing an arbitrary native direction.
+    const target = physical ?? key;
+    if (!physicalCandidates.has(target)) physicalCandidates.set(target, []);
+    physicalCandidates.get(target).push(...entries);
+  }
+  const importantBoxes = new Set();
+  for (const [key, entries] of physicalCandidates) {
+    const selected = winner(entries);
+    if (!selected) continue;
+    resolveEntry(key, selected);
+    const family = cssBoxFamily(key, values);
+    if (family && selected.priority[0]) importantBoxes.add(family);
+  }
+  if (logical) {
+    ctx.logicalCss ??= new Map();
+    ctx.logicalCss.set(node.id, {
+      direction: values.direction || 'ltr',
+      'writing-mode': values['writing-mode'] || 'horizontal-tb',
+      important: [...importantBoxes],
+      families: [...logicalFamilies],
+    });
   }
   for (const [key, sides] of Object.entries(boxCss))
     if (sides.some((side) => has(values, side))) {
@@ -1733,6 +1918,8 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   ctx.pairs.push([node.id, n.id]);
   const usedCss = new Set([
       'box-sizing',
+      'writing-mode',
+      'text-orientation',
       'display',
       'position',
       'flex-direction',
@@ -1774,6 +1961,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
       css[cssKey] === parentCss[cssKey]
     )
       continue;
+    if (key.startsWith('Canvas.') && /^auto$/i.test(css[cssKey].trim())) continue;
     const value = xamlValue(key, css[cssKey], css);
     if (value !== null) props[key] = value;
     else
@@ -1875,6 +2063,14 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
       'warning',
       'ABSOLUTE_CONTAINING_BLOCK',
       'CSS absolute positioning may use an ancestor containing block; Canvas placement is an approximation.',
+      node,
+      true,
+    );
+  if (css['writing-mode'] && css['writing-mode'] !== 'horizontal-tb')
+    ctx.report(
+      'warning',
+      'CSS_WRITING_MODE',
+      'Logical box values were mapped to physical dimensions, but native vertical or sideways text and flow require a writing-mode adapter.',
       node,
       true,
     );
@@ -2084,6 +2280,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
       props: original,
       children: hidden.map(rawNode),
       generated: { ...props },
+      ...(ctx.logicalCss?.has(node.id) ? { logicalCss: ctx.logicalCss.get(node.id) } : {}),
     });
   }
   n.props = props;

@@ -96,6 +96,16 @@
         "types": "./dist/cjs/compiler-resources.d.cts",
         "default": "./dist/cjs/compiler-resources.cjs"
       }
+    },
+    "./compiler-logical": {
+      "import": {
+        "types": "./dist/esm/compiler-logical.d.ts",
+        "default": "./dist/esm/compiler-logical.js"
+      },
+      "require": {
+        "types": "./dist/cjs/compiler-logical.d.cts",
+        "default": "./dist/cjs/compiler-logical.cjs"
+      }
     }
   },
   "files": [
@@ -136,7 +146,8 @@
       "compiler-environment",
       "compiler-css",
       "compiler-browser",
-      "compiler-resources"
+      "compiler-resources",
+      "compiler-logical"
     ],
     "cli": "dist/compiler-cli/index.js",
     "cliModules": [
