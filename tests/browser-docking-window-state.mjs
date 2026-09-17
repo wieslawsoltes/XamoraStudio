@@ -162,10 +162,10 @@ try {
   let next = page.waitForEvent('popup');
   await page.locator('#open').click();
   const split = await next;
-  await split.getByLabel('one', { exact: true }).waitFor({ state: 'visible' });
-  assert(await split.getByLabel('two', { exact: true }).isVisible());
+  await split.getByRole('textbox', { name: 'one', exact: true }).waitFor({ state: 'visible' });
+  assert(await split.getByRole('textbox', { name: 'two', exact: true }).isVisible());
   assert.equal(await split.evaluate(() => document.compatMode), 'CSS1Compat');
-  await split.getByLabel('two', { exact: true }).fill('Retained split draft');
+  await split.getByRole('textbox', { name: 'two', exact: true }).fill('Retained split draft');
   await page.evaluate(() => {
     window.windowState.saved = window.windowState.model.serialize();
   });
@@ -183,9 +183,9 @@ try {
   next = page.waitForEvent('popup');
   await page.locator('#reopen').click();
   const reopened = await next;
-  await reopened.getByLabel('two', { exact: true }).waitFor({ state: 'visible' });
+  await reopened.getByRole('textbox', { name: 'two', exact: true }).waitFor({ state: 'visible' });
   assert.equal(
-    await reopened.getByLabel('two', { exact: true }).inputValue(),
+    await reopened.getByRole('textbox', { name: 'two', exact: true }).inputValue(),
     'Retained split draft',
   );
   assert(
@@ -196,7 +196,10 @@ try {
   );
   await page.evaluate(() => window.windowState.control.dispose());
   await page.waitForFunction(() => window.windowState.control.windows.list().length === 0);
-  assert.equal(await page.getByLabel('two', { exact: true }).inputValue(), 'Retained split draft');
+  assert.equal(
+    await page.getByRole('textbox', { name: 'two', exact: true }).inputValue(),
+    'Retained split draft',
+  );
   assert.deepEqual(errors, []);
   console.log(
     'Multiwindow state: complete split tree, live buffers, saved intent and explicit reopening passed.',

@@ -255,7 +255,7 @@ try {
   next = page.waitForEvent('popup');
   await page.locator('#open-two').click();
   const b = await next;
-  await a.getByLabel('one', { exact: true }).fill('Transferred buffer');
+  await a.getByRole('textbox', { name: 'one', exact: true }).fill('Transferred buffer');
   await page.evaluate(() =>
     document.querySelector('#theme-container').classList.add('nested-dark'),
   );
@@ -311,7 +311,10 @@ try {
   }, token);
   await page.waitForFunction(() => window.packed.control.windows.list().length === 1);
   assert(a.isClosed());
-  assert.equal(await b.getByLabel('one', { exact: true }).inputValue(), 'Transferred buffer');
+  assert.equal(
+    await b.getByRole('textbox', { name: 'one', exact: true }).inputValue(),
+    'Transferred buffer',
+  );
   const same = await page.evaluate(() => {
     const { control } = window.packed,
       record = control.windows.list()[0];
@@ -320,7 +323,10 @@ try {
   assert(same);
   await page.evaluate(() => window.packed.control.dispose());
   assert(b.isClosed());
-  assert.equal(await page.getByLabel('one', { exact: true }).inputValue(), 'Transferred buffer');
+  assert.equal(
+    await page.getByRole('textbox', { name: 'one', exact: true }).inputValue(),
+    'Transferred buffer',
+  );
   assert.deepEqual(errors, []);
   assert.deepEqual(failures, []);
   console.log(
