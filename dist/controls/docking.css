@@ -595,3 +595,24 @@
 .dock-flyout-resize:hover {
   background: var(--dock-active);
 }
+
+/* Native HTML drag grips are separate from pointer-based in-window docking. */
+.dock-transfer-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  align-self: stretch;
+  cursor: grab;
+  opacity: 0.65;
+  user-select: none;
+  -webkit-user-drag: element;
+  touch-action: auto;
+}
+.dock-transfer-grip:hover {
+  opacity: 1;
+}
+.dock-browser-bar {
+  color: var(--text, inherit);
+  background: var(--panel, Canvas);
+}

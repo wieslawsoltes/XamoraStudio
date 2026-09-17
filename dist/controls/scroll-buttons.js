@@ -2,7 +2,8 @@
 export class ScrollButtons {
   constructor(viewport, { label = 'tabs' } = {}) {
     this.viewport = viewport;
-    this.host = document.createElement('div');
+    this.document = viewport.ownerDocument || document;
+    this.host = this.document.createElement('div');
     this.host.className = 'scroll-button-strip';
     this.previous = this.button('‹', 'Scroll ' + label + ' left', -1);
     this.next = this.button('›', 'Scroll ' + label + ' right', 1);
@@ -13,16 +14,18 @@ export class ScrollButtons {
       this.next.disabled = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
     };
     viewport.addEventListener('scroll', this.update);
-    this.observer = new ResizeObserver(this.update);
+    const view = this.document.defaultView || globalThis;
+    this.observer = new (view.ResizeObserver || ResizeObserver)(this.update);
     this.observer.observe(viewport);
-    if (typeof MutationObserver === 'function') {
-      this.mutations = new MutationObserver(this.update);
+    if (typeof view.MutationObserver === 'function') {
+      this.mutations = new view.MutationObserver(this.update);
       this.mutations.observe(viewport, { childList: true, subtree: true, characterData: true });
     }
-    requestAnimationFrame(this.update);
+    this.frameWindow = view;
+    this.frame = view.requestAnimationFrame(this.update);
   }
   button(text, label, direction) {
-    const b = document.createElement('button');
+    const b = this.document.createElement('button');
     b.className = 'strip-scroll-button';
     b.textContent = text;
     b.type = 'button';
@@ -71,6 +74,7 @@ export class ScrollButtons {
     this.update();
   }
   dispose() {
+    this.frameWindow.cancelAnimationFrame(this.frame);
     this.viewport.removeEventListener('scroll', this.update);
     this.observer.disconnect();
     this.mutations?.disconnect();

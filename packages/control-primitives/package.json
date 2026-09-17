@@ -62,6 +62,16 @@
     "./browser": {
       "types": "./dist/esm/index.d.ts",
       "default": "./dist/browser/index.js"
+    },
+    "./document-scope": {
+      "import": {
+        "types": "./dist/esm/document-scope.d.ts",
+        "default": "./dist/esm/document-scope.js"
+      },
+      "require": {
+        "types": "./dist/cjs/document-scope.d.cts",
+        "default": "./dist/cjs/document-scope.cjs"
+      }
     }
   },
   "files": [

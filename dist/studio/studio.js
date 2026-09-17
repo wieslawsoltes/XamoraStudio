@@ -1,3 +1,4 @@
+import { DocumentScope } from '../controls/document-scope.js';
 import { studioComponentOptions } from './component-context.js';
 import { PropertyGrid, renderPropertyField } from '../controls/property-grid.js';
 import { modal, closeModal } from './dialog-host.js';
@@ -93,6 +94,7 @@ export class Studio {
     }
     (docs || samples()).forEach((d) => this.addStore(d));
     this.build();
+    this.documentScope = new DocumentScope(document, $('.workspace'));
     this.renderer = new PreviewRenderer(this.registry);
     this.gpu = new GridSurface($('#gpu-grid'));
     this.gpu.init().then(() => {
@@ -137,15 +139,10 @@ export class Studio {
     this.workspaceOptions = studioComponentOptions(this);
   }
   leftHost(tab = this.leftTab) {
-    return (
-      document.querySelector(`[data-left-host="${tab}"]`) || document.querySelector('#left-content')
-    );
+    return $(`[data-left-host="${tab}"]`) || document.querySelector('#left-content');
   }
   inspectorHost(tab = this.rightTab) {
-    return (
-      document.querySelector(`[data-inspector-host="${tab}"]`) ||
-      document.querySelector('#inspector')
-    );
+    return $(`[data-inspector-host="${tab}"]`) || document.querySelector('#inspector');
   }
   get store() {
     return this.stores[this.active];
@@ -199,7 +196,7 @@ export class Studio {
     <footer class="statusbar"><span class="status-dot"></span><span id="status-selection">Ready</span><span style="opacity:.35">|</span><button data-action="problems" id="problems-button">${icon('check')}No errors</button><div class="status-right"><button data-action="snap" id="snap-state">Snap: 8 px</button><span id="renderer-status">CSS canvas · DOM controls</span><span class="status-accent">${icon('binding')} XAML ↔ Design</span><button data-action="help">${icon('help')}Help</button></div></footer></main>`;
   }
   bind() {
-    document.addEventListener('click', (e) => {
+    this.documentScope.listen(document, 'click', (e) => {
       if (!e.target.closest('.context-menu')) $('.context-menu')?.remove();
       const action = e.target.closest('[data-action]')?.dataset.action;
       if (action) this.command(action, e);
@@ -223,7 +220,7 @@ export class Studio {
       if (insert) this.insertControl(insert);
     });
     $('#framework-select').addEventListener('change', (e) => this.changeFramework(e.target.value));
-    $('.workspace').addEventListener('input', (e) => {
+    this.documentScope.listen($('.workspace'), 'input', (e) => {
       if (e.target.id === 'toolkit-search') {
         this.toolkitSearch = e.target.value;
         this.renderToolkitResults();
@@ -233,7 +230,7 @@ export class Studio {
         this.renderTree();
       }
     });
-    $('.workspace').addEventListener('click', (e) => {
+    this.documentScope.listen($('.workspace'), 'click', (e) => {
       const row = e.target.closest('[data-node]');
       if (!row) return;
       const id = row.dataset.node;
@@ -259,7 +256,7 @@ export class Studio {
       }
       this.store.select(e.shiftKey ? [...this.store.selection, id] : [id]);
     });
-    $('.workspace').addEventListener('dblclick', (e) => {
+    this.documentScope.listen($('.workspace'), 'dblclick', (e) => {
       const id = e.target.closest('[data-node]')?.dataset.node;
       if (id) {
         this.store.select([id]);
@@ -267,7 +264,7 @@ export class Studio {
         $('#inspector-name')?.select();
       }
     });
-    $('.workspace').addEventListener('dragstart', (e) => {
+    this.documentScope.listen($('.workspace'), 'dragstart', (e) => {
       const ctl = e.target.closest('[data-insert]'),
         row = e.target.closest('[data-node]');
       if (ctl) e.dataTransfer.setData('application/x-xamora-control', ctl.dataset.insert);
@@ -277,7 +274,7 @@ export class Studio {
       }
       e.dataTransfer.effectAllowed = 'copyMove';
     });
-    $('.workspace').addEventListener('dragover', (e) => {
+    this.documentScope.listen($('.workspace'), 'dragover', (e) => {
       const row = e.target.closest('[data-node]');
       if (row) {
         e.preventDefault();
@@ -285,19 +282,19 @@ export class Studio {
         row.classList.add('drop-target');
       }
     });
-    $('.workspace').addEventListener('dragleave', (e) =>
+    this.documentScope.listen($('.workspace'), 'dragleave', (e) =>
       e.target.closest('.drop-target')?.classList.remove('drop-target'),
     );
-    $('.workspace').addEventListener('drop', (e) => {
+    this.documentScope.listen($('.workspace'), 'drop', (e) => {
       e.preventDefault();
       const row = e.target.closest('[data-node]');
       $$('.drop-target').forEach((n) => n.classList.remove('drop-target'));
       if (row) this.drop(e, find(this.doc.root, row.dataset.node));
     });
-    $('.workspace').addEventListener('change', (e) => {
+    this.documentScope.listen($('.workspace'), 'change', (e) => {
       if (e.target.matches('[data-prop],#inspector-name')) this.propertyChanged(e);
     });
-    $('.workspace').addEventListener('click', (e) => {
+    this.documentScope.listen($('.workspace'), 'click', (e) => {
       const reset = e.target.closest('[data-reset]');
       if (reset) this.setProps(this.store.selection, reset.dataset.reset, null);
       const mode = e.target.closest('[data-layout]')?.dataset.layout;
@@ -364,15 +361,16 @@ export class Studio {
       const node = find(this.doc.root, hit.dataset.nodeId);
       if (['TextBlock', 'Label', 'Button'].includes(localName(node.type))) this.editText(node);
     });
-    document.addEventListener('keydown', (e) => this.keydown(e));
-    document.addEventListener('keyup', (e) => {
+    this.documentScope.listen(document, 'keydown', (e) => this.keydown(e));
+    this.documentScope.listen(document, 'keyup', (e) => {
       if (e.code === 'Space') {
         this.spaceHeld = false;
         $('#canvas-viewport').style.cursor = this.tool === 'hand' ? 'grab' : '';
       }
     });
-    window.addEventListener('blur', () => (this.spaceHeld = false));
+    this.documentScope.listen(window, 'blur', () => (this.spaceHeld = false));
     $('#code-resize').addEventListener('pointerdown', (e) => {
+      const document = e.target.ownerDocument;
       e.preventDefault();
       const y = e.clientY,
         h = $('#code-panel').offsetHeight;
@@ -1939,6 +1937,7 @@ export class Studio {
     this.transform();
   }
   contextMenu(x, y) {
+    const document = $('#canvas-viewport').ownerDocument;
     $('.context-menu')?.remove();
     const menu = document.createElement('div');
     menu.className = 'context-menu';

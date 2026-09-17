@@ -1,3 +1,4 @@
+import { listenStudio } from './ui.js';
 import { DENSITY_MODES } from '../controls/workspace-density.js';
 import { isLocked } from '../core/design-tools.js';
 import { MenuBar } from '../controls/menu-bar.js';
@@ -501,7 +502,9 @@ export class IdeMenu {
       if (id === 'save-project') return s.solution.save();
       return command(id, e);
     };
-    document.addEventListener(
+    listenStudio(
+      s,
+      document,
       'keydown',
       (e) => {
         if (e.target.closest('#modal-root')) return;
@@ -537,9 +540,10 @@ export class IdeMenu {
   textTarget() {
     const el =
       this.contextTarget ||
-      (this.bar?.stack.length || this.bar?.host.contains(document.activeElement)
+      (this.bar?.stack.length ||
+      this.bar?.host.contains(this.s.documentScope?.activeElement || document.activeElement)
         ? this.bar?.previous
-        : document.activeElement);
+        : this.s.documentScope?.activeElement || document.activeElement);
     if (el?.closest?.('#modal-root')) return null;
     return el?.matches?.('textarea,input') && typeof el.selectionStart === 'number' ? el : null;
   }
@@ -564,17 +568,19 @@ export class IdeMenu {
     }
     if (id === 'undo' || id === 'redo') {
       if (source) return id === 'undo' ? this.s.editor.undoBuffer() : this.s.editor.redoBuffer();
-      return document.execCommand?.(id);
+      return input.ownerDocument.execCommand?.(id);
     }
     if (id === 'copy' || id === 'cut') {
-      await navigator.clipboard.writeText(input.value.slice(a, b));
+      await (input.ownerDocument?.defaultView.navigator || navigator).clipboard.writeText(
+        input.value.slice(a, b),
+      );
       if (id === 'copy') return;
     }
     if (!this.canTextEdit()) return;
     const original = input.value;
     let text =
       id === 'paste'
-        ? await navigator.clipboard.readText()
+        ? await (input.ownerDocument?.defaultView.navigator || navigator).clipboard.readText()
         : id === 'duplicate'
           ? input.value.slice(a, b)
           : '';
@@ -584,7 +590,7 @@ export class IdeMenu {
     else input.dispatchEvent(new Event('input', { bubbles: true }));
   }
   palette() {
-    this.contextTarget = document.activeElement;
+    this.contextTarget = this.s.documentScope?.activeElement || document.activeElement;
     const s = this.s;
     const flatten = (entries) =>
       entries.flatMap((e) =>

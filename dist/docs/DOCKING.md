@@ -1,4 +1,4 @@
-# Xamora 0.4 docking workspace
+# Xamora docking workspace
 
 The designer now uses an IDE docking workspace instead of a fixed three-column panel layout. The implementation follows the window interactions described in Microsoft's [Customize window layouts and personalize tabs](https://learn.microsoft.com/en-us/visualstudio/ide/customizing-window-layouts-in-visual-studio?view=visualstudio) and [application patterns](https://learn.microsoft.com/en-us/visualstudio/extensibility/ux-guidelines/application-patterns-for-visual-studio?view=visualstudio).
 
@@ -53,7 +53,7 @@ The docking chrome includes tablist/tab/tabpanel semantics, selected states, lab
 
 `DockLayout` owns a serializable tree of binary splits and tab groups. Floating roots, edge strips, closed panel IDs, active/pinned tabs, focus mode, remembered dock/float locations and flyout sizes are stored alongside it. Panel content and callbacks live in a registry outside the serialized data.
 
-Each operation clones the layout, edits the candidate, collapses empty groups/splits, validates identifiers and panel ownership, and only then commits. A panel appears exactly once in a group, floating tree, auto-hide strip or closed list. Invalid destinations and invalid imports cannot partially remove panels. Layout undo has 60 snapshots and is independent of XAML document undo. Registering/removing an extension panel clears incompatible layout history.
+Each operation clones the layout, edits the candidate, collapses empty groups/splits, validates identifiers and panel ownership, and only then commits. A panel appears exactly once in a group, floating tree, auto-hide strip or closed list. Invalid destinations and invalid imports cannot partially remove panels. Layout undo has 60 snapshots and is independent of XAML document undo. Registering/removing a panel reconciles layout history and mode snapshots with the current registry, without reviving removed panels or discarding new ones.
 
 Current layout persistence uses `xamora-dock-layout-v1`; named layouts use `xamora-dock-presets-v1`. Layout import validates a bounded JSON file and reconciles unknown/missing panel IDs with the current registry. New panels absent from a saved layout begin closed. The design project remains authoritative for pages, controls, data and annotations. Layout JSON contains only window arrangement, not document contents or unsaved editor text.
 
@@ -110,11 +110,11 @@ panel.dispose();
 
 ## Explicit boundaries
 
-This is an in-page docking host. Floating panels stay within the browser workspace; they are not independent operating-system windows. Cross-monitor native windows, taskbar ownership, OS snapping, independent application menus and Visual Studio's native window manager require a desktop host adapter. Arbitrary cross-origin iframe docking and cross-browser-window document transfer are not implemented.
+In-app floating and same-origin browser-window hosts are supported. Right-click a tab to open it or its group in a browser window; use the transfer grip or Move to menu to move between hosts. See [Browser windows](DOCKING-WINDOWS.md) for lifecycle, recovery, package integration and platform restrictions. Browser hosts share one owner workspace and do not implement an independent application session or native desktop window manager.
 
 Multiple design pages can be displayed together, but one page at a time owns the fully editable canvas and shared XAML editor. The inactive page previews are activated before editing. Window layout persistence is device-local, separate from project export, and does not implement shared or server-synchronized workspaces.
 
-Validation covers the model and deterministic DOM/integration behavior. No browser-driven drag/drop, visual layout, touch device, physical GPU or native Windows qualification was performed. See VALIDATION.md for the executed suite.
+Validation includes model/DOM regressions and Chromium browser suites for docking, Studio editing and popup lifecycle. Physical touch/multi-monitor drag, physical GPU, native Windows and accessibility qualification remain separate. See [browser-window coverage](DOCKING-WINDOWS.md#automated-coverage) for the exact automated scope.
 
 ## Refinements in 0.5
 

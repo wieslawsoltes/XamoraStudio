@@ -111,7 +111,7 @@ export const packageLayout = [
     id: 'control-primitives',
     description: 'Standalone menus, scroll strips and UI density preferences',
     modules: [],
-    controls: ['menu-bar', 'scroll-buttons', 'workspace-density'],
+    controls: ['menu-bar', 'scroll-buttons', 'workspace-density', 'document-scope'],
     assets: ['dist/controls/scroll-buttons.css', 'dist/controls/menu-bar.css'],
     typeContracts: false,
     standalone: true,
@@ -120,7 +120,7 @@ export const packageLayout = [
     id: 'docking',
     description: 'Standalone docking layout model and live-DOM workspace control',
     modules: ['docking'],
-    controls: ['dock-workspace'],
+    controls: ['dock-workspace', 'dock-browser-windows'],
     assets: ['dist/controls/docking.css', 'dist/controls/scroll-buttons.css'],
     typeContracts: false,
     standalone: true,
@@ -165,7 +165,14 @@ export const packageLayout = [
         name,
         source: `dist/controls/${name}.js`,
       })),
-      ...['dock-workspace', 'menu-bar', 'scroll-buttons', 'workspace-density'].map((name) => ({
+      ...[
+        'dock-workspace',
+        'dock-browser-windows',
+        'document-scope',
+        'menu-bar',
+        'scroll-buttons',
+        'workspace-density',
+      ].map((name) => ({
         name,
         source: `dist/controls/${name}.js`,
       })),

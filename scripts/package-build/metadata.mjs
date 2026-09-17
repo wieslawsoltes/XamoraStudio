@@ -8,6 +8,24 @@ export function validateManifest(entry, manifest, version) {
   for (const name of entry.dependencies)
     if (manifest.dependencies?.[name] !== version)
       throw Error(`Missing dependency ${name} in ${entry.name}; update package manifests.`);
+  // Every non-CLI canonical/compatibility module is used by generated subpath imports.
+  // A built file alone is not resolvable when the package export map hides it.
+  for (const { name } of [...(entry.sources || []), ...(entry.reexports || [])]) {
+    if (name.startsWith('cli/')) continue;
+    const exported = manifest.exports?.['./' + name];
+    for (const [kind, format, extension, declaration] of [
+      ['import', 'esm', 'js', 'd.ts'],
+      ['require', 'cjs', 'cjs', 'd.cts'],
+    ]) {
+      if (
+        exported?.[kind]?.default !== `./dist/${format}/${name}.${extension}` ||
+        exported?.[kind]?.types !== `./dist/${format}/${name}.${declaration}`
+      )
+        throw Error(
+          `Missing or invalid ${kind} export ./${name} in ${entry.name}; update package manifests.`,
+        );
+    }
+  }
 }
 
 export function entrypointSource(entry, entries) {

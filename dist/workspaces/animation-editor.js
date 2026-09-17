@@ -378,7 +378,7 @@ export class AnimationEditor extends WorkspaceComponent {
     if (!panel) return;
     panel.classList.toggle('recording', this.record);
     const time = this.environment.query('#motion-time');
-    if (time && this.environment.document.activeElement !== time)
+    if (time && this.environment.activeElement !== time)
       time.value = Number(this.player.time.toFixed(3));
     this.environment
       .all('.motion-playhead', panel)

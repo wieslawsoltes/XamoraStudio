@@ -649,10 +649,9 @@ export class HtmlAnimationWorkspace extends WorkspaceComponent {
       record.textContent = this.recording ? '● Recording' : '● Record';
     }
     const time = panel.querySelector('[data-hm-time]');
-    if (time && this.environment.document.activeElement !== time)
-      time.value = (this.time / 1000).toFixed(3);
+    if (time && this.environment.activeElement !== time) time.value = (this.time / 1000).toFixed(3);
     const scrub = panel.querySelector('[data-hm-scrub]');
-    if (scrub && this.environment.document.activeElement !== scrub) scrub.value = String(this.time);
+    if (scrub && this.environment.activeElement !== scrub) scrub.value = String(this.time);
     panel
       .querySelectorAll('.html-motion-playhead')
       .forEach((el) => (el.style.left = (this.time / this.end) * 100 + '%'));

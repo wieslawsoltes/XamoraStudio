@@ -1,14 +1,15 @@
+import { DockBrowserWindows } from './dock-browser-windows.js';
 import { ScrollButtons } from './scroll-buttons.js';
 import { dockRatioLimits } from '../core/docking.js';
 import { findDock, dockGroups, locatePanel, clampFloat } from '../core/docking.js';
-const el = (tag, cls, text) => {
+const element = (document, tag, cls, text) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
   if (text !== undefined) n.textContent = text;
   return n;
 };
-const button = (text, title, action) => {
-  const b = el('button', 'dock-button', text);
+const makeButton = (document, text, title, action) => {
+  const b = element(document, 'button', 'dock-button', text);
   b.type = 'button';
   b.title = title;
   b.setAttribute('aria-label', title);
@@ -36,9 +37,15 @@ export class DockWorkspace extends EventTarget {
       onChange = () => {},
       onVisibility = () => {},
       keyboardScope = 'workspace',
+      browserWindows = false,
     } = {},
   ) {
     super();
+    const document = host.ownerDocument || globalThis.document;
+    const window = document.defaultView || globalThis.window;
+    this.document = document;
+    this.window = window;
+    const el = (tag, cls, text) => element(document, tag, cls, text);
     if (!['workspace', 'document'].includes(keyboardScope))
       throw Error('Invalid docking keyboard scope.');
     this.keyboardScope = keyboardScope;
@@ -64,7 +71,9 @@ export class DockWorkspace extends EventTarget {
     host.append(this.parking, this.shell, this.live);
     this.changed = (event) => {
       this.activationRevision++;
-      if (event.label === 'Raise floating window') {
+      if (event.label === 'Resize browser window') {
+        // Host geometry does not require rebuilding editor DOM.
+      } else if (event.label === 'Raise floating window') {
         this.paintZ();
       } else if (
         event.label === 'Activate panel' &&
@@ -77,14 +86,12 @@ export class DockWorkspace extends EventTarget {
     };
     model.addEventListener('change', this.changed);
     this.keydown = (e) => this.key(e);
-    document.addEventListener('keydown', this.keydown, true);
     this.outside = (e) => {
       clearTimeout(this.hoverTimer);
       if (this.flyout && !e.target.closest('.dock-flyout,.dock-auto-tab,.dock-menu'))
         this.closeFlyout();
       if (this.menu && !this.menu.contains(e.target)) this.closeMenu();
     };
-    document.addEventListener('pointerdown', this.outside);
     this.contentFocus = (e) => {
       if (this.rendering) return;
       const id = e.target.closest('[data-dock-content]')?.dataset.dockContent;
@@ -102,13 +109,63 @@ export class DockWorkspace extends EventTarget {
       )
         this.closeFlyout();
     };
-    host.addEventListener('pointerdown', this.contentFocus);
-    document.addEventListener('focusin', this.contentFocus);
+    this.documentCleanups = [];
+    this.bindDocument(document, host, this.documentCleanups);
     this.observer = new ResizeObserver(() => {
       this.clampWindows();
       this.dispatchEvent(new Event('resize'));
     });
     this.observer.observe(host);
+    if (browserWindows)
+      this.windows = new DockBrowserWindows(this, browserWindows === true ? {} : browserWindows);
+  }
+  bindDocument(document, host, cleanups) {
+    document.addEventListener('keydown', this.keydown, true);
+    document.addEventListener('pointerdown', this.outside);
+    document.addEventListener('focusin', this.contentFocus);
+    host.addEventListener('pointerdown', this.contentFocus);
+    cleanups.push(
+      () => document.removeEventListener('keydown', this.keydown, true),
+      () => document.removeEventListener('pointerdown', this.outside),
+      () => document.removeEventListener('focusin', this.contentFocus),
+      () => host.removeEventListener('pointerdown', this.contentFocus),
+    );
+  }
+  roots() {
+    return [this.shell, ...(this.windows?.list().map((record) => record.host) || [])];
+  }
+  query(selector) {
+    return (
+      this.roots()
+        .map((root) => root.querySelector(selector))
+        .find(Boolean) || null
+    );
+  }
+  queryAll(selector) {
+    return this.roots().flatMap((root) => [...root.querySelectorAll(selector)]);
+  }
+  frame(callback, document = this.document) {
+    return document === this.document
+      ? requestAnimationFrame(callback)
+      : document.defaultView.requestAnimationFrame(callback);
+  }
+  openWindow(ids, options) {
+    return this.windows?.open(ids, options) || null;
+  }
+  returnWindow(id) {
+    return this.windows?.return(id) || false;
+  }
+  move(ids, target, position = 'center', index) {
+    ids = this.model.require(ids);
+    const active = ids.includes(this.model.state.activePanel)
+      ? this.model.state.activePanel
+      : ids[0];
+    if (this.beforeActivate(active) === false) return false;
+    return this.model.dock(ids, target, position, index);
+  }
+  dockBack(id) {
+    if (this.beforeActivate(id) === false) return false;
+    return this.model.dockBack(id);
   }
   mount(id, node) {
     if (!this.model.panels.has(id)) throw Error('Register the docking panel before mounting it.');
@@ -116,8 +173,11 @@ export class DockWorkspace extends EventTarget {
     for (const [other, content] of this.contents)
       if (other !== id && content === node)
         throw Error('A content node can only belong to one panel.');
-    if (this.contents.get(id) !== node) this.unmount(id);
+    if (this.contents.get(id) === node) return node;
+    this.unmount(id);
     this.contents.set(id, node);
+    const record = this.windows?.get(locatePanel(this.model.state, id)?.floating?.id);
+    if (record) record.signature = null;
     node.dataset.dockContent = id;
     this.parking.append(node);
     return node;
@@ -127,6 +187,8 @@ export class DockWorkspace extends EventTarget {
     const node = this.contents.get(id);
     if (!node) return null;
     this.contents.delete(id);
+    const record = this.windows?.get(locatePanel(this.model.state, id)?.floating?.id);
+    if (record) record.signature = null;
     delete node.dataset.dockContent;
     node.remove();
     return node;
@@ -143,7 +205,7 @@ export class DockWorkspace extends EventTarget {
       this.render();
     } else this.model.activate(id);
     const revision = ++this.activationRevision;
-    requestAnimationFrame(() => {
+    this.frame(() => {
       if (
         this.disposed ||
         revision !== this.activationRevision ||
@@ -153,7 +215,7 @@ export class DockWorkspace extends EventTarget {
         return;
       this.revealTab(id);
       if (focus) this.focus(id);
-    });
+    }, this.contents.get(id)?.ownerDocument);
     return true;
   }
   show(id) {
@@ -167,6 +229,9 @@ export class DockWorkspace extends EventTarget {
     return true;
   }
   focus(id) {
+    const floating = locatePanel(this.model.state, id)?.floating;
+    if (floating) this.windows?.focus(floating.id);
+    else if (this.document.hasFocus?.() === false) this.window.focus?.();
     const node = this.contents.get(id);
     if (node?.closest('[hidden]')) return;
     const target = node?.querySelector(
@@ -174,7 +239,7 @@ export class DockWorkspace extends EventTarget {
     );
     if (target) target.focus({ preventScroll: true });
     else {
-      const group = this.shell.querySelector(`[data-dock-panel="${id}"]`);
+      const group = this.query(`[data-dock-panel="${id}"]`);
       group?.focus({ preventScroll: true });
     }
   }
@@ -183,6 +248,7 @@ export class DockWorkspace extends EventTarget {
   }
   notify(message) {
     this.live.textContent = message;
+    for (const record of this.windows?.records.values() || []) record.live.textContent = message;
   }
   render() {
     if (this.disposed) return;
@@ -190,23 +256,63 @@ export class DockWorkspace extends EventTarget {
       this.renderAgain = true;
       return;
     }
+    const document = this.document;
+    const el = (tag, cls, text) => element(document, tag, cls, text);
+    const button = (text, title, action) => makeButton(document, text, title, action);
     clearTimeout(this.hoverTimer);
+    this.rendering = true;
+    this.windows?.sync();
+    const d = this.model.state;
+    const retained = new Set();
+    for (const record of this.windows?.records.values() || []) {
+      const floating = d.floating.find((f) => f.id === record.id);
+      const panelIds = dockGroups({ root: floating?.root, floating: [] }).flatMap((g) => g.panels);
+      const signature = JSON.stringify([
+        floating?.root,
+        d.pinned?.filter((id) => panelIds.includes(id)),
+        d.zoomedGroup && findDock({ root: floating?.root, floating: [] }, d.zoomedGroup)?.id,
+        dockGroups({ root: floating?.root, floating: [] })
+          .flatMap((g) => g.panels)
+          .map((id) => {
+            const p = this.model.panels.get(id);
+            return [id, p?.title, p?.icon];
+          }),
+      ]);
+      record.retain = record.frame && record.signature === signature;
+      record.nextSignature = signature;
+      if (record.retain)
+        for (const id of dockGroups({ root: floating.root, floating: [] }).map((g) => g.id))
+          retained.add(id);
+    }
     for (const [id, strip] of this.strips) {
+      if (retained.has(id)) continue;
       this.tabScroll.set(id, strip.viewport.scrollLeft);
       strip.dispose();
+      this.strips.delete(id);
     }
-    this.strips.clear();
-    this.rendering = true;
-    const focused = document.activeElement,
-      selection =
-        focused && typeof focused.selectionStart === 'number'
-          ? { start: focused.selectionStart, end: focused.selectionEnd }
-          : null;
+    const documents = [document, ...(this.windows?.list().map((record) => record.document) || [])];
+    const focused =
+      documents.find((doc) => doc.hasFocus?.())?.activeElement ||
+      documents
+        .map((doc) => doc.activeElement)
+        .find((node) => node?.closest?.('[data-dock-content]'));
+    const selection =
+      focused && typeof focused.selectionStart === 'number'
+        ? {
+            start: focused.selectionStart,
+            end: focused.selectionEnd,
+            direction: focused.selectionDirection,
+          }
+        : null;
     const oldVisible = this.visible;
     this.visible = new Set();
-    for (const node of this.contents.values()) this.parking.append(node);
+    for (const record of this.windows?.records.values() || [])
+      if (record.retain) for (const id of record.visible) this.visible.add(id);
+    for (const [id, node] of this.contents) {
+      const record = this.windows?.get(locatePanel(d, id)?.floating?.id);
+      if (!record?.retain) (record?.parking || this.parking).append(node);
+    }
     this.shell.replaceChildren();
-    const d = this.model.state;
     for (const edge of ['left', 'right', 'top', 'bottom']) {
       const strip = el('nav', 'dock-auto-strip dock-auto-' + edge);
       strip.setAttribute('aria-label', edgeNames[edge] + ' auto-hidden windows');
@@ -249,7 +355,10 @@ export class DockWorkspace extends EventTarget {
     const root = el('div', 'dock-root');
     root.dataset.dockRoot = 'true';
     this.rootElement = root;
-    const zoomed = d.zoomedGroup && findDock(d, d.zoomedGroup);
+    const zoomedNode = d.zoomedGroup && findDock(d, d.zoomedGroup);
+    const zoomedPlace = zoomedNode && locatePanel(d, zoomedNode.active);
+    const zoomed =
+      zoomedPlace?.floating && this.windows?.get(zoomedPlace.floating.id) ? null : zoomedNode;
     if (zoomed) root.append(this.node(zoomed));
     else if (d.root) root.append(this.node(d.root));
     else {
@@ -261,26 +370,40 @@ export class DockWorkspace extends EventTarget {
       root.append(empty);
     }
     this.shell.append(root);
-    if (!zoomed)
-      for (const floating of d.floating) {
-        const frame = el('section', 'dock-floating');
-        frame.dataset.floatId = floating.id;
-        frame.setAttribute('aria-label', 'Floating window');
-        frame.style.zIndex = String(20 + d.floating.indexOf(floating));
+    for (const floating of d.floating) {
+      const record = this.windows?.get(floating.id);
+      if ((zoomed && !record) || record?.retain) continue;
+      const document = record?.document || this.document;
+      const el = (tag, cls, text) => element(document, tag, cls, text);
+      const frame = el('section', 'dock-floating');
+      frame.dataset.floatId = floating.id;
+      frame.setAttribute('aria-label', record ? 'Browser window' : 'Floating window');
+      frame.style.zIndex = String(20 + d.floating.indexOf(floating));
+      if (!record) {
         const rect = floating.maximized
           ? { x: 0, y: 0, width: this.host.clientWidth, height: this.host.clientHeight }
           : clampFloat(floating.rect, this.host.clientWidth, this.host.clientHeight);
         this.applyRect(frame, rect);
-        frame.append(this.node(floating.root, floating));
-        frame.onpointerdown = () => this.model.raiseFloat(floating.id);
-        if (!floating.maximized)
-          for (const side of ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']) {
-            const handle = el('div', 'dock-float-resize resize-' + side);
-            handle.onpointerdown = (e) => this.resizeFloat(e, floating, side, frame);
-            frame.append(handle);
-          }
-        this.shell.append(frame);
       }
+      const externalZoom =
+        record && d.zoomedGroup && findDock({ root: floating.root, floating: [] }, d.zoomedGroup);
+      frame.append(this.node(externalZoom || floating.root, floating, document));
+      frame.onpointerdown = () => this.model.raiseFloat(floating.id);
+      if (!record && !floating.maximized)
+        for (const side of ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']) {
+          const handle = el('div', 'dock-float-resize resize-' + side);
+          handle.onpointerdown = (e) => this.resizeFloat(e, floating, side, frame);
+          frame.append(handle);
+        }
+      if (record) {
+        record.surface.replaceChildren(frame);
+        record.frame = frame;
+        record.signature = record.nextSignature;
+        record.visible = new Set(
+          [...this.contents].filter(([, node]) => frame.contains(node)).map(([id]) => id),
+        );
+      } else this.shell.append(frame);
+    }
     if (this.flyout) {
       const place = locatePanel(d, this.flyout);
       if (place?.kind === 'autoHide') {
@@ -317,14 +440,14 @@ export class DockWorkspace extends EventTarget {
       if (oldVisible.has(id) !== this.visible.has(id)) this.onVisibility(id, this.visible.has(id));
     if (
       focused &&
-      this.host.contains(focused) &&
+      this.roots().some((root) => root.contains(focused)) &&
       !focused.closest('[hidden]') &&
       this.visible.has(focused.closest('[data-dock-content]')?.dataset.dockContent)
     ) {
       focused.focus({ preventScroll: true });
       if (selection)
         try {
-          focused.setSelectionRange(selection.start, selection.end);
+          focused.setSelectionRange(selection.start, selection.end, selection.direction);
         } catch {}
     }
     for (const [id, strip] of this.strips) {
@@ -339,15 +462,16 @@ export class DockWorkspace extends EventTarget {
       this.render();
       return;
     }
+    this.paintActive();
     this.dispatchEvent(new Event('resize'));
   }
   revealTab(id) {
-    const tab = this.shell.querySelector(`[data-dock-panel="${id}"]`),
+    const tab = this.query(`[data-dock-panel="${id}"]`),
       group = tab?.closest('[data-dock-group]');
     this.strips.get(group?.dataset.dockGroup)?.reveal(tab?.closest('.dock-tab-wrap'));
   }
   paintActive() {
-    for (const group of this.shell.querySelectorAll('[data-dock-group]'))
+    for (const group of this.queryAll('[data-dock-group]'))
       group.classList.toggle(
         'dock-group-active',
         !!findDock(this.model.state, group.dataset.dockGroup)?.panels.includes(
@@ -356,19 +480,22 @@ export class DockWorkspace extends EventTarget {
       );
   }
   paintZ() {
-    for (const frame of this.shell.querySelectorAll('[data-float-id]'))
+    for (const frame of this.queryAll('[data-float-id]'))
       frame.style.zIndex = String(
         20 + this.model.state.floating.findIndex((f) => f.id === frame.dataset.floatId),
       );
   }
   attach(id, host) {
+    const el = (tag, cls, text) => element(host.ownerDocument || this.document, tag, cls, text);
     const content = this.contents.get(id);
     if (content) {
       host.append(content);
       this.visible.add(id);
     } else host.append(el('div', 'dock-empty', 'Window is not available.'));
   }
-  node(node, floating = null) {
+  node(node, floating = null, document = this.document) {
+    const el = (tag, cls, text) => element(document, tag, cls, text);
+    const button = (text, title, action) => makeButton(document, text, title, action);
     if (node.type === 'split') {
       const box = el('div', 'dock-split split-' + node.axis);
       box.dataset.splitId = node.id;
@@ -376,8 +503,8 @@ export class DockWorkspace extends EventTarget {
       const first = el('div', 'dock-branch'),
         second = el('div', 'dock-branch'),
         splitter = el('div', 'dock-splitter');
-      first.append(this.node(node.first, floating));
-      second.append(this.node(node.second, floating));
+      first.append(this.node(node.first, floating, document));
+      second.append(this.node(node.second, floating, document));
       splitter.tabIndex = 0;
       splitter.setAttribute('role', 'separator');
       splitter.setAttribute('aria-label', 'Resize docked windows');
@@ -400,7 +527,7 @@ export class DockWorkspace extends EventTarget {
     );
     box.dataset.dockGroup = node.id;
     box.classList.toggle('dock-group-active', node.panels.includes(this.model.state.activePanel));
-    box.append(this.header(node, floating));
+    box.append(this.header(node, floating, false, document));
     const tabs = el('div', 'dock-tabs');
     tabs.setAttribute('role', 'tablist');
     tabs.setAttribute('aria-label', node.kind === 'document' ? 'Documents' : 'Tool windows');
@@ -437,6 +564,7 @@ export class DockWorkspace extends EventTarget {
         else this.toggleFloat(id);
       };
       wrap.append(tab);
+      if (this.windows) wrap.append(this.transferGrip([id], node.id, document));
       if (node.kind === 'document')
         wrap.append(
           button(this.model.state.pinned.includes(id) ? '◆' : '◇', 'Pin tab', () =>
@@ -456,10 +584,22 @@ export class DockWorkspace extends EventTarget {
     });
     this.strips.set(node.id, strip);
     box.append(strip.host, body);
-    requestAnimationFrame(() => strip.update());
+    this.frame(() => strip.update(), document);
     return box;
   }
-  header(group, floating, flyout = false) {
+  transferGrip(ids, groupId, document) {
+    const grip = element(document, 'span', 'dock-transfer-grip', '⠿');
+    grip.draggable = true;
+    grip.title = 'Drag to another browser window';
+    grip.setAttribute('aria-label', grip.title);
+    grip.onpointerdown = (e) => e.stopPropagation();
+    grip.ondragstart = (e) => this.windows.beginTransfer(e, ids, groupId);
+    return grip;
+  }
+  header(group, floating, flyout = false, document = this.document) {
+    const el = (tag, cls, text) => element(document, tag, cls, text);
+    const button = (text, title, action) => makeButton(document, text, title, action);
+    const external = floating && this.windows?.get(floating.id);
     const header = el('header', 'dock-group-header');
     const title = el(
       'span',
@@ -474,12 +614,26 @@ export class DockWorkspace extends EventTarget {
     );
     title.title = 'Drag to move this group';
     header.append(title);
+    if (this.windows) {
+      header.append(this.transferGrip(group.panels, group.id, document));
+      header.append(
+        button(
+          external ? '↙' : '↗',
+          external ? 'Return browser window to main window' : 'Open group in browser window',
+          () =>
+            external
+              ? this.returnWindow(floating.id)
+              : this.openWindow(group.panels, { sourceWindow: document.defaultView }),
+        ),
+      );
+    }
     header.onpointerdown = (e) => {
       if (!e.target.closest('button')) this.startDrag(e, group.panels, group, { floating, flyout });
     };
     header.ondblclick = (e) => {
       if (e.target.closest('button')) return;
-      if (floating && !e.ctrlKey && !e.metaKey) this.model.maximizeFloat(floating.id);
+      if (external) this.model.zoomGroup(group.id);
+      else if (floating && !e.ctrlKey && !e.metaKey) this.model.maximizeFloat(floating.id);
       else this.toggleFloat(group.active, true);
     };
     if (group.panels.length > 1)
@@ -508,8 +662,13 @@ export class DockWorkspace extends EventTarget {
       header.append(
         button(
           this.model.state.zoomedGroup === group.id ? '❐' : '□',
-          floating ? 'Maximize or restore floating window' : 'Maximize or restore tab group',
-          () => (floating ? this.model.maximizeFloat(floating.id) : this.model.zoomGroup(group.id)),
+          floating && !external
+            ? 'Maximize or restore floating window'
+            : 'Maximize or restore tab group',
+          () =>
+            floating && !external
+              ? this.model.maximizeFloat(floating.id)
+              : this.model.zoomGroup(group.id),
         ),
       );
     header.append(button('×', 'Close ' + this.title(group.active), () => this.hide(group.active)));
@@ -528,7 +687,8 @@ export class DockWorkspace extends EventTarget {
     });
   }
   clampWindows() {
-    for (const frame of this.shell.querySelectorAll('[data-float-id]')) {
+    for (const frame of this.queryAll('[data-float-id]')) {
+      if (this.windows?.get(frame.dataset.floatId)) continue;
       const f = this.model.state.floating.find((n) => n.id === frame.dataset.floatId);
       if (f)
         this.applyRect(
@@ -540,6 +700,8 @@ export class DockWorkspace extends EventTarget {
     }
   }
   gesture(event, move, finish, cancel) {
+    const document = event.target?.ownerDocument || this.document;
+    const window = document.defaultView || this.window;
     event.preventDefault();
     event.stopPropagation();
     const cleanup = () => {
@@ -549,6 +711,7 @@ export class DockWorkspace extends EventTarget {
       document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', onCancel);
       this.cancelGesture = null;
+      this.gestureDocument = null;
       document.body.classList.remove('dock-gesturing');
     };
     const onMove = (e) => {
@@ -564,7 +727,10 @@ export class DockWorkspace extends EventTarget {
       cancel?.();
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') {
+      if (
+        e.key === 'Escape' &&
+        !e.target.closest?.('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]')
+      ) {
         e.preventDefault();
         e.stopImmediatePropagation();
         onCancel();
@@ -572,6 +738,7 @@ export class DockWorkspace extends EventTarget {
     };
     this.cancelGesture?.();
     this.cancelGesture = onCancel;
+    this.gestureDocument = document;
     document.addEventListener('pointermove', onMove, true);
     document.addEventListener('pointerup', onUp, true);
     document.addEventListener('pointercancel', onCancel, true);
@@ -687,7 +854,9 @@ export class DockWorkspace extends EventTarget {
     );
   }
   startDrag(event, ids, group, { floating = null, flyout = false } = {}) {
-    if (event.button !== 0 || event.target.closest('.dock-button')) return;
+    const document = event.target?.ownerDocument || this.document;
+    const el = (tag, cls, text) => element(document, tag, cls, text);
+    if (event.button !== 0 || event.target.closest('.dock-button,.dock-transfer-grip')) return;
     const start = { x: event.clientX, y: event.clientY },
       groupElement = event.target.closest('.dock-group,.dock-flyout'),
       original = (groupElement || event.target).getBoundingClientRect();
@@ -729,7 +898,7 @@ export class DockWorkspace extends EventTarget {
               if (delta) {
                 tabs.scrollLeft += delta;
                 drop = this.dropAt(last, ids, group.id);
-                this.drawDrop(drop);
+                this.drawDrop(drop, document);
               }
             }
             this.scrollFrame = requestAnimationFrame(tick);
@@ -739,7 +908,7 @@ export class DockWorkspace extends EventTarget {
         this.ghost.style.left = e.clientX + 16 + 'px';
         this.ghost.style.top = e.clientY + 15 + 'px';
         drop = this.dropAt(e, ids, group.id);
-        this.drawDrop(drop);
+        this.drawDrop(drop, document);
       },
       (e) => {
         if (moved) drop = this.dropAt(e, ids, group.id);
@@ -756,6 +925,11 @@ export class DockWorkspace extends EventTarget {
             if (this.beforeActivate(ids[0]) === false) return;
             this.model.dock(ids, drop.id, drop.position, drop.index);
             this.notify('Docked ' + this.title(ids[0]) + ' · ' + edgeNames[drop.position]);
+          } else if (e.altKey && this.windows) {
+            this.openWindow(ids, { sourceWindow: document.defaultView });
+          } else if (this.windows?.forDocument(document)) {
+            // Native browser geometry belongs to the OS. Use the transfer grip across windows.
+            return;
           } else {
             const host = this.host.getBoundingClientRect(),
               rect = clampFloat(
@@ -786,11 +960,27 @@ export class DockWorkspace extends EventTarget {
     );
   }
   dropAt(event, ids, sourceId) {
+    const document = event.target?.ownerDocument || this.document;
+    const record = this.windows?.forDocument(document);
+    if (document !== this.document && !record) return null;
+    const host = record?.host || this.host;
+    const rootElement = record?.surface || this.rootElement;
+    const rootNode = record
+      ? this.model.state.floating.find((f) => f.id === record.id)?.root
+      : this.model.state.root;
     if (event.ctrlKey || event.metaKey) return null;
     const x = event.clientX,
       y = event.clientY,
       hit = document.elementFromPoint(x, y),
       guide = hit?.closest('[data-dock-guide]');
+    if (
+      hit &&
+      hit !== document.body &&
+      hit !== document.documentElement &&
+      !host.contains(hit) &&
+      !this.overlay?.contains(hit)
+    )
+      return null;
     if (guide) {
       const target = findDock(this.model.state, guide.dataset.target);
       return this.validDrop(
@@ -836,22 +1026,25 @@ export class DockWorkspace extends EventTarget {
         );
       }
     }
-    const rr = this.rootElement.getBoundingClientRect();
-    if (x < rr.left || x > rr.right || y < rr.top || y > rr.bottom) return null;
-    if (!this.model.state.root) return { id: null, position: 'center', rect: rr };
+    const rr = rootElement.getBoundingClientRect();
+    const floatingHit = hit?.closest('[data-float-id]');
+    if (!floatingHit && (x < rr.left || x > rr.right || y < rr.top || y > rr.bottom)) return null;
+    if (!rootNode && !floatingHit) return { id: null, position: 'center', rect: rr };
     const outer =
-      x - rr.left < 26
-        ? 'left'
-        : rr.right - x < 26
-          ? 'right'
-          : y - rr.top < 26
-            ? 'top'
-            : rr.bottom - y < 26
-              ? 'bottom'
-              : null;
-    if (outer && this.model.state.root)
+      floatingHit && !record
+        ? null
+        : x - rr.left < 26
+          ? 'left'
+          : rr.right - x < 26
+            ? 'right'
+            : y - rr.top < 26
+              ? 'top'
+              : rr.bottom - y < 26
+                ? 'bottom'
+                : null;
+    if (outer && rootNode)
       return this.validDrop(
-        { id: this.model.state.root.id, position: outer, rect: rr, outer: true },
+        { id: rootNode.id, position: outer, rect: rr, outer: true },
         ids,
         sourceId,
       );
@@ -899,7 +1092,8 @@ export class DockWorkspace extends EventTarget {
       return { ...drop, position: 'right' };
     return drop;
   }
-  drawDrop(drop) {
+  drawDrop(drop, document = this.document) {
+    const el = (tag, cls, text) => element(document, tag, cls, text);
     this.overlay?.remove();
     this.overlay = null;
     if (!drop) return;
@@ -958,9 +1152,18 @@ export class DockWorkspace extends EventTarget {
     document.body.append(overlay);
   }
   toggleFloat(id, whole = false) {
+    if (this.beforeActivate(id) === false) return false;
     const p = locatePanel(this.model.state, id);
     if (p?.floating || p?.kind === 'autoHide') {
-      this.model.dockBack(id);
+      if (whole && p.group?.panels.length > 1) {
+        const ids = [...p.group.panels];
+        this.model.batch('Dock tab group back', () => {
+          this.model.dockBack(ids[0]);
+          const target = locatePanel(this.model.state, ids[0]).group;
+          this.model.dock(ids.slice(1), target.id, 'center');
+          this.model.activate(id);
+        });
+      } else this.model.dockBack(id);
       return;
     }
     const bounds = this.host.getBoundingClientRect();
@@ -979,6 +1182,10 @@ export class DockWorkspace extends EventTarget {
     );
   }
   tabList(event, group, anchor) {
+    const document = event.target?.ownerDocument || this.document;
+    const window = document.defaultView || this.window;
+    const el = (tag, cls, text) => element(document, tag, cls, text);
+    const button = (text, title, action) => makeButton(document, text, title, action);
     event.preventDefault?.();
     event.stopPropagation?.();
     this.closeMenu();
@@ -1002,20 +1209,26 @@ export class DockWorkspace extends EventTarget {
     menu.querySelector('button')?.focus();
   }
   closeFlyout() {
+    const document = this.document;
     if (!this.flyout) return;
     const focused = document.activeElement?.closest('.dock-flyout'),
       id = this.flyout;
     this.flyout = null;
     this.render();
-    if (focused) this.shell.querySelector(`[data-panel="${id}"]`)?.focus();
+    if (focused) this.query(`[data-panel="${id}"]`)?.focus();
   }
   closeMenu() {
+    const document = this.menu?.ownerDocument || this.document;
     const focused = this.menu?.contains(document.activeElement);
     this.menu?.remove();
     this.menu = null;
     if (focused) this.menuReturn?.focus?.({ preventScroll: true });
   }
   context(event, id, anchor) {
+    const document = event.target?.ownerDocument || this.document;
+    const window = document.defaultView || this.window;
+    const el = (tag, cls, text) => element(document, tag, cls, text);
+    const button = (text, title, action) => makeButton(document, text, title, action);
     event.preventDefault?.();
     event.stopPropagation?.();
     this.closeMenu();
@@ -1040,19 +1253,32 @@ export class DockWorkspace extends EventTarget {
     };
     menu.append(el('strong', 'dock-menu-title', this.title(id)));
     add('Float', () => this.toggleFloat(id), !!place?.floating);
-    add('Dock back', () => this.model.dockBack(id));
+    add('Dock back', () => this.dockBack(id));
+    if (this.windows) {
+      add('Open tab in browser window', () => this.openWindow(id, { sourceWindow: window }));
+      if (place?.group)
+        add('Open group in browser window', () =>
+          this.openWindow(place.group.panels, { sourceWindow: window }),
+        );
+      if (place?.floating && this.windows.get(place.floating.id))
+        add('Return browser window to main window', () => this.returnWindow(place.floating.id));
+      if (place?.floating?.browserWindow && !this.windows.get(place.floating.id))
+        add('Reopen saved browser window', () =>
+          this.windows.reopen(place.floating.id, { sourceWindow: window }),
+        );
+    }
     if (descriptor?.kind !== 'document')
       for (const edge of ['left', 'right', 'top', 'bottom'])
         add('Auto-hide · ' + edgeNames[edge], () => this.model.autoHide(id, edge));
     if (place?.group) {
       add(
         'New vertical tab group',
-        () => this.model.dock(id, place.group.id, 'right'),
+        () => this.move(id, place.group.id, 'right'),
         place.group.panels.length < 2,
       );
       add(
         'New horizontal tab group',
-        () => this.model.dock(id, place.group.id, 'bottom'),
+        () => this.move(id, place.group.id, 'bottom'),
         place.group.panels.length < 2,
       );
       add('Maximize / restore group', () => this.model.zoomGroup(place.group.id));
@@ -1064,7 +1290,7 @@ export class DockWorkspace extends EventTarget {
     for (const group of dockGroups(this.model.state).filter(
       (g) => g !== place?.group && !(g.kind === 'tool' && descriptor?.kind === 'document'),
     ))
-      add('Move to ' + this.title(group.active), () => this.model.dock(id, group.id, 'center'));
+      add('Move to ' + this.title(group.active), () => this.move(id, group.id, 'center'));
     add('Close', () => this.hide(id));
     if (place?.group) {
       add('Close other tabs', () => {
@@ -1085,16 +1311,20 @@ export class DockWorkspace extends EventTarget {
   }
   key(e) {
     if (this.disposed) return;
+    const document = e.target?.ownerDocument || this.document;
+    const host = this.windows?.forDocument(document)?.host || this.host;
     const workspace = e.target.closest?.('.dock-workspace');
-    if (workspace && workspace !== this.host) return;
+    if (workspace && workspace !== host) return;
     if (
       this.keyboardScope !== 'document' &&
-      !this.host.contains(e.target) &&
+      !host.contains(e.target) &&
       !this.menu?.contains(e.target) &&
       !this.cancelGesture
     )
       return;
-    if (this.menu) {
+    if (e.target.closest?.('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]'))
+      return;
+    if (this.menu?.ownerDocument === document) {
       const items = [...this.menu.querySelectorAll('button:not(:disabled)')],
         at = items.indexOf(document.activeElement);
       if (['ArrowDown', 'ArrowUp', 'Escape', 'Home', 'End'].includes(e.key)) {
@@ -1112,20 +1342,18 @@ export class DockWorkspace extends EventTarget {
         return;
       }
     }
-    if (e.key === 'Escape' && this.cancelGesture) {
+    if (e.key === 'Escape' && this.cancelGesture && this.gestureDocument === document) {
       e.preventDefault();
       e.stopImmediatePropagation();
       this.cancelGesture();
       return;
     }
-    if (e.key === 'Escape' && this.flyout) {
+    if (e.key === 'Escape' && this.flyout && document === this.document) {
       e.preventDefault();
       e.stopImmediatePropagation();
       this.closeFlyout();
       return;
     }
-    if (e.target.closest('[role="dialog"],[role="alertdialog"],[data-dock-ignore-shortcuts]'))
-      return;
     const mod = e.ctrlKey || e.metaKey;
     if (e.key === 'F6') {
       e.preventDefault();
@@ -1170,7 +1398,7 @@ export class DockWorkspace extends EventTarget {
               ? 0.5
               : n.ratio + (['ArrowLeft', 'ArrowUp'].includes(e.key) ? -step : step),
       );
-      this.shell.querySelector(`[data-split-id="${n.id}"].dock-splitter`)?.focus();
+      this.query(`[data-split-id="${n.id}"].dock-splitter`)?.focus();
       return;
     }
     const tab = e.target.closest('[data-dock-panel]');
@@ -1196,7 +1424,7 @@ export class DockWorkspace extends EventTarget {
                   ? tabs.length - 1
                   : (index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
           this.activate(tabs[next].dataset.dockPanel);
-          this.shell.querySelector(`[data-dock-panel="${tabs[next].dataset.dockPanel}"]`)?.focus();
+          this.query(`[data-dock-panel="${tabs[next].dataset.dockPanel}"]`)?.focus();
         }
         return;
       }
@@ -1212,6 +1440,7 @@ export class DockWorkspace extends EventTarget {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.windows?.dispose();
     this.cancelGesture?.();
     for (const strip of this.strips.values()) strip.dispose();
     this.strips.clear();
@@ -1221,10 +1450,8 @@ export class DockWorkspace extends EventTarget {
     this.ghost?.remove();
     this.observer.disconnect();
     this.model.removeEventListener('change', this.changed);
-    document.removeEventListener('keydown', this.keydown, true);
-    document.removeEventListener('pointerdown', this.outside);
-    document.removeEventListener('focusin', this.contentFocus);
-    this.host.removeEventListener('pointerdown', this.contentFocus);
+    for (const cleanup of this.documentCleanups) cleanup();
+    this.documentCleanups.length = 0;
     for (const node of this.contents.values()) {
       delete node.dataset.dockContent;
       this.host.append(node);

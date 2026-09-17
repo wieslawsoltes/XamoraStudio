@@ -8,7 +8,7 @@ model.transaction('Initial layout', state => {
   state.root = dockSplit('horizontal', dockGroup(['outline']), dockSplit('horizontal', dockGroup(['editor'], 'document'), dockGroup(['properties']), 0.7), 0.2);
   state.hidden = []; state.activePanel = 'editor';
 });
-const control = new DockWorkspace(document.querySelector('#workspace'), model);
+const control = new DockWorkspace(document.querySelector('#workspace'), model, { browserWindows: true });
 const editor = document.createElement('textarea'); editor.className = 'lab-text'; editor.value = 'Dock this live editor. Its text and selection are retained.'; editor.setAttribute('aria-label', 'Example text');
 control.mount('editor', editor);
 for (const id of ['outline', 'properties']) {
@@ -25,4 +25,7 @@ document.querySelector('#dock').onclick = () => model.dockBack('editor');
 document.querySelector('#undo').onclick = () => model.undo();
 document.querySelector('#save').onclick = () => { saved = model.serialize(); status.textContent = 'Layout saved'; };
 document.querySelector('#restore').onclick = () => model.load(saved);
+document.querySelector('#popout').onclick = () => control.openWindow('editor');
+document.querySelector('#reopen').onclick = () => { const id = control.windows.pending()[0]; if (id) control.windows.reopen(id); };
+document.querySelector('#return').onclick = () => { for (const {id} of control.windows.list()) control.returnWindow(id); };
 window.controlsLab = { model, control, editor };

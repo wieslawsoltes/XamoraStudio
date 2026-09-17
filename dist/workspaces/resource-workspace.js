@@ -156,7 +156,7 @@ export class ResourceWorkspace extends WorkspaceComponent {
     const s = this.s,
       host = s.leftHost('assets');
     if (!host) return;
-    const active = this.environment.document.activeElement,
+    const active = this.environment.activeElement,
       wasSearch = active?.id === 'resource-search',
       caret = active?.selectionStart,
       scroll = host.scrollTop,

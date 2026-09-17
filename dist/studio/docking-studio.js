@@ -10,7 +10,7 @@ import { DockWorkspace } from '../controls/dock-workspace.js';
 import { PreviewRenderer } from '../core/render.js';
 import { listStoryboards } from '../core/animation.js';
 import { clone, find } from '../core/model.js';
-import { esc, $, $$, notify } from './ui.js';
+import { esc, $, $$, notify, registerUIRoot, listenStudio } from './ui.js';
 const LEFT = { layers: 'Layers', toolkit: 'Toolbox', assets: 'Resources', data: 'Data sources' };
 const RIGHT = {
   design: 'Properties',
@@ -154,6 +154,25 @@ export class DockingStudio {
     );
     this.control = new DockWorkspace(this.workspace, this.model, {
       keyboardScope: 'document',
+      browserWindows: {
+        bodyClass: 'studio docking-enabled',
+        onOpen: ({ window: popup, document: doc, host }) => {
+          const removeUI = registerUIRoot(doc);
+          let removeScope;
+          try {
+            removeScope = s.documentScope?.add(doc, { root: host, workspace: host });
+            popup.xamora = window.xamora;
+          } catch (error) {
+            removeUI();
+            removeScope?.();
+            throw error;
+          }
+          return () => {
+            removeScope?.();
+            removeUI();
+          };
+        },
+      },
       beforeActivate: (id) => this.beforeActivate(id),
       onChange: (label) => this.layoutChanged(label),
       onVisibility: (id, visible) => this.visibility(id, visible),
@@ -193,6 +212,11 @@ export class DockingStudio {
         saveLayout: () => this.model.serialize(),
         loadLayout: (layout) => this.model.load(layout, { reconcile: true }),
         reset: () => this.preset('designer'),
+        openWindow: (ids, options) => this.control.openWindow(ids, options),
+        returnWindow: (id) => this.control.returnWindow(id),
+        windows: () => this.control.windows.list(),
+        pendingWindows: () => this.control.windows.pending(),
+        reopenWindow: (id, options) => this.control.windows.reopen(id, options),
       },
     });
   }
@@ -425,7 +449,7 @@ export class DockingStudio {
       (this.s.editor.dirty ? ' *' : '') +
       ' · ' +
       (this.s.doc.framework === 'HTML' ? 'HTML' : 'XAML');
-    for (const tab of this.control.shell.querySelectorAll('[data-dock-panel]')) {
+    for (const tab of this.control.queryAll('[data-dock-panel]')) {
       const id = tab.dataset.dockPanel,
         title = this.control.title(id);
       const text = tab.querySelector('.dock-tab-text');
@@ -478,8 +502,10 @@ export class DockingStudio {
       this.s.features.prototype.board();
   }
   resize() {
-    cancelAnimationFrame(this.resizeFrame);
-    this.resizeFrame = requestAnimationFrame(() => {
+    this.resizeWindow?.cancelAnimationFrame(this.resizeFrame);
+    this.resizeWindow = this.canvas.ownerDocument?.defaultView || globalThis;
+    this.resizeFrame = this.resizeWindow.requestAnimationFrame(() => {
+      this.s.editor.refreshLayout?.();
       this.s.drawGrid();
       this.s.drawSelection();
       for (const entry of this.passiveRenderers.values()) this.scalePassive(entry);
@@ -651,7 +677,7 @@ export class DockingStudio {
         s.command('focus-mode');
       }
     };
-    document.addEventListener('keydown', this.shortcuts, true);
+    listenStudio(this.s, document, 'keydown', this.shortcuts, true);
   }
   toggle(id) {
     return !this.control.visible.has(id) ? this.control.show(id) : this.control.hide(id);
@@ -827,7 +853,7 @@ export class DockingStudio {
     }
   }
   registerPanel({ id, title, content, kind = 'tool', icon = '▤', onClose }) {
-    if (!(content instanceof HTMLElement))
+    if (content?.nodeType !== 1 || !content.ownerDocument || typeof content.append !== 'function')
       throw Error('Provide a live HTMLElement for panel content.');
     this.model.register({ id, title, kind, icon, onClose });
     this.control.mount(id, content);
@@ -836,8 +862,7 @@ export class DockingStudio {
       show: () => this.control.show(id),
       close: () => this.control.hide(id),
       dispose: () => {
-        this.control.contents.delete(id);
-        content.remove();
+        this.control.unmount(id)?.remove();
         this.model.unregister(id);
       },
     };

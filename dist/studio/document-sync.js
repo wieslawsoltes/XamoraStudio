@@ -1,6 +1,7 @@
+import { listenStudio } from './ui.js';
 import { find, parentOf } from '../core/model.js';
 import { serializeXaml } from '../core/xaml.js';
-import { $, notify, saveFile } from './ui.js';
+import { $, $$, notify, saveFile } from './ui.js';
 
 /** Connect the IDE to each document's canonical source/AST session. */
 export class DocumentSync {
@@ -70,7 +71,7 @@ export class DocumentSync {
     saveSource.textContent = 'Save source';
     saveSource.title = 'Download the exact source, including an unfinished draft';
     saveSource.onclick = () => this.saveSource();
-    document.querySelector('.code-header [data-action="apply-code"]')?.after(saveSource);
+    $('.code-header [data-action="apply-code"]')?.after(saveSource);
     const context = studio.menus.runContext.bind(studio.menus);
     studio.menus.runContext = (id) =>
       ['undo', 'redo'].includes(id) && studio.menus.textTarget() === editor.input
@@ -102,7 +103,9 @@ export class DocumentSync {
       if (studio.tool !== 'hand' && !studio.spaceHeld && !this.prepareEdit()) return;
       return down(event);
     };
-    document.addEventListener(
+    listenStudio(
+      studio,
+      document,
       'pointerdown',
       (event) => {
         if (editor.host.contains(event.target)) {
@@ -170,7 +173,7 @@ export class DocumentSync {
   }
   queueRender() {
     if (this.renderFrame) return;
-    this.renderFrame = requestAnimationFrame(() => {
+    this.renderFrame = this.s.editor.host.ownerDocument.defaultView.requestAnimationFrame(() => {
       this.renderFrame = null;
       this.renderNow();
     });
@@ -262,7 +265,7 @@ export class DocumentSync {
       ? `Source error at ${issue?.line || 1}:${issue?.column || 1}. Visual editing paused.`
       : '';
     $('#studio')?.classList.toggle('source-has-errors', invalid);
-    document.querySelectorAll('[data-action="apply-code"]').forEach((button) => {
+    $$('[data-action="apply-code"]').forEach((button) => {
       button.disabled = invalid || !!editor.composing;
       button.title = 'Source synchronizes automatically. Ctrl+Enter checks synchronization now.';
     });
