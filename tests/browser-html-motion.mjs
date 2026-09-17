@@ -76,6 +76,8 @@ try {
     }, targetId);
   };
   await ready();
+  assert.equal(await page.locator('.html-motion-panel .strip-scroll-button').count(), 0);
+  assert.equal(await page.locator('.html-motion-bar.scroll-button-viewport').count(), 3);
   const created = await page.evaluate(() =>
     window.xamora.studio.html.motion.create({
       name: 'fadeProof',

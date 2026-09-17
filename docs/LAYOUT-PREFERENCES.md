@@ -50,7 +50,7 @@ without changing the preference; Studio uses this for deliberate editor-mode cha
 ## Scroll controls
 
 Only document/tool docking tab strips receive arrow buttons. Topbar, menu bar, toolbar and
-statusbar keep native horizontal scrolling and have no arrow controls. Docking tab arrows are
+statusbar and HTML animation toolbars keep native horizontal scrolling and have no arrow controls. Docking tab arrows are
 hidden until the tabs actually exceed the full available strip width. The visibility decision
 includes the space the arrows themselves occupy, preventing a fitting tab row from keeping
 unnecessary arrows or flickering near the overflow threshold. Resize, text and DOM changes
@@ -70,3 +70,7 @@ modes, narrow chrome, and both source and packaged standalone docking with actua
 Snapshots are written to the existing `ui-review-snapshots` artifact directory. Existing unit,
 package, browser and native gates remain unchanged. Physical-device and additional-browser
 qualification remain separate from these automated checks.
+
+Resource dictionaries also initialize their preview context before animation setup, so closing
+all editors and reloading cannot leave resource lookup attached to an absent or stale document.
+The empty-layout persistence browser test asserts an exact layout/document/source round-trip.

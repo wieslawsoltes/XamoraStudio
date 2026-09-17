@@ -14,7 +14,6 @@ import {
   HTML_ANIMATION_PRESETS,
   HtmlAnimationPreview,
 } from '../core/html-animation.js';
-import { ScrollButtons } from '../controls/scroll-buttons.js';
 import { WorkspaceComponent, esc } from './workspace-context.js';
 
 const TIMING_PROPERTIES = ['duration', 'delay', 'iterations', 'direction', 'fill', 'easing'];
@@ -99,7 +98,6 @@ export class HtmlAnimationWorkspace extends WorkspaceComponent {
       this.property = 'opacity';
       this.subscriptions = new WeakSet();
       this.catalog = { definitions: [], bindings: [], diagnostics: [] };
-      this.scrolls = [];
       this.environment.stylesheet('html-animation');
       this.host = this.environment.own(
         this.environment.track(this.environment.document.createElement('section')),
@@ -662,8 +660,6 @@ export class HtmlAnimationWorkspace extends WorkspaceComponent {
     const legacy = this.environment.query('#' + 'animation-panel');
     if (legacy) legacy.hidden = true;
     const scroll = this.host.querySelector('.html-motion-track-area')?.scrollTop || 0;
-    this.scrolls.forEach((s) => s.dispose());
-    this.scrolls = [];
     const d = this.definition,
       b = this.binding,
       t = b?.timing || {
@@ -905,10 +901,13 @@ export class HtmlAnimationWorkspace extends WorkspaceComponent {
     this.environment.handler(this.host, 'onkeydown', (e) => this.key(e));
     this.host.querySelector('.html-motion-track-area').scrollTop = scroll;
     this.host.querySelectorAll('.html-motion-bar').forEach((bar) => {
+      // These are toolbars, not docking tab strips. Keep native scrolling without arrows.
       const next = bar.nextSibling,
-        scroll = new ScrollButtons(bar, { label: 'HTML animation controls' });
-      this.host.insertBefore(scroll.host, next);
-      this.scrolls.push(scroll);
+        wrapper = bar.ownerDocument.createElement('div');
+      wrapper.className = 'scroll-button-strip';
+      bar.classList.add('scroll-button-viewport');
+      wrapper.append(bar);
+      this.host.insertBefore(wrapper, next);
     });
     this.zoomRows();
     this.transport();
@@ -1046,7 +1045,6 @@ export class HtmlAnimationWorkspace extends WorkspaceComponent {
     try {
       this.pause();
       this.preview?.dispose?.();
-      this.scrolls.forEach((scroll) => scroll.dispose());
       this.host.remove();
     } finally {
       super.dispose();
