@@ -45,13 +45,20 @@ export class DockBrowserWindows {
     this.options = options;
     this.records = new Map();
     this.disposed = false;
+    this.suspended = false;
     this.cleanups = [];
     this.bindTransfer(control.host, this.cleanups);
     const pagehide = () => {
+      this.suspended = true;
+      this.endTransfer();
+      control.cancelGesture?.();
       for (const record of [...this.records.values()]) this.release(record, { render: false });
     };
     const pageshow = (event) => {
-      if (event.persisted && !this.disposed) control.render();
+      if (event.persisted && !this.disposed) {
+        this.suspended = false;
+        control.render();
+      }
     };
     control.window.addEventListener('pageshow', pageshow);
     this.cleanups.push(() => control.window.removeEventListener('pageshow', pageshow));
@@ -79,7 +86,7 @@ export class DockBrowserWindows {
     return [...this.records.values()].find((record) => record.document === document) || null;
   }
   open(ids, { wholeGroup = false, rect, sourceWindow } = {}) {
-    if (this.disposed || this.control.disposed) return null;
+    if (this.disposed || this.suspended || this.control.disposed) return null;
     const c = this.control,
       model = c.model;
     ids = model.require(ids);
@@ -116,6 +123,11 @@ export class DockBrowserWindows {
     }
     let record;
     try {
+      const checkAvailable = () => {
+        if (this.disposed || this.suspended || c.disposed || popup.closed)
+          throw new Error('The browser window host was disposed during opening.');
+      };
+      checkAvailable();
       const doc = popup.document; // Same-origin access is required; never transfer state through arbitrary messages.
       if (!doc?.body || popup.closed || (doc.URL !== 'about:blank' && doc.URL !== ''))
         throw new Error('A fresh same-origin blank browser window is required.');
@@ -126,6 +138,7 @@ export class DockBrowserWindows {
         popup.close();
         return null;
       }
+      checkAvailable();
       record = this.prepare(popup, doc);
       model.batch('Move to browser window', () => {
         if (!reuse) model.float(ids);
@@ -141,14 +154,25 @@ export class DockBrowserWindows {
           host: record.host,
           panels: [...ids],
         });
-        if (typeof cleanup === 'function') record.cleanups.push(cleanup);
+        if (typeof cleanup === 'function') {
+          // A portal callback can synchronously close or dispose its host before returning.
+          if (record.releasing) cleanup();
+          else record.cleanups.push(cleanup);
+        }
+        checkAvailable();
+        if (record.releasing || this.records.get(record.id) !== record)
+          throw new Error('The browser window host changed during opening.');
         model.setBrowserWindow(record.id, geometry);
       });
       c.render();
+      checkAvailable();
+      if (this.records.get(record.id) !== record) return null;
       this.startWatch();
       this.focus(record.id);
       c.show(active);
-      return record.id;
+      return !this.disposed && !c.disposed && this.records.get(record.id) === record
+        ? record.id
+        : null;
     } catch (error) {
       if (record) this.release(record, { render: false });
       else
@@ -316,7 +340,7 @@ export class DockBrowserWindows {
     }
   }
   startWatch() {
-    if (this.watch) return;
+    if (this.watch || this.disposed || this.control.disposed || !this.records.size) return;
     this.watch = this.control.window.setInterval(() => {
       for (const record of [...this.records.values()]) {
         try {
@@ -372,7 +396,8 @@ export class DockBrowserWindows {
     if (!record || record.releasing) return false;
     this.captureBounds(record);
     this.release(record, { render: false });
-    if (!this.control.disposed && !this.disposed) {
+    if (!this.control.disposed && !this.disposed && !this.records.has(id)) {
+      // onClose may have reopened this same floating tree; do not erase the new host's intent.
       this.control.model.setBrowserWindow(id, null);
       this.control.render();
     }
@@ -381,15 +406,16 @@ export class DockBrowserWindows {
   release(record, { render = true } = {}) {
     if (record.releasing) return;
     record.releasing = true;
-    this.records.delete(record.id);
-    this.endTransfer();
-    this.control.cancelGesture?.();
+    if (this.records.get(record.id) === record) this.records.delete(record.id);
+    if (this.transfer?.document === record.document) this.endTransfer();
+    else if (this.control.overlay?.ownerDocument === record.document) this.control.drawDrop(null);
+    if (this.control.gestureDocument === record.document) this.control.cancelGesture?.();
     if (this.control.menu?.ownerDocument === record.document) this.control.closeMenu();
     // Reclaim every live node, including inactive tabs, before the document goes away.
     for (const node of this.control.contents.values())
       if (node.ownerDocument === record.document || record.host.contains(node))
         this.control.parking.append(node);
-    for (const cleanup of record.cleanups.reverse()) {
+    for (const cleanup of record.cleanups.splice(0).reverse()) {
       try {
         cleanup();
       } catch (error) {
@@ -412,11 +438,18 @@ export class DockBrowserWindows {
     if (render && !this.control.disposed) this.control.render();
   }
   beginTransfer(event, ids, groupId) {
-    if (!event.dataTransfer) return;
+    if (this.disposed || this.suspended || this.control.disposed || !event.dataTransfer) return;
+    const source = event.target;
+    if (
+      !source ||
+      ![this.control.host, ...this.list().map((r) => r.host)].some((host) => host.contains(source))
+    )
+      return;
+    ids = this.control.model.require(ids);
     this.endTransfer();
     const token =
       this.control.window.crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random();
-    this.transfer = { token, ids: [...ids], groupId };
+    this.transfer = { token, ids: [...ids], groupId, source, document: source.ownerDocument };
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData(transferType, token);
     event.stopPropagation();
@@ -445,14 +478,15 @@ export class DockBrowserWindows {
       if (!target) return;
       event.preventDefault();
       event.stopPropagation();
-      if (this.control.beforeActivate(transfer.ids[0]) === false) return;
       try {
-        this.control.model.dock(transfer.ids, target.id, target.position, target.index);
+        this.control.move(transfer.ids, target.id, target.position, target.index);
       } catch (error) {
         this.control.notify(error.message);
       }
     };
-    const end = () => this.endTransfer();
+    const end = (event) => {
+      if (event.target === this.transfer?.source) this.endTransfer();
+    };
     host.addEventListener('dragover', over, true);
     host.addEventListener('drop', drop, true);
     host.addEventListener('dragend', end, true);
@@ -465,6 +499,7 @@ export class DockBrowserWindows {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.endTransfer();
     for (const record of [...this.records.values()]) this.release(record, { render: false });
     for (const cleanup of this.cleanups.reverse()) cleanup();
     this.cleanups.length = 0;
