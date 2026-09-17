@@ -1073,6 +1073,7 @@ function xamlToHtmlNode(node, ctx, parentType = '', preserveSpace = false) {
         'LastChildFill',
         'Text',
         'Password',
+        'PasswordChar',
         'Content',
         'Header',
         'IsExpanded',
@@ -1092,7 +1093,9 @@ function xamlToHtmlNode(node, ctx, parentType = '', preserveSpace = false) {
         true,
       );
   }
-  if (type === 'TextBox' && tag === 'input') props.type = 'text';
+  if (type === 'TextBox' && tag === 'input')
+    props.type =
+      literalProps.PasswordChar && literalProps.PasswordChar !== '\0' ? 'password' : 'text';
   if (
     preserveSpace &&
     ['TextBlock', 'Run', 'Span', 'Bold', 'Italic', 'Underline', 'Hyperlink'].includes(type)
@@ -1789,7 +1792,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
       key === 'Watermark' ||
       (key === 'IsSelected' && local !== 'ComboBoxItem') ||
       (key === 'GroupName' && local !== 'RadioButton') ||
-      (key === 'Value' && ['TextBox', 'PasswordBox'].includes(local))
+      (key === 'Value' && !['Slider', 'ProgressBar'].includes(local))
     )
       continue;
     if (!has(node.props, attr)) continue;
@@ -1900,7 +1903,12 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
         c.kind === 'element' &&
         !['script', 'style', 'link', 'meta', 'title', 'base'].includes(c.type),
     ),
-    content = node.type === 'input' ? node.props.value : textContent(node),
+    content =
+      node.type === 'input'
+        ? ['CheckBox', 'RadioButton'].includes(local)
+          ? undefined
+          : node.props.value
+        : textContent(node),
     scalarContent = !!contentKey && !mixed,
     wrapInlineContent =
       mixed &&
@@ -1926,7 +1934,8 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
     props['xml:space'] = 'preserve';
   }
 
-  if (node.type === 'input' && contentKey) usedAttrs.add('value');
+  if (node.type === 'input' && contentKey && !['CheckBox', 'RadioButton'].includes(local))
+    usedAttrs.add('value');
   if (scalarContent && content !== undefined && content !== '')
     props[contentKey] = String(content).startsWith('{') ? '{}' + content : content;
   if (local === 'Expander') {
@@ -2030,6 +2039,7 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
   if (local === 'Grid') placeHtmlGrid(node, n, css, ctx);
   if (meta) restoreXamlMetadata(n, node, meta, css, ctx);
   if (captured) applyCapturedLayout(n, node, captured, ctx);
+  adaptNativePassword(n, node, ctx);
   adaptNativeTextLayout(n, node, ctx);
   diagnoseNativeProperties(n, ctx, node);
   for (const [key] of Object.entries(node.props))
@@ -2081,8 +2091,24 @@ function htmlToXamlNode(node, ctx, parentCss = {}, inlineContext = false) {
 }
 function applyCapturedLayout(target, source, record, ctx) {
   if (record.inline || inlineXamlTypes.has(localName(target.type))) return;
-  const props = target.props,
-    round = (v) => String(Math.round(v * 10000) / 10000);
+  const props = target.props;
+  // These IDL states have no reliable HTML attribute representation. Capture is
+  // authoritative even when a previous source-metadata baseline selected an item.
+  if (localName(target.type) === 'ComboBox' && record.selectedIndex !== undefined)
+    props.SelectedIndex = String(record.selectedIndex);
+  if (
+    ['CheckBox', 'RadioButton'].includes(localName(target.type)) &&
+    record.checked !== undefined
+  ) {
+    // Establish the native state mode before its nullable value, even when an
+    // authored checked attribute inserted IsChecked earlier in property order.
+    if (record.indeterminate) {
+      delete props.IsChecked;
+      props.IsThreeState = 'True';
+      props.IsChecked = '{x:Null}';
+    } else props.IsChecked = record.checked ? 'True' : 'False';
+  }
+  const round = (v) => String(Math.round(v * 10000) / 10000);
   const parent = ctx.parents.get(source.id),
     parentRecord = ctx.options.renderSnapshot.get(parent?.id);
   if (parentRecord && !parentRecord.container) return;
@@ -2106,6 +2132,9 @@ function applyCapturedLayout(target, source, record, ctx) {
       ctx.options.framework === 'Avalonia' ? 'False' : 'Hidden';
   if (ctx.options.framework === 'Avalonia') delete props.Visibility;
   if (record.container) {
+    // Canvas offsets are physical browser coordinates. Mirroring the native
+    // container would reverse them again; leaf controls keep their text direction.
+    props.FlowDirection = 'LeftToRight';
     const decoration = { Width: props.Width, Height: props.Height, IsHitTestVisible: 'False' };
     for (const key of ['BorderBrush', 'BorderThickness', 'CornerRadius'])
       if (props[key] !== undefined) {
@@ -2141,8 +2170,60 @@ function applyCapturedLayout(target, source, record, ctx) {
     delete props.BorderBrush;
   }
 }
+function adaptNativePassword(target, source, ctx) {
+  if (localName(target.type) !== 'PasswordBox') return;
+  if (ctx.options.framework === 'Avalonia') {
+    target.type = 'TextBox';
+    target.props.PasswordChar = '●';
+    if (has(target.props, 'Password')) target.props.Text = target.props.Password;
+    delete target.props.Password;
+  } else {
+    for (const key of ['TextAlignment', 'TextWrapping', 'IsReadOnly']) {
+      if (!has(target.props, key)) continue;
+      if (key === 'IsReadOnly' || !ctx.options.renderSnapshot?.has(source.id))
+        ctx.report(
+          'warning',
+          'NATIVE_PASSWORD_PROPERTY',
+          `${key} requires a WPF password-control adapter.`,
+          source,
+          true,
+        );
+      delete target.props[key];
+    }
+  }
+}
 function adaptNativeTextLayout(target, source, ctx) {
   const type = localName(target.type);
+  if (['ComboBox', 'ListBox'].includes(type)) {
+    // Selectors own an item collection, not a text layout. Lower inherited text
+    // properties onto item content without adding items or changing selection.
+    const keys = ['TextAlignment', 'TextWrapping', 'TextDecorations'].filter((key) =>
+      has(target.props, key),
+    );
+    const items = target.children.filter((child) =>
+      ['ComboBoxItem', 'ListBoxItem'].includes(localName(child.type || '')),
+    );
+    for (const item of items) {
+      const host =
+        item.children.length === 1 && localName(item.children[0].type || '') === 'TextBlock'
+          ? item.children[0]
+          : item;
+      for (const key of keys) if (!has(host.props, key)) host.props[key] = target.props[key];
+      if (host === item) adaptNativeTextLayout(item, source, ctx);
+    }
+    for (const key of keys) {
+      if (!items.length && target.children.some((child) => child.kind === 'element'))
+        ctx.report(
+          'warning',
+          'NATIVE_TEXT_LAYOUT',
+          `${type}.${key} requires an item-text template adapter for custom items.`,
+          source,
+          true,
+        );
+      delete target.props[key];
+    }
+    return;
+  }
   if (
     ![
       'Button',

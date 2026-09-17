@@ -28,6 +28,8 @@ internal static class Program
             Console.WriteLine($"Avalonia loading {name}");
             // Trusted compiler fixtures only. Runtime XAML loading is not a security sandbox.
             var root = AvaloniaRuntimeXamlLoader.Parse<Control>(File.ReadAllText(Path.Combine(directory, fixture.GetProperty("file").GetString()!)));
+            foreach (var check in root.GetLogicalDescendants().Prepend(root).OfType<CheckBox>())
+                Console.WriteLine($"{name}: loaded {check.Name}: IsThreeState={check.IsThreeState}, IsChecked={check.IsChecked?.ToString() ?? "null"}");
             var window = new Window { Content = root, Width = 1600, Height = 1200 };
             window.Show();
             try
@@ -47,11 +49,12 @@ internal static class Program
                         {
                             "Canvas.Left" => Canvas.GetLeft(target),
                             "Canvas.Top" => Canvas.GetTop(target),
-                            _ => target.GetType().GetProperty(property.Name)?.GetValue(target)
+                            _ => (target.GetType().GetProperty(property.Name) ?? throw new Exception($"Missing native property {target.GetType().Name}.{property.Name}")).GetValue(target)
                         };
                         var expected = property.Value;
                         bool matches = expected.ValueKind switch
                         {
+                            JsonValueKind.Null => value is null,
                             JsonValueKind.Number => value is not null && Math.Abs(Convert.ToDouble(value, CultureInfo.InvariantCulture) - expected.GetDouble()) < 0.01,
                             JsonValueKind.True or JsonValueKind.False => value is bool flag && flag == expected.GetBoolean(),
                             JsonValueKind.Array => value is Thickness t && new[] { t.Left, t.Top, t.Right, t.Bottom }.Zip(expected.EnumerateArray().Select(v => v.GetDouble())).All(pair => Math.Abs(pair.First - pair.Second) < 0.01),

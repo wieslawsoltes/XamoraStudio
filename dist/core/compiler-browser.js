@@ -65,6 +65,11 @@ export function compileRenderedDocument(root, options = {}) {
   const maxNodes = options.maxRenderedNodes ?? 10000;
   if (!Number.isSafeInteger(maxNodes) || maxNodes < 1 || maxNodes > 15000)
     throw RangeError('maxRenderedNodes must be between 1 and 15000.');
+  if (
+    options.includePasswordValues !== undefined &&
+    typeof options.includePasswordValues !== 'boolean'
+  )
+    throw TypeError('includePasswordValues must be a boolean.');
   const snapshot = new Map(),
     issues = [];
   let count = 0;
@@ -109,9 +114,26 @@ export function compileRenderedDocument(root, options = {}) {
     };
     snapshot.set(n.id, record);
     if (tag === 'input') {
-      n.props.value = native.value;
+      n.props.type = native.type;
+      if (native.type === 'password' && !options.includePasswordValues) {
+        // Neither authored defaults nor live edits may reappear through round-trip
+        // metadata. The original DOM is never changed by this capture policy.
+        delete n.props.value;
+        delete n.props['data-xamora-xaml'];
+        issue(
+          'BROWSER_PASSWORD_REDACTED',
+          'Password values and control round-trip metadata were omitted from this snapshot.',
+          n,
+          false,
+        );
+      } else n.props.value = native.value;
       if (native.checked) n.props.checked = '';
       else delete n.props.checked;
+    }
+    if (tag === 'select') record.selectedIndex = native.selectedIndex;
+    if (tag === 'input' && ['checkbox', 'radio'].includes(native.type)) {
+      record.checked = native.checked;
+      if (native.type === 'checkbox') record.indeterminate = native.indeterminate;
     }
     if (tag === 'option') {
       if (native.selected) n.props.selected = '';
@@ -230,6 +252,9 @@ export function compileRenderedDocument(root, options = {}) {
         delete values['border-width'];
         delete values['border-color'];
         delete values['background-color'];
+        // The parent Canvas already composites its whole subtree at this opacity.
+        // A synthetic text host must not apply that same group opacity again.
+        delete values.opacity;
         snapshot.set(host.id, {
           css: values,
           bounds: textBounds,
@@ -322,7 +347,9 @@ export function observeRenderedDocument(root, options = {}) {
     frame = 0,
     capturing = false,
     revision = 0;
-  const listeners = [];
+  const listeners = [],
+    observed = new Set();
+  let resize, mutation, ancestors;
   const refresh = () => {
     if (disposed || capturing) return null;
     if (frame) {
@@ -353,17 +380,22 @@ export function observeRenderedDocument(root, options = {}) {
         }
       });
   };
-  const listen = (target, name) => {
-    target.addEventListener(name, schedule, true);
-    listeners.push(() => target.removeEventListener(name, schedule, true));
+  const listen = (target, name, handler = schedule) => {
+    listeners.push(() => target.removeEventListener(name, handler, true));
+    target.addEventListener(name, handler, true);
   };
-  const resize = new window.ResizeObserver(schedule);
-  resize.observe(root);
-  const mutation = new window.MutationObserver(() => {
-    observeChildren();
-    schedule();
-  });
-  const observed = new Set();
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    if (frame) window.cancelAnimationFrame(frame);
+    frame = 0;
+    mutation?.disconnect();
+    ancestors?.disconnect();
+    resize?.disconnect();
+    observed.clear();
+    for (const stop of listeners) stop();
+    listeners.length = 0;
+  };
   function observeChildren() {
     const live = new Set([root, ...root.querySelectorAll('*')]);
     for (const n of observed)
@@ -377,56 +409,65 @@ export function observeRenderedDocument(root, options = {}) {
         observed.add(n);
       }
   }
-  observeChildren();
-  mutation.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
-  // Ancestor class/style changes and stylesheet replacement can change descendant layout.
-  const ancestors = new window.MutationObserver(schedule);
-  for (let n = root.parentElement; n; n = n.parentElement)
-    ancestors.observe(n, { attributes: true });
-  if (root.ownerDocument.head)
-    ancestors.observe(root.ownerDocument.head, {
+  try {
+    resize = new window.ResizeObserver(schedule);
+    mutation = new window.MutationObserver(() => {
+      if (disposed) return;
+      observeChildren();
+      schedule();
+    });
+    observeChildren();
+    mutation.observe(root, {
       subtree: true,
       childList: true,
       attributes: true,
       characterData: true,
     });
-  for (const name of [
-    'input',
-    'change',
-    'focusin',
-    'focusout',
-    'pointerover',
-    'pointerout',
-    'pointerdown',
-    'pointerup',
-    'scroll',
-    'load',
-    'animationend',
-    'transitionend',
-  ])
-    listen(root, name);
-  for (const name of ['resize', 'hashchange']) listen(window, name);
-  if (root.ownerDocument.fonts) listen(root.ownerDocument.fonts, 'loadingdone');
-  const media = (
-    options.observeMedia || [
-      '(prefers-color-scheme: dark)',
-      '(prefers-reduced-motion: reduce)',
-      '(forced-colors: active)',
-    ]
-  ).map((query) => window.matchMedia(query));
-  for (const query of media) listen(query, 'change');
-  const dispose = () => {
-    if (disposed) return;
-    disposed = true;
-    if (frame) window.cancelAnimationFrame(frame);
-    frame = 0;
-    mutation.disconnect();
-    ancestors.disconnect();
-    resize.disconnect();
-    observed.clear();
-    for (const stop of listeners) stop();
-  };
-  try {
+    // Ancestor class/style changes and stylesheet replacement can change descendant layout.
+    ancestors = new window.MutationObserver(schedule);
+    for (let n = root.parentElement; n; n = n.parentElement)
+      ancestors.observe(n, { attributes: true });
+    if (root.ownerDocument.head)
+      ancestors.observe(root.ownerDocument.head, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+    for (const name of [
+      'input',
+      'change',
+      'toggle',
+      'focusin',
+      'focusout',
+      'pointerover',
+      'pointerout',
+      'pointerdown',
+      'pointerup',
+      'scroll',
+      'load',
+      'animationend',
+      'transitionend',
+    ])
+      listen(root, name);
+    for (const name of ['resize', 'hashchange', 'scroll']) listen(window, name);
+    // reset fires before default values are restored; frame coalescing samples the
+    // resulting state, including controls associated with a form outside the root.
+    listen(root.ownerDocument, 'reset');
+    // A linked sheet can finish loading without DOM mutations or a resize (e.g. color).
+    listen(root.ownerDocument, 'load', (event) => {
+      if (event.target?.localName === 'link' && event.target.relList?.contains('stylesheet'))
+        schedule();
+    });
+    if (root.ownerDocument.fonts) listen(root.ownerDocument.fonts, 'loadingdone');
+    const media = (
+      options.observeMedia || [
+        '(prefers-color-scheme: dark)',
+        '(prefers-reduced-motion: reduce)',
+        '(forced-colors: active)',
+      ]
+    ).map((query) => window.matchMedia(query));
+    for (const query of media) listen(query, 'change');
     refresh();
   } catch (error) {
     dispose();

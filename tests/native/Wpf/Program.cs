@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
+using System.Xml.Linq;
 
 internal static class Program
 {
@@ -22,9 +23,14 @@ internal static class Program
             var root = (FrameworkElement)XamlReader.Parse(File.ReadAllText(Path.Combine(directory, fixture.GetProperty("file").GetString()!)));
             var assertions = Validate(root, fixture.GetProperty("expected"));
             var saved = XamlWriter.Save(root);
+            // Password is DesignerSerializationVisibility.Hidden in WPF. Verify the
+            // native privacy policy instead of weakening the initial opt-in value check.
+            if (XElement.Parse(saved).DescendantsAndSelf().Where(n => n.Name.LocalName == "PasswordBox")
+                .Any(n => n.Attributes().Any(a => a.Name.LocalName == "Password")))
+                throw new Exception("WPF serialization unexpectedly exposed a password attribute.");
             var reloaded = (FrameworkElement)XamlReader.Parse(saved);
-            assertions += Validate(reloaded, fixture.GetProperty("expected"));
-            reports.Add(new { name, assertions, load = true, measureArrange = true, nativeSaveReload = true });
+            assertions += Validate(reloaded, fixture.GetProperty("expected"), afterNativeSave: true);
+            reports.Add(new { name, assertions, load = true, measureArrange = true, nativeSaveReload = true, passwordSavePolicy = "omitted-by-WPF" });
         }
         var report = new { framework = "WPF", runtime = Environment.Version.ToString(), assembly = typeof(FrameworkElement).Assembly.FullName, cases = reports };
         File.WriteAllText(Path.Combine(directory, "qualification.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
@@ -36,7 +42,7 @@ internal static class Program
         foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
             foreach (var descendant in Descendants(child)) yield return descendant;
     }
-    private static int Validate(FrameworkElement root, JsonElement expected)
+    private static int Validate(FrameworkElement root, JsonElement expected, bool afterNativeSave = false)
     {
         root.Measure(new Size(1600, 1200));
         root.Arrange(new Rect(0, 0, double.IsNaN(root.Width) ? 1600 : root.Width, double.IsNaN(root.Height) ? 1200 : root.Height));
@@ -53,11 +59,19 @@ internal static class Program
                 {
                     "Canvas.Left" => Canvas.GetLeft(target),
                     "Canvas.Top" => Canvas.GetTop(target),
-                    _ => target.GetType().GetProperty(property.Name)?.GetValue(target)
+                    _ => (target.GetType().GetProperty(property.Name) ?? throw new Exception($"Missing native property {target.GetType().Name}.{property.Name}")).GetValue(target)
                 };
+                if (afterNativeSave && target is PasswordBox && property.Name == nameof(PasswordBox.Password))
+                {
+                    if (value is not string password || password.Length != 0)
+                        throw new Exception($"{node.Name}: native save/reload must leave the password empty.");
+                    count++;
+                    continue;
+                }
                 var expectedValue = property.Value;
                 bool matches = expectedValue.ValueKind switch
                 {
+                    JsonValueKind.Null => value is null,
                     JsonValueKind.Number => value is not null && Math.Abs(Convert.ToDouble(value, CultureInfo.InvariantCulture) - expectedValue.GetDouble()) < 0.01,
                     JsonValueKind.True or JsonValueKind.False => value is bool flag && flag == expectedValue.GetBoolean(),
                     JsonValueKind.Array => value is Thickness t && new[] { t.Left, t.Top, t.Right, t.Bottom }.Zip(expectedValue.EnumerateArray().Select(v => v.GetDouble())).All(pair => Math.Abs(pair.First - pair.Second) < 0.01),

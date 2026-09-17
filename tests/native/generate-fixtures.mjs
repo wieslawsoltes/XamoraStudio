@@ -108,6 +108,50 @@ if (process.argv.includes('--browser')) {
             diagnostics: result.diagnostics,
           });
         }
+      document.head.innerHTML =
+        '<style>*{box-sizing:border-box}body{margin:0}main{display:flex;direction:rtl;gap:12px;width:420px;height:180px;opacity:.5}section{width:140px;height:100px;opacity:.4;background:#eee}input{width:120px;height:40px}</style>';
+      document.body.innerHTML =
+        '<main id="physical"><section id="first">Direct text</section><input id="secret" type="password" value="fixture-secret"><select id="empty"><option>A</option><option>B</option></select><input id="mixed" type="checkbox"></main>';
+      const physical = document.getElementById('physical');
+      document.getElementById('empty').selectedIndex = -1;
+      document.getElementById('mixed').indeterminate = true;
+      for (const framework of ['WPF', 'Avalonia'])
+        for (const includePasswordValues of [false, true]) {
+          const result = compileRenderedDocument(physical, {
+            framework,
+            preserveMetadata: false,
+            includePasswordValues,
+          });
+          if (!result.success) throw Error(JSON.stringify(result.diagnostics));
+          if (!includePasswordValues && result.source.includes('fixture-secret'))
+            throw Error('Secret leaked');
+          const expected = {
+            physical: { Width: 420, Height: 180, FlowDirection: 'LeftToRight', Opacity: 0.5 },
+            first: { FlowDirection: 'LeftToRight', Opacity: 0.4 },
+            secret: framework === 'Avalonia' ? { PasswordChar: '●' } : {},
+            empty: { SelectedIndex: -1 },
+            mixed: { IsChecked: null, IsThreeState: true },
+          };
+          if (includePasswordValues)
+            expected.secret[framework === 'Avalonia' ? 'Text' : 'Password'] = 'fixture-secret';
+          for (const id of ['first', 'secret']) {
+            const r = document.getElementById(id).getBoundingClientRect(),
+              parent = physical.getBoundingClientRect();
+            Object.assign(expected[id], {
+              Width: r.width,
+              Height: r.height,
+              'Canvas.Left': r.x - parent.x,
+              'Canvas.Top': r.y - parent.y,
+            });
+          }
+          cases.push({
+            framework,
+            name: 'capture-rtl-' + (includePasswordValues ? 'opt-in' : 'redacted'),
+            source: result.source,
+            expected,
+            diagnostics: result.diagnostics,
+          });
+        }
       return cases;
     }, bundle.outputFiles[0].text);
     cases.push(...rendered);
