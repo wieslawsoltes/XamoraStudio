@@ -92,10 +92,25 @@ export declare function clampFloat(
 export declare function validateDockLayout(layout: unknown, known?: Set<string>): DockLayoutState;
 export declare function createDockLayout(
   panelIds: string[],
-  options?: { documents?: string[]; preset?: 'designer' | 'coding' | 'animation' | 'compact' },
+  options?: {
+    documents?: string[];
+    preset?: 'designer' | 'coding' | 'animation' | 'compact';
+    keepEmptyDocumentGroups?: boolean;
+  },
 ): DockLayoutState;
+export interface DockLayoutOptions {
+  /** Preserve docked empty document groups. Defaults to false for standalone compatibility. */
+  keepEmptyDocumentGroups?: boolean;
+}
 export declare class DockLayout extends EventTarget {
-  constructor(panels?: Array<DockPanelDescriptor | string>, layout?: DockLayoutState | null);
+  constructor(
+    panels?: Array<DockPanelDescriptor | string>,
+    layout?: DockLayoutState | null,
+    options?: DockLayoutOptions,
+  );
+  readonly keepEmptyDocumentGroups: boolean;
+  setKeepEmptyDocumentGroups(value: boolean): boolean;
+  pruneEmptyGroups(): boolean;
   panels: Map<string, DockPanelDescriptor>;
   state: DockLayoutState;
   history: DockLayoutState[];

@@ -526,6 +526,20 @@ export class DockWorkspace extends EventTarget {
       'dock-group ' + (node.kind === 'document' ? 'dock-document-group' : 'dock-tool-group'),
     );
     box.dataset.dockGroup = node.id;
+    if (!node.panels.length) {
+      box.classList.add('dock-group-empty');
+      box.tabIndex = 0;
+      box.setAttribute('aria-label', 'Empty document panel');
+      const empty = el('div', 'dock-empty');
+      empty.style.flex = '1';
+      empty.style.overflow = 'auto';
+      empty.append(
+        el('strong', '', 'No documents open'),
+        el('span', '', 'Open a document or drop a tab here.'),
+      );
+      box.append(empty);
+      return box;
+    }
     box.classList.toggle('dock-group-active', node.panels.includes(this.model.state.activePanel));
     box.append(this.header(node, floating, false, document));
     const tabs = el('div', 'dock-tabs');
@@ -1291,7 +1305,9 @@ export class DockWorkspace extends EventTarget {
     for (const group of dockGroups(this.model.state).filter(
       (g) => g !== place?.group && !(g.kind === 'tool' && descriptor?.kind === 'document'),
     ))
-      add('Move to ' + this.title(group.active), () => this.move(id, group.id, 'center'));
+      add('Move to ' + (group.active ? this.title(group.active) : 'empty document panel'), () =>
+        this.move(id, group.id, 'center'),
+      );
     add('Close', () => this.hide(id));
     if (place?.group) {
       add('Close other tabs', () => {
