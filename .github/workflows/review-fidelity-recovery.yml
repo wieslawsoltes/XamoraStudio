@@ -1,0 +1,27 @@
+name: Review fidelity recovery
+on:
+  push:
+    branches: [feat/compiler-fidelity-recovery]
+    paths: [.github/workflows/review-fidelity-recovery.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Archive source and locked development tools
+        run: tar --exclude='./.git' -czf "$RUNNER_TEMP/fidelity-recovery.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fidelity-recovery-source
+          path: ${{ runner.temp }}/fidelity-recovery.tar.gz
+          retention-days: 2
