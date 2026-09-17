@@ -23,7 +23,7 @@ export class CodeEditor {
     this.paintRevision = 0;
     this.tokenRevision = -1;
     this.paintFrame = null;
-    this.window = host.ownerDocument.defaultView;
+    this.host = host;
     this.languageProvider = languageProvider;
     this.onChange = onChange;
     this.disposed = false;
@@ -178,7 +178,8 @@ export class CodeEditor {
     this.disposed = true;
     clearTimeout(this.timer);
     this.resizeObserver?.disconnect();
-    if (this.paintFrame !== null) this.window.cancelAnimationFrame(this.paintFrame);
+    if (this.paintFrame !== null)
+      (this.paintWindow || this.window).cancelAnimationFrame(this.paintFrame);
     this.paintFrame = null;
     this.lineIndex = this.tokenIndex = this.paintSource = null;
     for (const remove of this.listeners) remove();
@@ -274,9 +275,17 @@ export class CodeEditor {
     return true;
   }
 
+  get window() {
+    return this.host.ownerDocument.defaultView;
+  }
   schedulePaint() {
+    if (this.paintFrame !== null && this.paintWindow !== this.window) {
+      this.paintWindow?.cancelAnimationFrame(this.paintFrame);
+      this.paintFrame = null;
+    }
     if (this.disposed || this.paintFrame !== null) return;
-    this.paintFrame = this.window.requestAnimationFrame(() => {
+    this.paintWindow = this.window;
+    this.paintFrame = this.paintWindow.requestAnimationFrame(() => {
       this.paintFrame = null;
       this.paint();
     });

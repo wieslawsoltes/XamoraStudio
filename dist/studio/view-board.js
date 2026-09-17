@@ -177,6 +177,8 @@ export class ViewBoard {
     this.s.docking.control.activate('document:' + ids[0]);
   }
   startLink(e, id) {
+    const document = e.target.ownerDocument,
+      window = document.defaultView;
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();

@@ -91,6 +91,7 @@ export class DialogHost {
     dismissOnEscape = true,
     dismissOnOverlay = true,
     initialFocus,
+    returnFocus,
   } = {}) {
     if (this.disposed) throw new Error('DialogHost is disposed.');
     if (!this.document.body.contains(this.host))
@@ -114,6 +115,8 @@ export class DialogHost {
       );
     if (initialFocus !== undefined && typeof initialFocus !== 'function')
       throw new TypeError('initialFocus must be a function.');
+    if (returnFocus !== undefined && typeof returnFocus !== 'function')
+      throw new TypeError('returnFocus must be a function.');
     actions = actions.map((action) => ({ ...action }));
     const previousFocus = this.current?.previousFocus || this.document.activeElement;
     this.close(false);
@@ -155,6 +158,7 @@ export class DialogHost {
       busy: false,
       timer: null,
       initialFocus,
+      returnFocus,
       actions,
       actionButtons: [],
     };
@@ -320,7 +324,8 @@ export class DialogHost {
     const wasTop = stack.at(-1) === state;
     stack.splice(stack.indexOf(state), 1);
     updateModality(this.document);
-    if (restoreFocus && wasTop) {
+    if (restoreFocus && wasTop && state.returnFocus) state.returnFocus();
+    else if (restoreFocus && wasTop) {
       const target = state.previousFocus;
       if (target?.isConnected && !target.closest('[inert],[hidden]')) target.focus();
       else stack.at(-1)?.dialog.focus();

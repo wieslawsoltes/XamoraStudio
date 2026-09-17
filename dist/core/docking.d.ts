@@ -37,6 +37,8 @@ export interface DockFloating {
   root: DockNode;
   rect: DockRect;
   maximized: boolean;
+  /** Requested popup host; restored layouts remain in-page until a user explicitly reopens it. */
+  browserWindow?: DockRect;
 }
 export interface DockPlacement {
   groupId: string;
@@ -122,6 +124,7 @@ export declare class DockLayout extends EventTarget {
   setAutoHideSize(edge: DockEdge, size: number): boolean;
   resizeSplit(id: string, ratio: number): boolean;
   setFloatRect(id: string, rect: DockRect): boolean;
+  setBrowserWindow(id: string, rect: DockRect | null, options?: { history?: boolean }): boolean;
   raiseFloat(id: string): boolean;
   maximizeFloat(id: string): boolean;
   zoomGroup(id: string | null): boolean;

@@ -467,14 +467,14 @@ export class SolutionWorkspace extends WorkspaceComponent {
   render() {
     if (!this.host || this.rendering) return;
     this.rendering = true;
-    const focused = this.host.contains(this.environment.document.activeElement),
+    const focused = this.host.contains(this.environment.activeElement),
       focusKey =
-        this.environment.document.activeElement?.dataset.solutionRename !== undefined
+        this.environment.activeElement?.dataset.solutionRename !== undefined
           ? 'rename'
-          : this.environment.document.activeElement?.dataset.solutionSearch !== undefined
+          : this.environment.activeElement?.dataset.solutionSearch !== undefined
             ? 'search'
             : null,
-      selection = focused && this.environment.document.activeElement?.selectionStart;
+      selection = focused && this.environment.activeElement?.selectionStart;
     const scroll = this.host.querySelector('.solution-tree')?.scrollTop || 0;
     try {
       const docs = this.s.stores.map((st) => st.document),

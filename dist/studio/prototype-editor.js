@@ -401,6 +401,8 @@ export class PrototypeEditor {
     );
   }
   startLink(e, viewId) {
+    const document = e.target.ownerDocument,
+      window = document.defaultView;
     e.preventDefault();
     const port = e.currentTarget,
       a = port.getBoundingClientRect(),

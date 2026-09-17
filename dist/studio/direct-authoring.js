@@ -301,6 +301,8 @@ export class DirectAuthoring {
     return true;
   }
   gesture(e, move, finish) {
+    const document = e.target.ownerDocument,
+      window = document.defaultView;
     this.cancelGesture?.();
     const store = this.s.store,
       revision = store.revision,

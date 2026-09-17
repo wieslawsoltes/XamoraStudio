@@ -24,6 +24,8 @@ export interface DialogOptions {
   closeLabel?: string;
   dismissOnEscape?: boolean;
   dismissOnOverlay?: boolean;
+  /** Optional caller-owned focus restoration, e.g. a live field in a same-origin popup. */
+  returnFocus?: () => void;
   initialFocus?: (dialog: HTMLElement) => HTMLElement | null | undefined;
 }
 export class DialogHost {

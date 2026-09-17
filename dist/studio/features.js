@@ -1,3 +1,4 @@
+import { listenStudio } from './ui.js';
 import {
   clone,
   find,
@@ -159,7 +160,9 @@ export class DesignerFeatures {
     s.editor.getLanguageContext = () => ({ document: s.doc, context: this.context() });
     const palette = s.commandPalette.bind(s);
     s.commandPalette = () => palette();
-    document.addEventListener(
+    listenStudio(
+      s,
+      document,
       'keydown',
       (e) => {
         if (

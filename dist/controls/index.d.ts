@@ -10,3 +10,6 @@ export * from './object-properties.js';
 export * from './object-property-grid.js';
 
 export * from './code-viewport.js';
+
+export * from './document-scope.js';
+export * from './dock-browser-windows.js';

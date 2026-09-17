@@ -9,8 +9,16 @@ export function modal(studio, title, body, actions = [], wide = false) {
     studio.dialogHost?.dispose();
     studio.dialogHost = new DialogHost(root);
   }
-  studio.modalPrevious = document.activeElement;
-  const dialog = studio.dialogHost.open({ title, html: body, actions, wide });
+  studio.modalPrevious = studio.documentScope?.activeElement || document.activeElement;
+  const previous = studio.modalPrevious;
+  const restore = () => {
+    if (previous?.isConnected && !previous.closest('[hidden],[inert]')) {
+      previous.ownerDocument.defaultView?.focus();
+      previous.focus();
+    }
+  };
+  root.ownerDocument.defaultView?.focus();
+  const dialog = studio.dialogHost.open({ title, html: body, actions, wide, returnFocus: restore });
   const close = dialog.querySelector('[data-dialog-close]');
   close.id = 'close-modal';
   close.innerHTML = icon('close');

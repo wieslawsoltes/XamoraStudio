@@ -65,7 +65,12 @@ export class WorkspaceContext {
     if (root) return root.querySelector(selector);
     const mapped = this.options.elements?.[selector];
     if (mapped) return typeof mapped === 'function' ? mapped() : mapped;
-    return this.root.querySelector(selector) || this.dialogRoot?.querySelector(selector) || null;
+    return (
+      this.root.querySelector(selector) ||
+      this.dialogRoot?.querySelector(selector) ||
+      this.options.domScope?.query(selector) ||
+      null
+    );
   }
   all(selector, root) {
     if (root) return [...root.querySelectorAll(selector)];
@@ -73,8 +78,12 @@ export class WorkspaceContext {
       ...new Set([
         ...this.root.querySelectorAll(selector),
         ...(this.dialogRoot?.querySelectorAll(selector) || []),
+        ...(this.options.domScope?.all(selector) || []),
       ]),
     ];
+  }
+  get activeElement() {
+    return this.options.domScope?.activeElement || this.document.activeElement;
   }
   notify(message) {
     if (this.disposed) return;
@@ -174,7 +183,8 @@ export class WorkspaceContext {
         return entry.remove;
     const entry = { target, type, callback, capture };
     entry.remove = () => {
-      target.removeEventListener(type, entry.listener, capture);
+      if (entry.routed) entry.routed();
+      else target.removeEventListener(type, entry.listener, capture);
       this.listeners.delete(entry);
     };
     entry.listener = (event) => {
@@ -185,7 +195,8 @@ export class WorkspaceContext {
         (target === this.document || target === this.window) &&
         this.root !== this.document &&
         !this.root.contains(event.target) &&
-        !this.dialogRoot?.contains(event.target)
+        !this.dialogRoot?.contains(event.target) &&
+        !this.options.domScope?.owns(event.target)
       )
         return;
       return typeof callback === 'function'
@@ -193,7 +204,9 @@ export class WorkspaceContext {
         : callback.handleEvent(event);
     };
     this.listeners.add(entry);
-    target.addEventListener(type, entry.listener, options);
+    if (this.options.domScope && (target === this.document || target === this.window))
+      entry.routed = this.options.domScope.listen(target, type, entry.listener, options);
+    else target.addEventListener(type, entry.listener, options);
     return entry.remove;
   }
   unlisten(target, type, callback, options) {

@@ -215,7 +215,7 @@ try {
         '-e',
         script +
           `
-      if (old.DockLayout !== dock.DockLayout || old.DockWorkspace !== dock.DockWorkspace || old.ScrollButtons !== primitives.ScrollButtons || old.CodeEditor !== editor.CodeEditor || old.PropertyGrid !== properties.PropertyGrid || old.DialogHost !== dialogs.DialogHost) throw Error('Compatibility facade duplicated a constructor');
+      if (old.DockBrowserWindows !== dock.DockBrowserWindows || old.DocumentScope !== primitives.DocumentScope || old.DockLayout !== dock.DockLayout || old.DockWorkspace !== dock.DockWorkspace || old.ScrollButtons !== primitives.ScrollButtons || old.CodeEditor !== editor.CodeEditor || old.PropertyGrid !== properties.PropertyGrid || old.DialogHost !== dialogs.DialogHost) throw Error('Compatibility facade duplicated a constructor');
       const layout = new dock.DockLayout(['first', 'second']); layout.float('first'); layout.undo();
     `,
       ],
@@ -243,7 +243,19 @@ try {
       ),
     );
   }
-  const typeConsumer = `import {cssBoxLonghands, physicalCssProperty, cssBoxFamily, type CssFlowContext} from '@wieslawsoltes/xamora-compiler/compiler-logical';
+  const typeConsumer = `import {DockWorkspace, DockBrowserWindows, DockLayout, type DockBrowserWindowOptions} from '@wieslawsoltes/xamora-docking';
+import {DocumentScope} from '@wieslawsoltes/xamora-control-primitives';
+import {WorkspaceContext} from '@wieslawsoltes/xamora-workspace-context';
+const scope = new DocumentScope(globalThis.document, globalThis.document.body);
+const browserOptions: DockBrowserWindowOptions = {onOpen(info) { return scope.add(info.document, {root:info.host,workspace:info.host}); }};
+const docking = new DockWorkspace(globalThis.document.body, new DockLayout(['doc']), {browserWindows:browserOptions});
+const windowId:string|null=docking.openWindow('doc',{rect:{width:640},wholeGroup:true});
+if(windowId) docking.returnWindow(windowId);
+const windows:DockBrowserWindows|undefined = docking.windows; void windows;
+new WorkspaceContext({root:globalThis.document,domScope:scope});
+// @ts-expect-error Popup adapters return a Window, not a panel identifier.
+const invalidBrowser:DockBrowserWindowOptions={openWindow:()=> 'unsafe'};
+import {cssBoxLonghands, physicalCssProperty, cssBoxFamily, type CssFlowContext} from '@wieslawsoltes/xamora-compiler/compiler-logical';
 const flow: CssFlowContext = {direction:'rtl','writing-mode':'horizontal-tb'};
 const physical: string|null = physicalCssProperty('padding-inline-start', flow);
 const expanded: string[]|null = cssBoxLonghands('padding-inline');

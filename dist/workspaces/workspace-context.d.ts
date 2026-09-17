@@ -3,7 +3,21 @@ export interface WorkspaceStorage {
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
 }
+export interface WorkspaceDocumentScope {
+  readonly activeElement: Element | null;
+  query(selector: string): Element | null;
+  all(selector: string): Element[];
+  owns(target: Node): boolean;
+  listen(
+    target: EventTarget,
+    type: string,
+    callback: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions,
+  ): () => void;
+}
 export interface WorkspaceOptions {
+  /** Explicit caller-owned routing for live panels hosted in multiple documents. */
+  domScope?: WorkspaceDocumentScope;
   root: Element | Document;
   dialogRoot?: HTMLElement | null;
   elements?: Record<string, Element | (() => Element | null)>;
@@ -26,6 +40,7 @@ export function select(
 export function createMemoryStorage(): WorkspaceStorage;
 export class WorkspaceContext {
   constructor(options: WorkspaceOptions);
+  readonly activeElement: Element | null;
   readonly root: Element | Document;
   readonly document: Document;
   readonly window: Window;

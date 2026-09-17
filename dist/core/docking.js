@@ -242,6 +242,17 @@ export function validateDockLayout(layout, known) {
       f.rect.height < 1
     )
       throw Error('Invalid floating group.');
+    if (
+      f.browserWindow &&
+      (!['x', 'y', 'width', 'height'].every((k) => Number.isFinite(f.browserWindow[k])) ||
+        f.browserWindow.width < 180 ||
+        f.browserWindow.height < 120 ||
+        f.browserWindow.width > 16384 ||
+        f.browserWindow.height > 16384 ||
+        Math.abs(f.browserWindow.x) > 100000 ||
+        Math.abs(f.browserWindow.y) > 100000)
+    )
+      throw Error('Invalid browser window bounds.');
     nodes.add(f.id);
     visit(f.root);
   }
@@ -650,6 +661,23 @@ export class DockLayout extends EventTarget {
       f.rect = { ...rect, width: Math.max(100, rect.width), height: Math.max(80, rect.height) };
       f.maximized = false;
     });
+  }
+  /** Browser geometry is data only. Opening actual windows remains a host/user-gesture decision. */
+  setBrowserWindow(id, rect, { history = true } = {}) {
+    return this.transaction(
+      history ? 'Set browser window host' : 'Resize browser window',
+      (d) => {
+        const floating = d.floating.find((f) => f.id === id);
+        if (!floating) {
+          if (rect) throw Error('Floating window no longer exists.');
+          return;
+        }
+        if (rect)
+          floating.browserWindow = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+        else delete floating.browserWindow;
+      },
+      { history },
+    );
   }
   raiseFloat(id) {
     return this.transaction(

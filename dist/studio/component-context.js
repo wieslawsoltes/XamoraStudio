@@ -4,6 +4,13 @@ export function studioComponentOptions(studio) {
   if (studio.workspaceOptions) return studio.workspaceOptions;
   return {
     root: document,
+    domScope: studio.documentScope,
+    ...(studio.documentScope
+      ? {
+          scheduleFrame: (callback) => studio.documentScope.frame(callback),
+          cancelFrame: (id) => studio.documentScope.cancelFrame(id),
+        }
+      : {}),
     api: window.xamora || {},
     storage: window.localStorage,
     notify,

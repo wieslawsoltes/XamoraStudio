@@ -5,8 +5,31 @@ export const esc = (value) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-export const $ = (selector, root = document) => root.querySelector(selector);
-export const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const portalRoots = new Set();
+/** Register only app-owned popup documents; explicit query roots remain strictly scoped. */
+export function registerUIRoot(root) {
+  portalRoots.add(root);
+  return () => portalRoots.delete(root);
+}
+export const $ = (selector, root = document) =>
+  root.querySelector(selector) ||
+  (root === globalThis.document
+    ? [...portalRoots].map((portal) => portal.querySelector(selector)).find(Boolean)
+    : null) ||
+  null;
+export const $$ = (selector, root = document) => [
+  ...new Set([
+    ...root.querySelectorAll(selector),
+    ...(root === globalThis.document
+      ? [...portalRoots].flatMap((portal) => [...portal.querySelectorAll(selector)])
+      : []),
+  ]),
+];
+export function listenStudio(studio, target, type, callback, options) {
+  if (studio.documentScope) return studio.documentScope.listen(target, type, callback, options);
+  target.addEventListener(type, callback, options);
+  return () => target.removeEventListener(type, callback, options);
+}
 /** A notifier owns its timer so existing toast channels remain independent. */
 export function createNotifier(duration = 3500) {
   return function notify(message) {
