@@ -1,4 +1,5 @@
 /** Compose the designer host and its feature workspaces in dependency order. */
+import { finishDockingStartup } from './studio/startup-layout.js';
 import { ExperienceWorkspace } from './studio/experience-workspace.js';
 import { Studio } from './studio/studio.js';
 import { $, esc, download } from './studio/ui.js';
@@ -9,12 +10,17 @@ import { BlendFeatures } from './studio/blend-features.js';
 import { DesignerFeatures } from './studio/features.js';
 
 try {
+  let savedLayout;
+  try {
+    savedLayout = localStorage.getItem('xamora-dock-layout-v1');
+  } catch {}
   const studio = new Studio();
   new DesignerFeatures(studio);
   new BlendFeatures(studio);
   new DockingStudio(studio);
   new EditorWorkspace(studio);
   new CompilerWorkspace(studio);
+  finishDockingStartup(studio, savedLayout);
   new ExperienceWorkspace(studio);
 } catch (error) {
   console.error(error);

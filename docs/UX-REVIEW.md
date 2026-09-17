@@ -2,7 +2,7 @@
 
 ## Scope and design intent
 
-This change polishes the existing visual designer rather than replacing it with a new app shell. Command discovery, keyboard navigation, interaction feedback and compact-window readability take priority over decoration. The saved docking layout, document model, source validation, compiler semantics and package boundaries remain unchanged.
+This change polishes the existing visual designer rather than replacing it with a new app shell. Command discovery, keyboard navigation, interaction feedback and compact-window readability take priority over decoration. The document model, source validation, compiler semantics and package boundaries remain unchanged. Saved layout intent is restored after the complete panel registry exists; fresh workspaces start with a balanced layout rather than accumulating optional columns during registration.
 
 The review inventories the menu registry and its command paths, Studio composition and workspaces, reusable menu/dialog controls, source editing, docking windows, density styles and existing browser test coverage. This is a code and automated-interaction review, not a claim that every possible authoring sequence has been tested by a human or that accessibility conformance has been certified.
 
@@ -20,9 +20,15 @@ The review inventories the menu registry and its command paths, Studio compositi
 
 **Selection and mode.** Finding: Active modes rely on color/class styling and can be missed. Active tab accent, clearer selected controls, and synchronized pressed state for pointer, keyboard and command-driven tools/views.
 
+**Inspector flow.** Advanced appearance and helper actions initially consumed the first several hundred pixels, pushing the selected layer and layout fields below the fold. Native details/summary disclosures now keep basic properties in reach, remember expansion during the session, and preserve the original live action controls. No feature is removed.
+
 **Readability.** Finding: Small secondary labels and dense controls compete visually. Stronger muted text in chrome, clearer hierarchy, restrained panel boundaries, focus rings and search feedback. Authored design node geometry and typography are not restyled.
 
 **Narrow/touch windows.** Finding: Toolbar information competes for limited space. Hide secondary header detail, retain a reachable compact search button, wrap dialog actions, bound overlays, single-column guide, and larger coarse-pointer chrome targets without rewriting saved density.
+
+**Startup layout.** Late Solution and Symbols registration opened extra columns on first run, leaving too little canvas at narrow widths. Startup now captures the original saved layout before registration and restores it after all workspaces are available. On a fresh workspace, Solution joins the left group (or auto-hide on narrow windows) and optional semantic tools stay available through Window/search without taking a permanent column. User-chosen extension panels and split layout are regression-tested across reload.
+
+**Touch cascade.** The existing density selectors initially overrode the new coarse-pointer sizes. The corrected cascade and compact primary header are checked using actual Chromium media queries and element bounds, not CSS-source assertions. Search, guide, preview and export stay in reach while secondary detail remains accessible through the existing menus.
 
 **Motion and contrast preferences.** Finding: New presentation effects must respect existing preferences. Scoped reduced-motion behavior and system-color selection outlines in forced-colors mode.
 
@@ -56,7 +62,9 @@ The local save label refers to browser storage on this device, not a cloud accou
 
 `tests/experience.test.mjs` covers catalog/search semantics, live command availability, original editor context, escaped labels, IME handling, empty results, failure reporting, bounded/blocked storage, shared notification timing, hover/focus pause, menu dismissal, native Tab continuation and submenu expansion.
 
-`tests/browser-experience.mjs` runs the full Studio in Chromium, tests command and guide actions, menu/tab navigation, tool state, popup source selection, notification dismissal, document immutability and 390px coarse-pointer layouts. It records desktop, dark, command-palette, guide and touch screenshots under `test-results/ux/`. The normal CI workflow uploads `ui-review-snapshots` without bypassing or replacing existing package, browser or native compiler checks. Browser failures remain blocking.
+`tests/inspector-disclosure.test.mjs` covers live action identity, remembered native disclosures, complete first-run desktop/compact panel inventories and restoration of saved extension-panel intent.
+
+`tests/browser-experience.mjs` runs the full Studio in Chromium, tests command and guide actions, menu/tab navigation, tool state, popup source selection, notification dismissal, document immutability, saved-layout reload and 390px coarse-pointer layouts. It checks basic inspector fields are near the top, touch targets meet the chosen 44px minimum and primary header commands fit without horizontal discovery. It records desktop, dark, command-palette, guide and touch screenshots under `test-results/ux/`. The normal CI workflow uploads `ui-review-snapshots` without bypassing or replacing existing package, browser or native compiler checks. Browser failures remain blocking.
 
 Keyboard/combobox semantics and target-sizing decisions are informed by the primary guidance below; implementing these patterns does not alone establish WCAG conformance:
 

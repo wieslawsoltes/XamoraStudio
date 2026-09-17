@@ -50,6 +50,14 @@ export class ExperienceWorkspace {
         this.commandTarget = null;
       });
     }
+    for (const [id, label] of [
+      ['preview', 'Preview design'],
+      ['export', 'Export design'],
+    ]) {
+      const button = document.querySelector(`.topbar [data-action="${id}"]`);
+      button?.setAttribute('aria-label', label);
+      button?.setAttribute('title', label);
+    }
     const guide = document.createElement('button');
     guide.className = 'icon-button ux-guide-trigger';
     guide.type = 'button';

@@ -504,7 +504,7 @@ html[data-density] .topbar .ux-command-trigger {
   }
 }
 @media (pointer: coarse) {
-  html[data-density] {
+  :root[data-density] {
     --ui-control: 44px;
     --ui-row: 44px;
     --ui-title: 52px;
@@ -607,5 +607,50 @@ html[data-density] .topbar .ux-command-trigger {
   #toast .toast-dismiss {
     min-height: 44px;
     min-width: 44px;
+  }
+}
+
+/* A phone header keeps primary actions visible rather than requiring horizontal discovery. */
+@media (max-width: 760px) {
+  html[data-density] .studio.docking-enabled .topbar {
+    gap: 4px;
+    padding-inline: 4px;
+  }
+  html[data-density]
+    .studio.docking-enabled
+    .topbar
+    :is(
+      .file-folder,
+      .file-folder + .muted,
+      .save-state,
+      .history-button,
+      .avatar,
+      .brand > span,
+      .divider,
+      .dock-window-menu,
+      [data-action='menu'],
+      .spacer
+    ) {
+    display: none;
+  }
+  html[data-density] .studio.docking-enabled .topbar .brand {
+    font-size: 0;
+    gap: 0;
+    margin: 0;
+  }
+  html[data-density] .studio.docking-enabled .topbar .file-title {
+    display: block;
+    min-width: 0;
+    flex: 1;
+    font-size: 12px;
+  }
+  html[data-density]
+    .studio.docking-enabled
+    .topbar
+    .button:is([data-action='preview'], [data-action='export']) {
+    font-size: 0;
+    width: var(--ui-control);
+    padding-inline: 0;
+    gap: 0;
   }
 }

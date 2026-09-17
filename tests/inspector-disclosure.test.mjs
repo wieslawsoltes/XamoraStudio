@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { controlDOM } from './control-fixture.mjs';
+import { initialStudioLayout, finishDockingStartup } from '../dist/studio/startup-layout.js';
+import { DockLayout, validateDockLayout, locatePanel } from '../dist/core/docking.js';
 import { InspectorDisclosure } from '../dist/studio/inspector-disclosure.js';
 
 test('inspector disclosure preserves live actions, remembers expansion and restores original controls', (t) => {
@@ -32,4 +34,66 @@ test('inspector disclosure preserves live actions, remembers expansion and resto
   assert.equal(root.querySelector('.section-heading').hidden, false);
   disclosure.decorate(root);
   assert.equal(root.querySelector('details').open, true);
+});
+
+for (const compact of [false, true])
+  test(`first-run layout includes all registered panels without opening optional columns: compact=${compact}`, () => {
+    const ids = [
+      'document:one',
+      'xaml',
+      'layers',
+      'properties',
+      'solution',
+      'code-intelligence',
+      'timeline',
+    ];
+    const layout = initialStudioLayout(ids, ['document:one'], compact);
+    validateDockLayout(layout, new Set(ids));
+    assert(layout.hidden.includes('code-intelligence'));
+    assert.equal(layout.activePanel, 'document:one');
+    const solution = locatePanel(layout, 'solution');
+    assert.equal(solution.kind, compact ? 'autoHide' : 'group');
+    if (!compact) assert.equal(solution.group.active, 'solution');
+    assert.equal(locatePanel(layout, 'xaml').kind, 'group');
+  });
+
+test('final composition restores saved extension-panel intent instead of initialization side effects', (t) => {
+  const dom = controlDOM(t);
+  const ids = ['document:one', 'xaml', 'layers', 'properties', 'solution', 'code-intelligence'];
+  const model = new DockLayout(
+    ids.map((id) => ({
+      id,
+      kind: id.startsWith('document:') || id === 'xaml' ? 'document' : 'tool',
+    })),
+    initialStudioLayout(ids, ['document:one']),
+  );
+  model.show('code-intelligence');
+  const saved = model.serialize();
+  model.hide('code-intelligence');
+  let rendered = 0;
+  finishDockingStartup(
+    {
+      view: 'split',
+      stores: [{ document: { id: 'one' } }],
+      docking: {
+        model,
+        control: {
+          window: dom.window,
+          render() {
+            rendered++;
+          },
+        },
+        syncCanvas() {},
+        layoutChanged() {},
+        setView() {
+          throw Error('A saved layout must not be replaced by a mode preset');
+        },
+      },
+    },
+    saved,
+  );
+  assert.equal(model.serialize(), saved);
+  assert.equal(model.history.length, 0);
+  assert.equal(model.future.length, 0);
+  assert.equal(rendered, 1);
 });

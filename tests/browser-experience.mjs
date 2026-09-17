@@ -43,6 +43,10 @@ try {
   const page = await context.newPage();
   await page.goto(base);
   await page.waitForFunction(() => !!window.xamora?.studio.experience);
+  assert.equal(
+    await page.evaluate(() => window.xamora.docking.control.visible.has('code-intelligence')),
+    false,
+  );
   const baseline = await page.evaluate(() => JSON.stringify(window.xamora.getDocument()));
   const inspector = page.locator('[data-inspector-host="design"]');
   assert.equal(await inspector.locator('.ux-inspector-disclosure').count(), 2);
@@ -152,6 +156,19 @@ try {
   assert.equal(await page.locator('#toast.show').count(), 0);
   assert.equal(await page.evaluate(() => JSON.stringify(window.xamora.getDocument())), baseline);
 
+  // Restore extension-panel choices after all workspaces finish registering, not from a partial registry.
+  const savedRoot = await page.evaluate(() => {
+    const { model, control } = window.xamora.docking;
+    control.show('code-intelligence');
+    return JSON.stringify(model.state.root);
+  });
+  await page.reload();
+  await page.waitForFunction(() => !!window.xamora?.studio.experience);
+  assert.equal(
+    await page.evaluate(() => JSON.stringify(window.xamora.docking.model.state.root)),
+    savedRoot,
+  );
+  assert(await page.evaluate(() => window.xamora.docking.control.visible.has('code-intelligence')));
   const mobile = await browser.newContext({
     viewport: { width: 390, height: 844 },
     isMobile: true,
@@ -163,6 +180,15 @@ try {
   await small.goto(base);
   await small.waitForFunction(() => !!window.xamora?.studio.experience);
   await small.screenshot({ path: 'test-results/ux/05-touch.png' });
+  assert(await small.evaluate(() => matchMedia('(pointer: coarse)').matches));
+  const toolTarget = await small.locator('[data-tool="hand"]').boundingBox();
+  assert(toolTarget.height >= 44, 'Touch density must override the persisted density selectors');
+  const searchButton = await small.locator('.ux-command-trigger').boundingBox();
+  assert(
+    searchButton.x >= 0 && searchButton.x + searchButton.width <= 390,
+    'Primary search must be reachable without scrolling the header',
+  );
+  assert(await small.locator('.topbar').evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
   await small.locator('.ux-command-trigger').click();
   await small.locator('#ide-command-search').fill('export');
   await small.screenshot({ path: 'test-results/ux/06-touch-palette.png' });
