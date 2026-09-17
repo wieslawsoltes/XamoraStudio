@@ -36,13 +36,15 @@ export function createNotifier(duration = 3500) {
   function notify(message) {
     const el = $('#toast');
     if (!el) return;
-    notices.get(el)?.clear();
+    const prior = notices.get(el),
+      focused = !!el.contains?.(el.ownerDocument?.activeElement);
+    prior?.clear();
     const state = {
-      hovered: false,
-      focused: false,
+      hovered: prior?.hovered || false,
+      focused,
       timer: null,
       cleanups: [],
-      previous: el.ownerDocument?.activeElement,
+      previous: focused ? prior?.previous : el.ownerDocument?.activeElement,
     };
     const clear = () => {
       clearTimeout(state.timer);
@@ -80,6 +82,7 @@ export function createNotifier(duration = 3500) {
       close.setAttribute('aria-label', 'Dismiss notification');
       close.onclick = dismiss;
       el.replaceChildren(text, close);
+      if (focused) close.focus({ preventScroll: true });
       const listen = (name, callback) => {
         el.addEventListener(name, callback);
         state.cleanups.push(() => el.removeEventListener(name, callback));

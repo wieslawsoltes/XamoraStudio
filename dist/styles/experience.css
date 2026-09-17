@@ -654,3 +654,19 @@ html[data-density] .topbar .ux-command-trigger {
     gap: 0;
   }
 }
+
+/* One selection language across docking and the rest of Studio, without styling design nodes. */
+.studio .dock-workspace,
+.dock-browser-host.dock-workspace {
+  --dock-active: #7454d8;
+  --dock-active-soft: #7454d81f;
+}
+.dark .studio .dock-workspace,
+.dark .dock-browser-host.dock-workspace {
+  --dock-active: #c1a9ff;
+  --dock-active-soft: #c1a9ff29;
+}
+:is(.studio, .dock-browser-host) .dock-group-active > .dock-group-header {
+  background: var(--ux-soft);
+  color: var(--ux-accent);
+}
