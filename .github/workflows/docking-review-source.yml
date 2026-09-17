@@ -1,0 +1,18 @@
+name: Docking review source
+on:
+  push:
+    branches: [feat/docking-browser-windows]
+    paths: [.github/workflows/docking-review-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git archive --format=tar HEAD > /tmp/docking-review-source.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docking-review-source
+          path: /tmp/docking-review-source.tar
+          retention-days: 2
