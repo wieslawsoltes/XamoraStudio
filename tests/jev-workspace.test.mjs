@@ -74,15 +74,19 @@ function setup(t, customFetch) {
   const preferences = new JevPreferences();
   preferences.save({}, { apiKey: 'unit-private' });
   const workspace = new JevWorkspace(s, { preferences, fetch });
-  workspace.root.querySelector('[data-jev-consent]').checked = true;
   workspace.prompt.value = 'Set button text to "After"';
+  const allow = () => {
+    workspace.consent.checked = true;
+    workspace.consent.dispatchEvent(new dom.window.Event('change'));
+  };
+  allow();
   cleanup = () => {
     workspace.dispose();
     control.dispose();
     s.dialogHost.dispose();
     session.dispose();
   };
-  return { ...dom, s, workspace, requests: () => requests };
+  return { ...dom, s, workspace, allow, requests: () => requests };
 }
 test('Studio proposal requires review and applies exactly one undoable source edit', async (t) => {
   const { s, workspace } = setup(t),
@@ -119,7 +123,7 @@ test('invalid or composing source and read-only modes block planning before netw
 test('context consent and previews do not imply permission to execute or send', async (t) => {
   const { workspace, requests } = setup(t);
   workspace.root.querySelector('[data-jev-consent]').checked = false;
-  await assert.rejects(workspace.run(), /allow sending/);
+  await assert.rejects(workspace.run(), /Allow context sharing/);
   assert.equal(requests(), 0);
   const preview = await workspace.preview();
   assert(preview.request.questions);
@@ -142,7 +146,7 @@ test('cancel and disposal cannot apply a late provider response', async (t) => {
   assert.equal(workspace.running, null);
 });
 test('global plans invalidate when non-document app context changes', async (t) => {
-  const { workspace, s } = setup(t, async (url, o) =>
+  const { workspace, s, allow } = setup(t, async (url, o) =>
     Response.json(responseFor(JSON.parse(o.body), { operation: 'command:', command: 'theme:' })),
   );
   s.menus.commands.set('theme', {
@@ -153,6 +157,7 @@ test('global plans invalidate when non-document app context changes', async (t) 
     },
   });
   workspace.scope.value = 'application';
+  allow();
   await workspace.run();
   assert(workspace.fresh());
   s.dark = true;
@@ -195,7 +200,7 @@ test('disposed workspace releases command entries, content and exposed app route
 });
 
 test('explicit generated repair stages an invalid draft and undo restores that exact invalid draft', async (t) => {
-  const { workspace, s } = setup(t, async (url, o) => {
+  const { workspace, s, allow } = setup(t, async (url, o) => {
     const body = JSON.parse(o.body);
     if (url.includes('writer.test')) {
       assert.equal(JSON.parse(body.messages[1].content).source, '<Grid><Button');
@@ -226,6 +231,7 @@ test('explicit generated repair stages an invalid draft and undo restores that e
   s.store.session.updateSource('<Grid><Button');
   const before = s.store.revision;
   assert.equal(s.store.session.isValid, false);
+  allow();
   const result = await workspace.run();
   assert(result.repair);
   assert.equal(s.store.revision, before);
@@ -236,4 +242,221 @@ test('explicit generated repair stages an invalid draft and undo restores that e
   s.store.undo();
   assert.equal(s.store.session.source, '<Grid><Button');
   assert.equal(s.store.session.isValid, false);
+});
+
+async function consentDialog(s) {
+  // The preview is asynchronous but performs no network IO.
+  for (let n = 0; n < 20; n++) {
+    if (s.dialogHost.body?.querySelector('.jev-share-review')) return s.dialogHost.element;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.fail('Expected the context-sharing dialog');
+}
+
+test('Run with unchecked consent opens a request review and sends only after Allow and run', async (t) => {
+  const { workspace, s, requests } = setup(t);
+  workspace.consent.checked = false;
+  const source = s.store.session.source;
+  const pending = workspace.run({ interactive: true });
+  const dialog = await consentDialog(s);
+  assert.equal(workspace.api.status().awaitingConsent, true);
+  assert.equal(requests(), 0);
+  assert.equal(workspace.consent.checked, false);
+  assert(dialog.textContent.includes('https://api.typesafe.ai'));
+  assert(dialog.textContent.includes('Current document'));
+  assert(dialog.textContent.includes('Usage may be billed'));
+  assert(!dialog.textContent.includes('unit-private'));
+  assert(dialog.querySelector('pre').textContent.includes('questions'));
+  assert(!workspace.root.querySelector('[data-jev-status]').classList.contains('jev-error'));
+  await dialog.querySelector('[data-modal-action="0"]').onclick();
+  const plan = await pending;
+  assert(plan.operations.length > 0);
+  assert(requests() > 0);
+  assert.equal(s.store.session.source, source);
+  assert.equal(
+    workspace.consent.checked,
+    false,
+    'One-run permission must not tick persistent consent',
+  );
+  assert.equal(workspace.api.status().awaitingConsent, false);
+  assert.equal(workspace.api.status().running, false);
+  workspace.apply();
+  s.store.undo();
+  assert.equal(s.store.session.source, source);
+  const calls = requests();
+  const next = workspace.run({ interactive: true });
+  await consentDialog(s);
+  s.closeModal();
+  assert.equal(await next, null);
+  assert.equal(requests(), calls, 'A second run needs a new approval');
+});
+
+for (const method of ['cancel button', 'close', 'Escape', 'API cancel', 'dispose', 'replacement']) {
+  test(`context review ${method} sends nothing and settles without granting permission`, async (t) => {
+    const { workspace, s, requests, window } = setup(t);
+    workspace.consent.checked = false;
+    const pending = workspace.run({ interactive: true });
+    const dialog = await consentDialog(s);
+    const allow = dialog.querySelector('[data-modal-action="0"]').onclick;
+    if (method === 'cancel button') dialog.querySelector('[data-dialog-cancel]').click();
+    else if (method === 'close') dialog.querySelector('[data-dialog-close]').click();
+    else if (method === 'Escape')
+      dialog.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    else if (method === 'API cancel') workspace.cancel();
+    else if (method === 'dispose') workspace.dispose();
+    else s.modal('Replacement', '<p>Unrelated dialog</p>', []);
+    assert.equal(await pending, null);
+    await allow();
+    assert.equal(requests(), 0);
+    assert.equal(workspace.proposal, null);
+    assert.equal(workspace.api.status().awaitingConsent, false);
+    assert.equal(workspace.api.status().running, false);
+    assert.equal(workspace.consent.checked, false);
+    if (method === 'replacement')
+      assert.equal(s.dialogHost.element.getAttribute('aria-label'), 'Replacement');
+    else assert.equal(s.dialogHost.isOpen, false);
+  });
+}
+
+for (const changed of [
+  'prompt',
+  'scope',
+  'source',
+  'selection',
+  'draft',
+  'settings',
+  'composition',
+  'app state',
+]) {
+  test(`context review rejects changed ${changed} before making any provider call`, async (t) => {
+    const { workspace, s, requests } = setup(t);
+    workspace.consent.checked = false;
+    if (changed === 'app state') workspace.scope.value = 'application';
+    const pending = workspace.run({ interactive: true });
+    const dialog = await consentDialog(s);
+    if (changed === 'prompt') workspace.prompt.value = 'Delete the selected control';
+    if (changed === 'scope') workspace.scope.value = 'application';
+    if (changed === 'source') s.store.setProperty([s.store.selection[0]], 'Width', '444');
+    if (changed === 'selection') s.store.select([s.doc.root.id]);
+    if (changed === 'draft') s.editor.input.value += '<unfinished';
+    if (changed === 'settings')
+      workspace.preferences.save({
+        generatorEnabled: true,
+        generatorEndpoint: 'https://different.test/generate',
+        generatorModel: 'fixture',
+      });
+    if (changed === 'composition') s.sync.composing = true;
+    if (changed === 'app state') s.dark = !s.dark;
+    const rejected = assert.rejects(pending, /changed.*Nothing was sent/);
+    await dialog.querySelector('[data-modal-action="0"]').onclick();
+    await rejected;
+    assert.equal(requests(), 0);
+    assert.equal(workspace.proposal, null);
+    assert.equal(workspace.consent.checked, false);
+    assert.equal(workspace.api.status().running, false);
+  });
+}
+
+test('prompt and scope input revoke checkbox permission without treating either action as sending consent', async (t) => {
+  const { workspace, allow, window, requests } = setup(t);
+  workspace.prompt.value = 'Something else';
+  workspace.prompt.dispatchEvent(new window.Event('input'));
+  assert.equal(workspace.consent.checked, false);
+  await assert.rejects(workspace.api.run(), /Allow context sharing/);
+  allow();
+  workspace.scope.value = 'selection';
+  workspace.scope.dispatchEvent(new window.Event('change'));
+  assert.equal(workspace.consent.checked, false);
+  await assert.rejects(workspace.api.run(), /Allow context sharing/);
+  assert.equal(requests(), 0);
+});
+
+test('checked consent cannot silently follow edited source, an API prompt or changed provider settings', async (t) => {
+  const { workspace, s, allow, requests } = setup(t);
+  s.store.setProperty([s.store.selection[0]], 'Width', '444');
+  await assert.rejects(workspace.api.run(), /Allow context sharing/);
+  assert.equal(workspace.consent.checked, false);
+  allow();
+  await assert.rejects(workspace.api.run('Delete the button'), /Allow context sharing/);
+  allow();
+  workspace.preferences.save({ model: 'jev-preview' });
+  await assert.rejects(workspace.api.run(), /Allow context sharing/);
+  assert.equal(requests(), 0);
+});
+
+test('duplicate Run cannot open a second consent dialog or multiply requests', async (t) => {
+  const { workspace, s, requests } = setup(t);
+  workspace.consent.checked = false;
+  const pending = workspace.run({ interactive: true });
+  const dialog = await consentDialog(s);
+  await assert.rejects(workspace.run({ interactive: true }), /already running/);
+  assert.equal(s.dialogHost.element, dialog);
+  assert.equal(workspace.root.querySelector('[data-jev-run]').disabled, true);
+  s.closeModal();
+  await pending;
+  assert.equal(workspace.root.querySelector('[data-jev-run]').disabled, false);
+  assert.equal(requests(), 0);
+});
+
+test('Run validates drafts and empty prompts before presenting a consent dialog', async (t) => {
+  const { workspace, s, requests } = setup(t);
+  workspace.consent.checked = false;
+  s.sync.composing = true;
+  await assert.rejects(workspace.run({ interactive: true }), /composition/);
+  assert.equal(s.dialogHost.isOpen, false);
+  s.sync.composing = false;
+  workspace.prompt.value = '  ';
+  await assert.rejects(workspace.run({ interactive: true }), /prompt/i);
+  assert.equal(s.dialogHost.isOpen, false);
+  assert.equal(requests(), 0);
+});
+
+test('context approval renders authored names and prompt as text, and discloses optional generator', async (t) => {
+  const { workspace, s, requests } = setup(t);
+  workspace.consent.checked = false;
+  s.doc.name = '<img src=x onerror=alert(1)>.xaml';
+  workspace.prompt.value = 'Set text to "<script>alert(1)</script>"';
+  workspace.preferences.save({
+    generatorEnabled: true,
+    generatorEndpoint: 'https://writer.test/v1/chat/completions',
+    generatorModel: 'fixture',
+  });
+  const pending = workspace.run({ interactive: true });
+  const dialog = await consentDialog(s);
+  assert(dialog.textContent.includes('https://writer.test/v1/chat/completions'));
+  assert(dialog.textContent.includes('<img src=x onerror=alert(1)>.xaml'));
+  assert.equal(dialog.querySelectorAll('img,script').length, 0);
+  s.closeModal();
+  await pending;
+  assert.equal(requests(), 0);
+});
+
+test('the request approved in the dialog is exactly the first native HTTP payload', async (t) => {
+  const sent = [];
+  const { workspace, s } = setup(t, async (url, options) => {
+    const request = JSON.parse(options.body);
+    sent.push(request);
+    return Response.json(responseFor(request, { operation: 'done:' }));
+  });
+  workspace.consent.checked = false;
+  const pending = workspace.run({ interactive: true });
+  const dialog = await consentDialog(s);
+  const preview = JSON.parse(dialog.querySelector('pre').textContent);
+  await dialog.querySelector('[data-modal-action="0"]').onclick();
+  await pending;
+  assert.deepEqual(sent, [preview]);
+});
+
+test('checkbox approval clears the old error and saved settings revoke the previous grant', async (t) => {
+  const { workspace, s, allow, requests } = setup(t);
+  workspace.status('Previous error', true);
+  allow();
+  const status = workspace.root.querySelector('[data-jev-status]');
+  assert(!status.classList.contains('jev-error'));
+  assert(status.textContent.includes('Context sharing allowed'));
+  workspace.settings();
+  await s.dialogHost.element.querySelector('[data-modal-action="0"]').onclick();
+  assert.equal(workspace.consent.checked, false);
+  await assert.rejects(workspace.api.run(), /Allow context sharing/);
+  assert.equal(requests(), 0);
 });

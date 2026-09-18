@@ -33,6 +33,8 @@ export class JevWorkspace {
       });
     this.disposed = false;
     this.proposal = null;
+    this.permission = null;
+    this.awaitingConsent = false;
     this.cleanups = [];
     studio.jev = this;
     this.root = this.document.createElement('section');
@@ -47,6 +49,7 @@ export class JevWorkspace {
       <label class="jev-field">What would you like to do?<textarea data-jev-prompt rows="5" placeholder='Set the selected button background to "#2563EB". Add a TextBlock. Create a login starter in HTML.' maxlength="4000" spellcheck="true"></textarea></label>
       <p class="jev-note">Native Jev chooses typed actions and exact values; it does not write code. Enable the optional text generator for bespoke XAML/HTML. Changes always require review.</p>
       <label class="jev-consent"><input type="checkbox" data-jev-consent> Allow sending this prompt and the displayed scope to configured AI endpoints. Usage may be billed.</label>
+      <p class="jev-note">You can also choose Run to review the destination and allow this request once. No context is sent until you approve.</p>
       <div class="jev-actions"><button type="button" class="button primary" data-jev-run>Run · Ctrl+Enter</button><button type="button" class="button quiet" data-jev-preview>Preview context</button><button type="button" class="button quiet" data-jev-cancel disabled>Cancel</button></div>
       <div class="jev-status" role="status" aria-live="polite" data-jev-status>Configure your TypeSafe key or a private proxy to begin.</div>
       <details class="jev-context"><summary>Outbound context and typed questions</summary><p class="jev-note" data-jev-budget></p><pre data-jev-request></pre></details>
@@ -56,11 +59,12 @@ export class JevWorkspace {
     const q = (selector) => this.root.querySelector(selector);
     this.prompt = q('[data-jev-prompt]');
     this.scope = q('[data-jev-scope]');
+    this.consent = q('[data-jev-consent]');
     this.scope.value = 'document';
     studio.docking.model.register({ id: 'jev', title: 'Jev assistant', kind: 'tool', icon: '✦' });
     studio.docking.control.mount('jev', this.root);
     q('[data-jev-settings]').onclick = () => this.settings();
-    q('[data-jev-run]').onclick = () => this.run().catch(() => {});
+    q('[data-jev-run]').onclick = () => this.run({ interactive: true }).catch(() => {});
     q('[data-jev-preview]').onclick = () => this.preview().catch(() => {});
     q('[data-jev-cancel]').onclick = () => this.cancel();
     q('[data-jev-apply]').onclick = () => {
@@ -75,10 +79,20 @@ export class JevWorkspace {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.isComposing) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        this.run().catch(() => {});
+        this.run({ interactive: true }).catch(() => {});
       }
     };
+    this.consent.onchange = () => {
+      this.permission = this.consent.checked ? this.requestContext() : null;
+      this.status(
+        this.consent.checked
+          ? 'Context sharing allowed for this prompt and scope. Run creates a proposal for review.'
+          : 'No context shared. Choose Run to review and approve this request.',
+      );
+    };
+    this.prompt.oninput = () => this.revokeConsent();
     this.scope.onchange = () => {
+      this.revokeConsent();
       this.cancel();
       this.discard();
       this.target();
@@ -133,6 +147,7 @@ export class JevWorkspace {
       apply: () => this.apply(),
       status: () => ({
         running: !!this.running,
+        awaitingConsent: this.awaitingConsent,
         hasProposal: !!this.proposal,
         fresh: this.fresh(),
         configuredModel: this.preferences.value.model,
@@ -151,6 +166,7 @@ export class JevWorkspace {
     if (this.disposed) return;
     if (!Object.hasOwn(scopeLabels, scope)) throw Error('Unknown assistant scope.');
     if (scope !== this.scope.value) {
+      this.revokeConsent();
       this.cancel();
       this.discard();
     }
@@ -160,6 +176,7 @@ export class JevWorkspace {
     this.prompt.focus();
   }
   target() {
+    this.hasConsent();
     const s = this.s,
       cfg = this.preferences.value;
     this.root.querySelector('[data-jev-target]').textContent =
@@ -274,23 +291,157 @@ export class JevWorkspace {
       this.root.querySelector(`[data-jev-${name}]`).disabled = value;
     this.root.querySelector('[data-jev-cancel]').disabled = !value;
     this.scope.disabled = value;
+    this.consent.disabled = value;
   }
-  async run() {
-    if (this.running) throw Error('A Jev request is already running.');
-    if (!this.root.querySelector('[data-jev-consent]').checked) {
-      const error = Error('Review the endpoint/scope and allow sending context before running.');
-      this.status(error.message, true);
-      throw error;
+  requestContext() {
+    const s = this.s;
+    return {
+      prompt: this.prompt.value,
+      scope: this.scope.value,
+      configuration: JSON.stringify(this.preferences.value),
+      documentId: s.doc.id,
+      revision: s.store.revision,
+      source: s.editor.input.value,
+      selection: JSON.stringify(s.store.selection),
+      composing: !!s.sync.composing,
+      readOnly: !!s.readOnly,
+      recording: !!(s.blend?.animation?.record || s.htmlAnimation?.recording),
+      appStamp: this.scope.value === 'application' ? this.appStamp() : null,
+    };
+  }
+  matchesContext(context) {
+    if (this.disposed || !context) return false;
+    const current = this.requestContext();
+    return Object.keys(current).every((key) => context[key] === current[key]);
+  }
+  revokeConsent() {
+    this.permission = null;
+    this.consent.checked = false;
+  }
+  hasConsent() {
+    if (!this.consent.checked || !this.matchesContext(this.permission)) {
+      this.revokeConsent();
+      return false;
     }
-    this.discard();
+    return true;
+  }
+  confirmSending(snapshot, context, packed, signal) {
+    const s = this.s,
+      config = JSON.parse(context.configuration);
+    this.awaitingConsent = true;
+    this.status(
+      'Waiting for permission. Review the destination and choose Allow and run. Nothing has been sent.',
+    );
+    return new Promise((resolve, reject) => {
+      let body,
+        lifetime,
+        settled = false;
+      const cleanup = () => {
+        signal.removeEventListener('abort', canceled);
+        lifetime?.removeEventListener('abort', dismissed);
+        this.awaitingConsent = false;
+      };
+      const finish = (approved) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(approved);
+      };
+      const dismissed = () => finish(false);
+      const canceled = () => {
+        finish(false);
+        // Do not close an unrelated replacement dialog.
+        if (body && s.dialogHost?.body === body) s.closeModal();
+      };
+      try {
+        // Keep a focusable return target even though Run is disabled while pending.
+        this.prompt.focus({ preventScroll: true });
+        s.modal(
+          'Allow Jev to use this context?',
+          `<div class="jev-share-review">
+            <p>No request has been sent. Approve sharing only with destinations you trust.</p>
+            <dl><dt>Jev destination</dt><dd>${esc(config.endpoint)}</dd>
+            ${config.generatorEnabled ? `<dt>Optional text generator</dt><dd>${esc(config.generatorEndpoint || 'Not configured')}</dd>` : ''}
+            <dt>Scope</dt><dd>${esc(scopeLabels[context.scope])} · ${esc(snapshot.document.name)} · ${snapshot.selection.length} selected</dd>
+            <dt>First request</dt><dd>${packed.bytes.toLocaleString()} UTF-8 bytes · ${config.maxRequestBytes.toLocaleString()} byte limit per request</dd></dl>
+            <p class="jev-note">The prompt and bounded context below will be sent to Jev. Later action-specific questions use the same scope and budget.${config.generatorEnabled ? ' If needed, the complete editing target will also be sent to the separate generator, then verified by Jev.' : ''} Usage may be billed. This approval is for this run only. Changes still require a separate Apply.</p>
+            <details><summary>Review outbound context and typed questions</summary><pre>${esc(JSON.stringify(packed.request, null, 2))}</pre></details>
+          </div>`,
+          [
+            {
+              label: 'Allow and run',
+              primary: true,
+              run: () => {
+                if (settled || signal.aborted || this.disposed || s.dialogHost?.body !== body)
+                  return;
+                finish(true);
+                s.closeModal();
+              },
+            },
+          ],
+          true,
+        );
+        body = s.dialogHost.body;
+        lifetime = s.dialogHost.signal;
+        lifetime.addEventListener('abort', dismissed, { once: true });
+        signal.addEventListener('abort', canceled, { once: true });
+        if (signal.aborted) canceled();
+        else if (lifetime.aborted) dismissed();
+      } catch (error) {
+        settled = true;
+        cleanup();
+        reject(error);
+      }
+    });
+  }
+  async run({ interactive = false } = {}) {
+    if (this.disposed) throw Error('The assistant is disposed.');
+    if (this.running) throw Error('A Jev request is already running.');
     let controller;
     try {
       const snapshot = this.snapshot();
-      this.captured = snapshot;
+      this.target();
+      const context = this.requestContext(),
+        assistant = this.assistant(),
+        allowed = this.hasConsent();
+      // Programmatic callers still need explicit panel permission. Only the Run
+      // button/shortcut opens the one-request approval flow; neither grants consent.
+      if (!allowed && !interactive)
+        throw Error(
+          'Allow context sharing in the Jev panel, or use Run to review and approve this request.',
+        );
       controller = new AbortController();
       this.running = controller;
       this.busy(true);
-      const plan = await this.assistant().plan(snapshot, this.prompt.value, {
+      if (!allowed) {
+        const packed = await assistant.plan(snapshot, context.prompt, {
+          signal: controller.signal,
+          previewOnly: true,
+        });
+        if (controller.signal.aborted || this.disposed)
+          throw new DOMException('Canceled', 'AbortError');
+        if (!this.matchesContext(context))
+          throw Error(
+            'The prompt, context or settings changed. Run again to review the current request.',
+          );
+        this.showRequest(packed);
+        const approved = await this.confirmSending(snapshot, context, packed, controller.signal);
+        if (!approved) {
+          this.status('Canceled. No context was sent.');
+          return null;
+        }
+        // Another window can still edit source or settings while the owner modal
+        // is open. Approval must never authorize a different request or endpoint.
+        if (controller.signal.aborted || this.disposed)
+          throw new DOMException('Canceled', 'AbortError');
+        if (!this.matchesContext(context))
+          throw Error(
+            'The prompt, context or settings changed. Nothing was sent. Run again to review the current request.',
+          );
+      }
+      this.discard();
+      this.captured = snapshot;
+      const plan = await assistant.plan(snapshot, context.prompt, {
         signal: controller.signal,
         onRequest: (packed) => this.showRequest(packed),
         onProgress: (message) => this.status(message),
@@ -482,10 +633,11 @@ export class JevWorkspace {
             try {
               const data = read();
               this.preferences.save(data.config, data.keys, data.remember, data.trust);
+              this.revokeConsent();
               this.discard();
               s.closeModal();
               this.target();
-              this.status('Jev settings saved. Preview context, then allow sending and run.');
+              this.status('Jev settings saved. Choose Run to review and approve sending context.');
             } catch (error) {
               body.querySelector('[data-jev-settings-error]').textContent = error.message;
             }
@@ -582,6 +734,7 @@ export class JevWorkspace {
     this.cancel();
     this.disposed = true;
     this.preferences.dispose();
+    this.revokeConsent();
     this.proposal = null;
     for (const cleanup of this.cleanups.splice(0).reverse()) cleanup();
     for (const c of this.commands)
