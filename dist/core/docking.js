@@ -67,28 +67,33 @@ export function locatePanel(layout, id) {
       return { kind: 'autoHide', edge, index: layout.autoHide[edge].indexOf(id) };
   return layout.hidden.includes(id) ? { kind: 'hidden' } : null;
 }
-function normalizeNode(node) {
+function normalizeNode(node, keepEmptyDocumentGroups = false) {
   if (!node) return null;
   if (node.type === 'group') {
-    if (!node.panels.length) return null;
+    if (!node.panels.length) {
+      if (!keepEmptyDocumentGroups || node.kind !== 'document') return null;
+      node.active = null;
+      return node;
+    }
     if (!node.panels.includes(node.active)) node.active = node.panels[0];
     return node;
   }
-  node.first = normalizeNode(node.first);
-  node.second = normalizeNode(node.second);
+  node.first = normalizeNode(node.first, keepEmptyDocumentGroups);
+  node.second = normalizeNode(node.second, keepEmptyDocumentGroups);
   if (!node.first) return node.second;
   if (!node.second) return node.first;
   return node;
 }
-function normalize(layout) {
-  layout.root = normalizeNode(layout.root);
+function normalize(layout, keepEmptyDocumentGroups = false) {
+  layout.root = normalizeNode(layout.root, keepEmptyDocumentGroups);
+  // Empty floating/browser windows must still release their hosts.
   layout.floating = layout.floating.filter((f) => {
     f.root = normalizeNode(f.root);
     return !!f.root;
   });
   const located = layout.activePanel && locatePanel(layout, layout.activePanel);
   if (!located || located.kind === 'hidden')
-    layout.activePanel = dockGroups(layout)[0]?.active || null;
+    layout.activePanel = dockGroups(layout).find((group) => group.active)?.active || null;
   if (layout.zoomedGroup && !findDock(layout, layout.zoomedGroup)) layout.zoomedGroup = null;
   return layout;
 }
@@ -133,7 +138,7 @@ function movingActive(layout, ids) {
     : dockGroups(layout).find((group) => ids.includes(group.active))?.active || ids[0];
 }
 /** Registry changes migrate layout history instead of reviving removed panels on undo. */
-function reconcileRegistry(layout, known) {
+function reconcileRegistry(layout, known, keepEmptyDocumentGroups = false) {
   const draft = copy(layout);
   const old = new Set([
     ...dockGroups(draft).flatMap((group) => group.panels),
@@ -147,8 +152,9 @@ function reconcileRegistry(layout, known) {
   for (const id of known) if (!old.has(id)) draft.hidden.push(id);
   draft.pinned = draft.pinned.filter((id) => known.has(id));
   for (const id of Object.keys(draft.placements)) if (!known.has(id)) delete draft.placements[id];
-  if (draft.modeRestore) draft.modeRestore = reconcileRegistry(draft.modeRestore, known);
-  return validateDockLayout(normalize(draft), known);
+  if (draft.modeRestore)
+    draft.modeRestore = reconcileRegistry(draft.modeRestore, known, keepEmptyDocumentGroups);
+  return validateDockLayout(normalize(draft, keepEmptyDocumentGroups), known);
 }
 function remember(layout, id) {
   const place = locatePanel(layout, id);
@@ -201,7 +207,7 @@ export function validateDockLayout(layout, known) {
     if (known && !known.has(id)) throw Error('Unknown docking panel: ' + id);
     seen.add(id);
   };
-  const visit = (node, depth = 0) => {
+  const visit = (node, depth = 0, allowEmptyDocuments = true) => {
     if (!node) return;
     if (++count > 1024 || depth > 48 || !safeId(node.id) || nodes.has(node.id))
       throw Error('Docking tree is too deep or contains duplicate nodes.');
@@ -210,8 +216,9 @@ export function validateDockLayout(layout, known) {
       if (
         !['tool', 'document'].includes(node.kind) ||
         !Array.isArray(node.panels) ||
-        !node.panels.length ||
-        !node.panels.includes(node.active)
+        (node.panels.length
+          ? !node.panels.includes(node.active)
+          : !allowEmptyDocuments || node.kind !== 'document' || node.active !== null)
       )
         throw Error('Invalid tab group.');
       node.panels.forEach(panel);
@@ -225,8 +232,8 @@ export function validateDockLayout(layout, known) {
         !node.second
       )
         throw Error('Invalid docking split.');
-      visit(node.first, depth + 1);
-      visit(node.second, depth + 1);
+      visit(node.first, depth + 1, allowEmptyDocuments);
+      visit(node.second, depth + 1, allowEmptyDocuments);
     } else throw Error('Unknown docking node.');
   };
   visit(layout.root);
@@ -254,7 +261,7 @@ export function validateDockLayout(layout, known) {
     )
       throw Error('Invalid browser window bounds.');
     nodes.add(f.id);
-    visit(f.root);
+    visit(f.root, 0, false);
   }
   for (const edge of edges) {
     if (!Array.isArray(layout.autoHide[edge])) throw Error('Invalid auto-hide strip.');
@@ -282,7 +289,12 @@ export function validateDockLayout(layout, known) {
   }
   return layout;
 }
-export function createDockLayout(panelIds, { documents = [], preset = 'designer' } = {}) {
+export function createDockLayout(
+  panelIds,
+  { documents = [], preset = 'designer', keepEmptyDocumentGroups = false } = {},
+) {
+  if (typeof keepEmptyDocumentGroups !== 'boolean')
+    throw TypeError('keepEmptyDocumentGroups must be a boolean.');
   documents = documents.filter((id) => !['xaml', 'views'].includes(id));
   const all = new Set(panelIds),
     take = (ids) => ids.filter((id) => all.has(id)),
@@ -290,7 +302,9 @@ export function createDockLayout(panelIds, { documents = [], preset = 'designer'
       const p = take(ids);
       return p.length ? dockGroup(p, kind, id) : null;
     };
-  const doc = group(documents, 'document', 'documents'),
+  const doc =
+      group(documents, 'document', 'documents') ||
+      (keepEmptyDocumentGroups ? dockGroup([], 'document', 'documents') : null),
     code = group(['xaml'], 'document', 'source'),
     left = group(['layers', 'toolkit', 'assets', 'data'], 'tool', 'tools'),
     right = group(['properties', 'raw', 'flow', 'inspect', 'notes'], 'tool', 'properties');
@@ -360,8 +374,11 @@ export function createDockLayout(panelIds, { documents = [], preset = 'designer'
 }
 /** Layout mutation is independent from document history and document save state. */
 export class DockLayout extends EventTarget {
-  constructor(panels = [], layout = null) {
+  constructor(panels = [], layout = null, { keepEmptyDocumentGroups = false } = {}) {
     super();
+    if (typeof keepEmptyDocumentGroups !== 'boolean')
+      throw TypeError('keepEmptyDocumentGroups must be a boolean.');
+    this._keepEmptyDocumentGroups = keepEmptyDocumentGroups;
     this.panels = new Map(
       panels.map((p) => [
         typeof p === 'string' ? p : p.id,
@@ -374,12 +391,41 @@ export class DockLayout extends EventTarget {
     this.state = layout
       ? copy(layout)
       : createDockLayout([...this.panels.keys()], {
+          keepEmptyDocumentGroups,
           documents: [...this.panels.values()]
             .filter((p) => p.kind === 'document')
             .map((p) => p.id),
         });
     validateDockLayout(this.state, new Set(this.panels.keys()));
+    this.state = reconcileRegistry(
+      this.state,
+      new Set(this.panels.keys()),
+      keepEmptyDocumentGroups,
+    );
     this.validateKinds(this.state);
+  }
+  get keepEmptyDocumentGroups() {
+    return this._keepEmptyDocumentGroups;
+  }
+  /** A host preference, independent of layout undo and imported layout data. */
+  setKeepEmptyDocumentGroups(value) {
+    if (typeof value !== 'boolean') throw TypeError('keepEmptyDocumentGroups must be a boolean.');
+    if (this.batchActive) throw Error('Change docking preferences outside a layout batch.');
+    if (value === this._keepEmptyDocumentGroups) return false;
+    const known = new Set(this.panels.keys());
+    const state = reconcileRegistry(this.state, known, value);
+    const history = this.history.map((entry) => reconcileRegistry(entry, known, value));
+    const future = this.future.map((entry) => reconcileRegistry(entry, known, value));
+    this._keepEmptyDocumentGroups = value;
+    this.state = state;
+    this.history = history;
+    this.future = future;
+    this.emit('Change empty document panel preference');
+    return true;
+  }
+  /** Explicit mode changes can remove unused wells without changing the host preference. */
+  pruneEmptyGroups() {
+    return this.transaction('Remove unused document panels', (draft) => normalize(draft));
   }
   validateKinds(layout) {
     for (const id of Object.values(layout.autoHide).flat())
@@ -401,7 +447,7 @@ export class DockLayout extends EventTarget {
     const before = copy(this.state),
       draft = copy(this.state);
     fn(draft);
-    normalize(draft);
+    normalize(draft, this.keepEmptyDocumentGroups);
     validateDockLayout(draft, new Set(this.panels.keys()));
     this.validateKinds(draft);
     if (JSON.stringify(before) === JSON.stringify(draft)) return false;
@@ -450,9 +496,13 @@ export class DockLayout extends EventTarget {
     if (!safeId(panel.id) || this.panels.has(panel.id))
       throw Error('Panel identifier is invalid or already registered.');
     const known = new Set([...this.panels.keys(), panel.id]);
-    const state = reconcileRegistry(this.state, known);
-    const history = this.history.map((entry) => reconcileRegistry(entry, known));
-    const future = this.future.map((entry) => reconcileRegistry(entry, known));
+    const state = reconcileRegistry(this.state, known, this.keepEmptyDocumentGroups);
+    const history = this.history.map((entry) =>
+      reconcileRegistry(entry, known, this.keepEmptyDocumentGroups),
+    );
+    const future = this.future.map((entry) =>
+      reconcileRegistry(entry, known, this.keepEmptyDocumentGroups),
+    );
     this.panels.set(panel.id, panel);
     this.state = state;
     this.history = history;
@@ -464,9 +514,13 @@ export class DockLayout extends EventTarget {
     if (this.batchActive) throw Error('Unregister panels outside a layout batch.');
     if (!this.panels.has(id)) return;
     const known = new Set([...this.panels.keys()].filter((key) => key !== id));
-    const state = reconcileRegistry(this.state, known);
-    const history = this.history.map((entry) => reconcileRegistry(entry, known));
-    const future = this.future.map((entry) => reconcileRegistry(entry, known));
+    const state = reconcileRegistry(this.state, known, this.keepEmptyDocumentGroups);
+    const history = this.history.map((entry) =>
+      reconcileRegistry(entry, known, this.keepEmptyDocumentGroups),
+    );
+    const future = this.future.map((entry) =>
+      reconcileRegistry(entry, known, this.keepEmptyDocumentGroups),
+    );
     this.panels.delete(id);
     this.state = state;
     this.history = history;
@@ -507,7 +561,12 @@ export class DockLayout extends EventTarget {
     const p = locatePanel(this.state, id);
     if (p?.kind !== 'hidden') return this.activate(id);
     const saved = this.state.placements[id],
-      target = saved && findDock(this.state, saved.groupId);
+      target =
+        (saved && findDock(this.state, saved.groupId)) ||
+        (this.panels.get(id)?.kind === 'document' &&
+          dockGroups({ root: this.state.root, floating: [] }).find(
+            (group) => group.kind === 'document' && !group.panels.length,
+          ));
     return this.dock(
       id,
       target?.id || this.state.root?.id || null,
@@ -529,6 +588,7 @@ export class DockLayout extends EventTarget {
       if (
         target?.type === 'group' &&
         position !== 'center' &&
+        target.panels.length > 0 &&
         target.panels.every((id) => ids.includes(id))
       )
         throw Error('A group cannot split against itself.');
@@ -740,7 +800,10 @@ export class DockLayout extends EventTarget {
     const d = copy(layout);
     validateDockLayout(d);
     if (reconcile) {
-      Object.assign(d, reconcileRegistry(d, new Set(this.panels.keys())));
+      Object.assign(
+        d,
+        reconcileRegistry(d, new Set(this.panels.keys()), this.keepEmptyDocumentGroups),
+      );
     }
     validateDockLayout(d, new Set(this.panels.keys()));
     return this.transaction('Load window layout', (state) => {

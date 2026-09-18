@@ -248,3 +248,28 @@ test('workspace modules have package owners, no Studio imports and a current int
   );
   assert.deepEqual(await workspaceInventory(), expected);
 });
+
+test('HTML motion toolbars scroll natively without docking-tab arrows', (t) => {
+  const { host, own } = fixture(t);
+  host.renderNotes = () => {}; // Host annotation rendering is outside this toolbar test.
+  own(new BlendFeatures(host));
+  own(new TimelineWorkspace(host));
+  own(new SolutionWorkspace(host));
+  const html = own(new HtmlWorkspace(host));
+  host.importText(
+    '<!doctype html><html><body><button>Animate</button></body></html>',
+    'Motion.html',
+  );
+  html.motion.render();
+  const bars = [...html.motion.host.querySelectorAll('.html-motion-bar')];
+  assert.equal(bars.length, 3);
+  assert.equal(html.motion.host.querySelectorAll('.strip-scroll-button').length, 0);
+  for (const bar of bars) {
+    assert(bar.classList.contains('scroll-button-viewport'));
+    assert(bar.parentElement.classList.contains('scroll-button-strip'));
+    assert.equal(bar.parentElement.children.length, 1);
+  }
+  html.motion.render();
+  assert.equal(html.motion.host.querySelectorAll('.scroll-button-strip').length, 3);
+  assert(html.motion.host.querySelector('[data-hm-create]'));
+});

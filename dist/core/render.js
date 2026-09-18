@@ -98,6 +98,14 @@ export class PreviewRenderer {
       });
       return this.elements;
     }
+    this.prepareDocument(doc, { interactive, designTime });
+    host.replaceChildren();
+    const root = scope || doc.root;
+    host.append(this.node(root, null));
+    return this.elements;
+  }
+  /** Initialize resource and preview state even for an application-owned document surface. */
+  prepareDocument(doc, { interactive = false, designTime = !interactive } = {}) {
     this.htmlRenderer?.dispose();
     this.document = doc;
     this.interactive = interactive;
@@ -124,10 +132,6 @@ export class PreviewRenderer {
         this.resources[n.props['x:Key']] =
           n.props.Color || n.children?.map((c) => c.text || '').join('') || '';
     });
-    host.replaceChildren();
-    const root = scope || doc.root;
-    host.append(this.node(root, null));
-    return this.elements;
   }
   node(n, parent, templated) {
     if (!isElement(n)) return document.createTextNode(n.text || '');

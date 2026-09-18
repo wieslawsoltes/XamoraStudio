@@ -30,6 +30,9 @@
   font-size: 17px;
   cursor: pointer;
 }
+.strip-scroll-button[hidden] {
+  display: none !important;
+}
 .strip-scroll-button:hover:not(:disabled) {
   background: var(--accent-soft, #eae4fa);
 }

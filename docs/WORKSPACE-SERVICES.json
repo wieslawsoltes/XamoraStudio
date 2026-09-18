@@ -291,7 +291,6 @@
   "html-animation-workspace.js": {
     "hostMembers": [
       "blend",
-      "dispose",
       "doc",
       "docking",
       "importText",

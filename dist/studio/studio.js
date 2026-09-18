@@ -532,7 +532,9 @@ export class Studio {
     requestAnimationFrame(() => this.drawSelection());
   }
   renderResourceBoard(host) {
-    this.renderer.elements.clear();
+    // A resource document may be the last active page when all editor tabs are closed.
+    // Initialize the same current-document context as a visual canvas before motion capture.
+    this.renderer.prepareDocument(this.doc);
     host.innerHTML = `<div class="token-board">${this.resources()
       .filter((n) => n.props.Color)
       .map(

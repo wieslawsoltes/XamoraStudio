@@ -10,16 +10,30 @@ export class ScrollButtons {
     viewport.classList.add('scroll-button-viewport');
     this.host.append(this.previous, viewport, this.next);
     this.update = () => {
-      this.previous.disabled = viewport.scrollLeft <= 1;
-      this.next.disabled = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
+      const available =
+        viewport.clientWidth +
+        (this.previous.hidden ? 0 : this.previous.offsetWidth || 0) +
+        (this.next.hidden ? 0 : this.next.offsetWidth || 0);
+      const overflow = viewport.clientWidth > 0 && viewport.scrollWidth > available + 1;
+      this.previous.hidden = this.next.hidden = !overflow;
+      this.previous.disabled = !overflow || viewport.scrollLeft <= 1;
+      this.next.disabled =
+        !overflow || viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
     };
     viewport.addEventListener('scroll', this.update);
     const view = this.document.defaultView || globalThis;
     this.observer = new (view.ResizeObserver || ResizeObserver)(this.update);
     this.observer.observe(viewport);
+    this.observer.observe(this.host);
     if (typeof view.MutationObserver === 'function') {
       this.mutations = new view.MutationObserver(this.update);
-      this.mutations.observe(viewport, { childList: true, subtree: true, characterData: true });
+      this.mutations.observe(viewport, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['class', 'style', 'hidden'],
+      });
     }
     this.frameWindow = view;
     this.frame = view.requestAnimationFrame(this.update);
@@ -29,6 +43,8 @@ export class ScrollButtons {
     b.className = 'strip-scroll-button';
     b.textContent = text;
     b.type = 'button';
+    b.hidden = true;
+    b.disabled = true;
     b.title = label;
     b.setAttribute('aria-label', label);
     b.onkeydown = (e) => {

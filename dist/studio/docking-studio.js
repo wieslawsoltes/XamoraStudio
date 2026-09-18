@@ -7,6 +7,7 @@ import {
   walkDock,
 } from '../core/docking.js';
 import { DockWorkspace } from '../controls/dock-workspace.js';
+import { readLayoutPreferences } from './layout-preferences.js';
 import { PreviewRenderer } from '../core/render.js';
 import { listStoryboards } from '../core/animation.js';
 import { clone, find } from '../core/model.js';
@@ -121,7 +122,9 @@ export class DockingStudio {
         preset: window.innerWidth < 900 ? 'compact' : 'designer',
       },
     );
-    this.model = new DockLayout(panels, initial);
+    this.model = new DockLayout(panels, initial, {
+      keepEmptyDocumentGroups: readLayoutPreferences().keepEmptyDocumentGroups,
+    });
     try {
       const saved = localStorage.getItem(STORAGE);
       if (saved) this.model.load(saved, { reconcile: true });
@@ -347,9 +350,13 @@ export class DockingStudio {
             onClose: () => this.s.prepareEdit(),
           });
           this.control.mount(id, host);
-          const target = dockGroups(this.model.state).find(
-            (g) => g.kind === 'document' && g.panels.some((p) => p.startsWith('document:')),
-          );
+          const target =
+            dockGroups(this.model.state).find(
+              (g) => g.kind === 'document' && g.panels.some((p) => p.startsWith('document:')),
+            ) ||
+            dockGroups({ root: this.model.state.root, floating: [] }).find(
+              (g) => g.kind === 'document' && !g.panels.length,
+            );
           this.model.dock(
             id,
             target?.id || this.model.state.root?.id,
@@ -580,6 +587,7 @@ export class DockingStudio {
           }
         }
         this.model.activate(preferred);
+        this.model.pruneEmptyGroups();
       });
       s.view = view;
       $$('[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === view));

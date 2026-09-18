@@ -1,0 +1,11 @@
+/* Hidden before Studio starts, and carried with the live canvas into detached windows. */
+.canvas-hint:not([data-tips-visible='true']) {
+  display: none !important;
+}
+.canvas-hint[data-tips-visible='true']:not([hidden]) {
+  display: flex;
+  max-width: calc(100% - 24px);
+  white-space: normal;
+  flex-wrap: wrap;
+  justify-content: center;
+}
