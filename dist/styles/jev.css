@@ -89,22 +89,26 @@
   margin-top: 3px;
 }
 .jev-workspace details,
-.jev-settings details {
+.jev-settings details,
+.jev-share-review details {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px;
   min-width: 0;
 }
 .jev-workspace summary,
-.jev-settings summary {
+.jev-settings summary,
+.jev-share-review summary {
   cursor: pointer;
   font-weight: 600;
 }
 .jev-workspace details[open] > summary,
-.jev-settings details[open] > summary {
+.jev-settings details[open] > summary,
+.jev-share-review details[open] > summary {
   margin-bottom: 10px;
 }
-.jev-workspace pre {
+.jev-workspace pre,
+.jev-share-review pre {
   font:
     11px/1.6 ui-monospace,
     monospace;
@@ -188,4 +192,23 @@
   .jev-workspace {
     padding: 12px;
   }
+}
+
+.jev-share-review {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  line-height: 1.6;
+}
+.jev-share-review p,
+.jev-share-review dl {
+  margin: 0;
+}
+.jev-share-review dt {
+  font-weight: 600;
+}
+.jev-share-review dd {
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
 }

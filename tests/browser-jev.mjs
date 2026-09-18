@@ -147,9 +147,27 @@ try {
     document.querySelector('[data-jev-status]').textContent.includes('No network'),
   );
   assert.equal(requests.length, 0);
-  await panel.locator('[data-jev-consent]').check();
+  // Reproduce the reported unchecked-consent Run flow. It must offer a real
+  // action, not a provider-looking error, and must not send until approved.
   await panel.locator('[data-jev-run]').click();
+  const consentReview = page.getByRole('dialog', { name: 'Allow Jev to use this context?' });
+  await consentReview.waitFor({ state: 'visible' });
+  assert((await consentReview.textContent()).includes('https://api.typesafe.ai'));
+  assert((await consentReview.textContent()).includes('Current document'));
+  assert.equal(requests.length, 0);
+  await consentReview.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.waitForFunction(() => !window.xamora.jev.status().running);
+  assert.equal(requests.length, 0);
+  assert.equal(await panel.locator('[data-jev-consent]').isChecked(), false);
+  await panel.locator('[data-jev-prompt]').press('Control+Enter');
+  await consentReview.waitFor({ state: 'visible' });
+  assert.equal(requests.length, 0);
+  await mkdir('test-results/ux', { recursive: true });
+  await page.screenshot({ path: 'test-results/ux/17-jev-consent.png' });
+  await consentReview.getByRole('button', { name: 'Allow and run', exact: true }).click();
   await panel.locator('[data-jev-apply]:not(:disabled)').waitFor();
+  assert.equal(await panel.locator('[data-jev-consent]').isChecked(), false);
+  assert.equal(await page.evaluate(() => window.xamora.jev.status().awaitingConsent), false);
   assert.equal(
     await page.evaluate(() => window.xamora.studio.doc.root.children[0].props.Content),
     'Before',
@@ -172,9 +190,12 @@ try {
     await page.evaluate(() => sessionStorage.getItem('xamora-jev-session-keys-v1')),
     null,
   );
-  console.log('Jev: settings, byte-budget preview, typed HTTP, review gate and exact undo passed.');
+  console.log(
+    'Jev: unchecked Run/keyboard consent, zero-network cancellation, typed HTTP, proposal review and exact undo passed.',
+  );
 
   // A result is not allowed to overwrite any newer source or selection.
+  await panel.locator('[data-jev-consent]').check();
   await panel.locator('[data-jev-run]').click();
   await panel.locator('[data-jev-apply]:not(:disabled)').waitFor();
   await page.evaluate(() => {
@@ -195,6 +216,7 @@ try {
   );
   await panel.locator('[data-jev-discard]').click();
   await panel.locator('[data-jev-prompt]').fill('cancel this run');
+  await panel.locator('[data-jev-consent]').check();
   await panel.locator('[data-jev-run]').click();
   await page.waitForFunction(() => window.xamora.jev.status().running);
   // Wait for the mocked provider to receive the request without a timing sleep.
@@ -216,6 +238,7 @@ try {
   await panel.locator('[data-jev-scope]').selectOption('application');
   await panel.locator('[data-jev-prompt]').fill('Toggle the application theme');
   const dark = await page.evaluate(() => window.xamora.studio.dark);
+  await panel.locator('[data-jev-consent]').check();
   await panel.locator('[data-jev-run]').click();
   await panel.locator('[data-jev-apply]:not(:disabled)').waitFor();
   await panel.locator('[data-jev-apply]').click();
@@ -223,6 +246,7 @@ try {
   await panel.locator('[data-jev-scope]').selectOption('document');
   await panel.locator('[data-jev-prompt]').fill('Create a blue HTML login starter');
   const count = await page.evaluate(() => window.xamora.studio.stores.length);
+  await panel.locator('[data-jev-consent]').check();
   await panel.locator('[data-jev-run]').click();
   await panel.locator('[data-jev-apply]:not(:disabled)').waitFor();
   await panel.locator('[data-jev-apply]').click();
@@ -246,6 +270,7 @@ try {
   await settings.locator('[name=trustDestination]').check();
   await settings.getByRole('button', { name: 'Save settings', exact: true }).click();
   await panel.locator('[data-jev-prompt]').fill('Create a bespoke WPF view');
+  await panel.locator('[data-jev-consent]').check();
   await panel.locator('[data-jev-run]').click();
   await panel.locator('[data-jev-apply]:not(:disabled)').waitFor();
   assert.equal(generatorRequests.length, 1);
@@ -270,6 +295,24 @@ try {
   await popup.waitForFunction(() =>
     document.querySelector('[data-jev-status]').textContent.includes('No network'),
   );
+  const beforePopupRun = requests.length;
+  await popup.locator('[data-jev-prompt]').fill('Review the selected view');
+  await popup.locator('[data-jev-run]').click();
+  await consentReview.waitFor({ state: 'visible' });
+  assert(
+    (await consentReview.textContent()).includes('https://generator.test/v1/chat/completions'),
+  );
+  assert.equal(requests.length, beforePopupRun);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !window.xamora.jev.status().running);
+  assert.equal(requests.length, beforePopupRun);
+  assert.equal(await popup.locator('[data-jev-consent]').isChecked(), false);
+  assert.equal(
+    await popup.evaluate(
+      () => document.activeElement === document.querySelector('[data-jev-prompt]'),
+    ),
+    true,
+  );
   await popup.locator('[data-jev-settings]').click();
   await settings.waitFor({ state: 'visible' });
   assert.equal(await settings.locator('[name=apiKey]').inputValue(), 'jev-browser-fixture');
@@ -279,7 +322,7 @@ try {
   await page.screenshot({ path: 'test-results/ux/16-jev-assistant.png' });
   assert.deepEqual(errors, []);
   console.log(
-    'Jev: explicit hybrid generation and detached assistant/settings routing passed. All AI calls were mocked.',
+    'Jev: explicit hybrid generation and detached assistant consent/cancel/focus/settings routing passed. All AI calls were mocked.',
   );
 } catch (error) {
   await mkdir('test-results', { recursive: true });

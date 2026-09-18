@@ -8,8 +8,10 @@ Use **Ask Jev · selection** above the design canvas, **Ask Jev** above the XAML
 
 1. Open **Settings**, configure a TypeSafe key or private proxy, and use **Test connection / list models**. This sends no document context.
 2. Choose **Selected elements**, **Current document**, or **Entire app**. Enter a prompt and select **Preview context** to inspect the exact first native request without making a network request.
-3. Explicitly allow sending the prompt/context to the displayed endpoints, then choose **Run** or press **Ctrl/Command+Enter**. This can incur provider charges. Each subsequent request is displayed as it is prepared; later questions depend on earlier decisions.
+3. Choose **Run** or press **Ctrl/Command+Enter**. Without prior checkbox approval, an **Allow Jev to use this context?** dialog shows the destination, scope, first-request size and expandable outbound payload. Choose **Allow and run** to approve this run only, or Cancel/Escape/close to send nothing. Alternatively, explicitly check **Allow sending this prompt…** for the current prompt and context before Run. This can incur provider charges. Each subsequent request is displayed as it is prepared; later questions depend on earlier decisions.
 4. Review the operations, before/after source, confidence, selected probability, model and usage. **Apply reviewed proposal** is a separate action. **Discard** leaves the document untouched. **Cancel** aborts the current request and prevents a late answer becoming a proposal.
+
+The unchecked checkbox is a privacy gate, not an API failure. Run now offers the approval dialog instead of the old “Review the endpoint/scope and allow sending context before running” error. Checking the box does not send a request. Its permission is invalidated when the prompt, scope, source, selection, document or configuration changes. Dialog approval is never remembered for another run; a stale dialog cannot approve edited context or a changed endpoint. The main Studio owns the dialog even when the assistant is detached, and cancellation returns focus to the prompt. The programmatic `run` API remains consent-guarded and does not silently send or approve context.
 
 Examples for native mode: `Set the selected button background to "#2563EB"`; `Set Width to "240"`; `Change the text to "Continue"`; `Add a TextBlock inside the selected Grid`; `Duplicate the button` in document scope; `Create a blue HTML login starter`; `Show the property inspector`; `Switch the app to dark theme`. Quote exact replacement strings. Jev chooses from supplied values; the app does not pretend that it invented an arbitrary new string.
 
@@ -84,7 +86,7 @@ const plan = await assistant.plan({
 // The planner itself has not modified store.
 ```
 
-Studio exposes `window.xamora.jev.open(scope)`, `preview()`, `run(prompt?, scope?)`, `cancel()`, `discard()`, `apply()`, `settings()` and `status()`. Running through this API still requires the panel's explicit sending consent. It is not a backdoor around review, source validation or stale-context checks.
+Studio exposes `window.xamora.jev.open(scope)`, `preview()`, `run(prompt?, scope?)`, `cancel()`, `discard()`, `apply()`, `settings()` and `status()` (including `running` and `awaitingConsent`). Running through this API still requires the panel's explicit sending consent. It is not a backdoor around review, source validation or stale-context checks.
 
 ## Validation and known boundaries
 

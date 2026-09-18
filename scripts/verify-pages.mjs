@@ -69,6 +69,8 @@ const files = [
   'controls/dialog-host.js',
   'controls/dialog-host.css',
   'studio/dialog-host.js',
+  'studio/jev-workspace.js',
+  'styles/jev.css',
   'examples/ControlsLab/index.html',
   'examples/EditorLab/index.html',
   'examples/PropertyGridLab/index.html',
