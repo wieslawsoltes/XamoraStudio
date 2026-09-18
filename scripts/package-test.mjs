@@ -308,8 +308,13 @@ editor.refreshLayout(); editor.setVirtualization(true); const rendered: number =
 const markupEditor: CodeEditor = new XamlEditor(editorHost); void [editor, markupEditor];
 // @ts-expect-error provider formatter must return text
 const invalidProvider: CodeLanguageProvider = { format: () => 42 };
-import {JevClient, JevAssistant, JevPreferences, type JevScope, type JevSettings, type JevPlan} from '@wieslawsoltes/xamora-assistant';
+import {JevClient, JevAssistant, JevPreferences, jevEndpoint, AITransportError, type JevScope, type JevSettings, type JevPlan} from '@wieslawsoltes/xamora-assistant';
 const aiScope: JevScope = 'selection';
+const normalizedAiEndpoint: string = jevEndpoint('https://api.typesafe.ai/v1/models');
+const aiError = new AITransportError('Connection blocked', {code:'network', status:0});
+const aiErrorCode: string = aiError.code; const aiStatus: number = aiError.status; void [normalizedAiEndpoint, aiErrorCode, aiStatus];
+// @ts-expect-error Safe transport status is numeric.
+new AITransportError('Invalid', {status:'401'});
 const aiClient = new JevClient({model:'jev-latest', maxRequestBytes:16000, generatorTokenParameter:'max_completion_tokens'});
 const aiPreferences = new JevPreferences();
 const aiSettings: JevSettings = aiPreferences.value; void [aiScope, aiClient, aiSettings, JevAssistant];

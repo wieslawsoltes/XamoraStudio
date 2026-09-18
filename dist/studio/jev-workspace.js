@@ -1,5 +1,5 @@
 import { JevAssistant, JEV_COMMAND_IDS } from '../core/jev-assistant.js';
-import { JevClient, jevSettings } from '../core/jev-client.js';
+import { JevClient, jevSettings, jevEndpoint, AITransportError } from '../core/jev-client.js';
 import { JevPreferences } from '../core/jev-settings.js';
 import { clone, find } from '../core/model.js';
 import { isLocked } from '../core/design-tools.js';
@@ -52,6 +52,7 @@ export class JevWorkspace {
       <p class="jev-note">You can also choose Run to review the destination and allow this request once. No context is sent until you approve.</p>
       <div class="jev-actions"><button type="button" class="button primary" data-jev-run>Run · Ctrl+Enter</button><button type="button" class="button quiet" data-jev-preview>Preview context</button><button type="button" class="button quiet" data-jev-cancel disabled>Cancel</button></div>
       <div class="jev-status" role="status" aria-live="polite" data-jev-status>Configure your TypeSafe key or a private proxy to begin.</div>
+      <div data-jev-connection-fix hidden><button type="button" class="button" data-jev-connection-setup>Connection setup…</button></div>
       <details class="jev-context"><summary>Outbound context and typed questions</summary><p class="jev-note" data-jev-budget></p><pre data-jev-request></pre></details>
       <section data-jev-proposal hidden><h3>Review proposal</h3><p data-jev-summary></p><ol data-jev-operations></ol><p class="jev-note" data-jev-usage></p>
         <details><summary>Source changes · before / after</summary><h4>Before</h4><pre data-jev-before></pre><h4>After</h4><pre data-jev-after></pre></details>
@@ -64,6 +65,7 @@ export class JevWorkspace {
     studio.docking.model.register({ id: 'jev', title: 'Jev assistant', kind: 'tool', icon: '✦' });
     studio.docking.control.mount('jev', this.root);
     q('[data-jev-settings]').onclick = () => this.settings();
+    q('[data-jev-connection-setup]').onclick = () => this.settings({ connection: true });
     q('[data-jev-run]').onclick = () => this.run({ interactive: true }).catch(() => {});
     q('[data-jev-preview]').onclick = () => this.preview().catch(() => {});
     q('[data-jev-cancel]').onclick = () => this.cancel();
@@ -187,6 +189,7 @@ export class JevWorkspace {
     const node = this.root.querySelector('[data-jev-status]');
     node.textContent = message;
     node.classList.toggle('jev-error', error);
+    this.root.querySelector('[data-jev-connection-fix]').hidden = true;
   }
   appStamp() {
     const s = this.s;
@@ -456,6 +459,8 @@ export class JevWorkspace {
         error.name === 'AbortError' ? 'Canceled. No changes were applied.' : error.message,
         error.name !== 'AbortError',
       );
+      if (!this.disposed && error instanceof AITransportError)
+        this.root.querySelector('[data-jev-connection-fix]').hidden = false;
       throw error;
     } finally {
       if (this.running === controller) {
@@ -583,7 +588,7 @@ export class JevWorkspace {
     this.captured = null;
     this.root.querySelector('[data-jev-proposal]').hidden = true;
   }
-  settings() {
+  settings({ connection = false } = {}) {
     if (this.disposed) return;
     if (this.running) {
       this.status('Cancel the active request before changing settings.', true);
@@ -599,11 +604,21 @@ export class JevWorkspace {
     s.modal(
       'Jev AI settings',
       `<div class="jev-settings">
-      <p>Jev evaluates typed questions; it is not a text generator. A private same-origin proxy is recommended. Direct browser keys are available to scripts on this origin; never use a shared production key.</p>
+      <p>Jev evaluates typed questions; it is not a text generator. Direct TypeSafe calls may be blocked by CORS on a static site. Use your own private bridge; a GitHub Pages site cannot run the server itself.</p>
+      <section class="jev-connection" aria-label="Browser connection setup">
+        <strong>Connect from this Studio tab</strong><p class="jev-note" data-jev-connection-note></p>
+        <div class="jev-actions"><button type="button" class="button" data-jev-local-bridge>Use local bridge</button><button type="button" class="button quiet" data-jev-same-origin>Use same-origin proxy</button><button type="button" class="button quiet" data-jev-direct>Use direct TypeSafe</button></div>
+        <details data-jev-bridge-instructions ${connection ? 'open' : ''}><summary>Private bridge setup · keep this workspace</summary>
+          <p>In your updated XamoraStudio repository, run:</p><pre data-jev-bridge-command></pre>
+          <p>Keep the terminal running. Choose <b>Use local bridge</b>, paste its <b>Private proxy access token</b> below, and enter your TypeSafe key again (or leave it empty when <code>TYPESAFE_API_KEY</code> is set on the server). Confirm the destination, test the connection, then save.</p>
+          <p class="jev-note">The bridge accepts only configured origins and an access token. Browser keys are forwarded only to TypeSafe, without storage. Local Network Access may need your permission. Keep your existing Studio tab: moving to localhost changes browser storage and is not required.</p>
+          <p class="jev-note">A remotely hosted private HTTPS bridge can also be used by entering its API base URL. No proxy is auto-started or silently selected. Never use a public CORS relay, disable browser security, or clear site data to fix this.</p>
+        </details>
+      </section>
       ${field('endpoint', 'Jev API base URL')}<label class="jev-field">TypeSafe API key<input name="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Leave empty when the private proxy owns the key"></label>
       ${field('model', 'Jev model / pinned version', 'text', 'list="jev-model-list"')}<datalist id="jev-model-list"><option value="jev-latest"><option value="jev-preview"></datalist>
       <button type="button" class="button quiet" data-jev-test>Test connection / list models</button><p data-jev-test-status role="status"></p>
-      <label class="jev-field">Private proxy access token (optional)<input name="proxyToken" type="password" autocomplete="off"></label>
+      <label class="jev-field">Private proxy access token (required for cross-origin bridge)<input name="proxyToken" type="password" autocomplete="off"></label>
       <label class="jev-consent"><input name="remember" type="checkbox" ${this.preferences.remember ? 'checked' : ''}> Remember credentials in this tab session only (readable by same-origin scripts). Default: memory only.</label>
       <button type="button" class="button quiet" data-jev-clear-keys>Forget all stored keys now</button>
       <details open><summary>Context, confidence and request limits</summary><div class="jev-settings-grid">
@@ -650,6 +665,52 @@ export class JevWorkspace {
       signal = s.dialogHost.signal;
     const input = (name) => body.querySelector(`[name="${name}"]`);
     for (const key of ['apiKey', 'generatorKey', 'proxyToken']) input(key).value = keys[key] || '';
+    const setupNote = () => {
+      let endpoint;
+      try {
+        endpoint = new URL(jevEndpoint(input('endpoint').value, this.window.location.origin));
+      } catch {}
+      const note = body.querySelector('[data-jev-connection-note]');
+      note.textContent =
+        endpoint?.origin === 'https://api.typesafe.ai'
+          ? 'Direct TypeSafe: the provider must allow this page’s origin. Public preflight rejected the GitHub Pages origin during diagnosis. Use the local/private bridge when direct access fails.'
+          : endpoint?.origin === this.window.location.origin
+            ? 'Same-origin proxy: this URL requires the running AI server or a reverse proxy. GitHub Pages serves static files only; /api/jev on Pages is not a server.'
+            : 'Private bridge: check its allowed-origin list, access token and port. Keep credentials in memory unless you explicitly choose tab-session storage.';
+    };
+    const origin = this.window.location.origin;
+    body.querySelector('[data-jev-bridge-command]').textContent =
+      origin === 'https://wieslawsoltes.github.io'
+        ? 'git pull\nnpm run start:ai:pages'
+        : 'git pull\nnpm run start:ai -- --allow-origin=' +
+          "'" +
+          origin.replaceAll("'", "'\\''") +
+          "' --allow-client-keys";
+    setupNote();
+    let testController = null;
+    const cancelTest = () => {
+      if (!testController) return;
+      testController.abort();
+      testController = null;
+      body.querySelector('[data-jev-test]').disabled = false;
+      body.querySelector('[data-jev-test-status]').textContent =
+        'Connection settings changed. Test again before saving.';
+    };
+    body.addEventListener('input', cancelTest, { signal });
+    const preset = (endpoint) => {
+      cancelTest();
+      input('endpoint').value = endpoint;
+      input('apiKey').value = '';
+      input('proxyToken').value = '';
+      input('trustDestination').checked = false;
+      setupNote();
+      body.querySelector('[data-jev-bridge-instructions]').open = endpoint.includes('/api/jev');
+      input('proxyToken').focus();
+    };
+    body.querySelector('[data-jev-local-bridge]').onclick = () =>
+      preset('http://127.0.0.1:8080/api/jev');
+    body.querySelector('[data-jev-same-origin]').onclick = () => preset('/api/jev');
+    body.querySelector('[data-jev-direct]').onclick = () => preset('https://api.typesafe.ai');
     const read = () => {
       const next = { ...config };
       for (const key of Object.keys(config)) {
@@ -681,10 +742,14 @@ export class JevWorkspace {
         () => {
           input(key).value = '';
           input('proxyToken').value = '';
+          input('trustDestination').checked = false;
+          cancelTest();
+          setupNote();
         },
         { signal },
       );
     body.querySelector('[data-jev-clear-keys]').onclick = () => {
+      cancelTest();
       try {
         this.preferences.clearKeys();
       } catch {
@@ -695,18 +760,24 @@ export class JevWorkspace {
       input('remember').checked = false;
     };
     body.querySelector('[data-jev-test]').onclick = async () => {
+      if (testController || signal.aborted) return;
+      const controller = new AbortController();
+      testController = controller;
+      const abort = () => controller.abort();
+      signal.addEventListener('abort', abort, { once: true });
       const button = body.querySelector('[data-jev-test]'),
         status = body.querySelector('[data-jev-test-status]');
       button.disabled = true;
-      status.textContent = 'Checking model access; no document context is sent…';
+      status.textContent =
+        'Checking model access; no document context or inference request is sent…';
       try {
         const data = read();
         if (data.config.endpoint !== config.endpoint && !data.trust)
           throw Error('Confirm that the changed endpoint is trusted before sending credentials.');
         const models = await new JevClient(data.config, { ...data.keys, fetch: this.fetch }).models(
-          { signal },
+          { signal: controller.signal },
         );
-        if (signal.aborted) return;
+        if (signal.aborted || controller.signal.aborted || testController !== controller) return;
         const list = body.querySelector('#jev-model-list');
         list.replaceChildren();
         for (const model of models) {
@@ -714,11 +785,22 @@ export class JevWorkspace {
           option.value = model.name;
           list.append(option);
         }
-        status.textContent = 'Connected. Models: ' + models.map((m) => m.name).join(', ');
+        status.textContent =
+          'Connected. Models: ' +
+          models.map((m) => m.name).join(', ') +
+          '. Save settings before running your prompt.';
       } catch (error) {
-        if (!signal.aborted) status.textContent = error.message;
+        if (!signal.aborted && !controller.signal.aborted && testController === controller) {
+          status.textContent = error.message;
+          if (error instanceof AITransportError)
+            body.querySelector('[data-jev-bridge-instructions]').open = true;
+        }
       } finally {
-        if (!signal.aborted) button.disabled = false;
+        signal.removeEventListener('abort', abort);
+        if (testController === controller) {
+          testController = null;
+          if (!signal.aborted) button.disabled = false;
+        }
       }
     };
     signal.addEventListener(

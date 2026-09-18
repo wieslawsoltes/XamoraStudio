@@ -460,3 +460,92 @@ test('checkbox approval clears the old error and saved settings revoke the previ
   await assert.rejects(workspace.api.run(), /Allow context sharing/);
   assert.equal(requests(), 0);
 });
+
+test('a rejected browser fetch exposes actionable connection setup without mutating the document', async (t) => {
+  let calls = 0;
+  const { workspace, s } = setup(t, async () => {
+    calls++;
+    throw new TypeError('Failed to fetch');
+  });
+  const source = s.store.session.source;
+  await assert.rejects(workspace.run(), /private bridge/);
+  assert.equal(calls, 1);
+  assert.equal(workspace.root.querySelector('[data-jev-connection-fix]').hidden, false);
+  assert.equal(s.store.session.source, source);
+  workspace.root.querySelector('[data-jev-connection-setup]').click();
+  assert.equal(s.dialogHost.body.querySelector('[data-jev-bridge-instructions]').open, true);
+  assert.equal(calls, 1, 'Opening setup must not probe other destinations');
+});
+
+test('connection presets are staged and clear credentials/trust without moving the workspace', (t) => {
+  const { workspace, s } = setup(t),
+    before = s.store.session.source;
+  workspace.settings();
+  const body = s.dialogHost.body;
+  body.querySelector('[name=proxyToken]').value = 'old-proxy-token';
+  body.querySelector('[name=trustDestination]').checked = true;
+  body.querySelector('[data-jev-local-bridge]').click();
+  assert.equal(body.querySelector('[name=endpoint]').value, 'http://127.0.0.1:8080/api/jev');
+  assert.equal(body.querySelector('[name=apiKey]').value, '');
+  assert.equal(body.querySelector('[name=proxyToken]').value, '');
+  assert.equal(body.querySelector('[name=trustDestination]').checked, false);
+  assert.equal(workspace.preferences.value.endpoint, 'https://api.typesafe.ai');
+  assert.equal(workspace.preferences.credentials().apiKey, 'unit-private');
+  assert.equal(s.store.session.source, before);
+  s.closeModal();
+  assert.equal(workspace.preferences.value.endpoint, 'https://api.typesafe.ai');
+});
+
+test('a changed bridge destination requires explicit trust before a settings connection test', async (t) => {
+  let calls = 0;
+  const { workspace, s } = setup(t, async () => {
+    calls++;
+    return Response.json({ models: [{ name: 'jev-latest' }] });
+  });
+  workspace.settings();
+  const body = s.dialogHost.body;
+  body.querySelector('[data-jev-local-bridge]').click();
+  await body.querySelector('[data-jev-test]').onclick();
+  assert.equal(calls, 0);
+  assert.match(body.querySelector('[data-jev-test-status]').textContent, /trusted/);
+});
+
+test('editing settings cancels model discovery and discards late success for the old endpoint', async (t) => {
+  let release, transportSignal;
+  const { workspace, s, window } = setup(t, async (_url, options) => {
+    transportSignal = options.signal;
+    await new Promise((r) => (release = r));
+    return Response.json({ models: [{ name: 'must-not-appear' }] });
+  });
+  workspace.settings();
+  const body = s.dialogHost.body;
+  const pending = body.querySelector('[data-jev-test]').onclick();
+  assert(transportSignal);
+  body.querySelector('[name=apiKey]').dispatchEvent(new window.Event('input', { bubbles: true }));
+  assert.equal(transportSignal.aborted, true);
+  release();
+  await pending;
+  assert.doesNotMatch(
+    body.querySelector('[data-jev-test-status]').textContent,
+    /Connected|must-not-appear/,
+  );
+  assert.equal(body.querySelector('[data-jev-test]').disabled, false);
+});
+
+test('forgetting keys aborts discovery and cannot report the old credentials connected', async (t) => {
+  let release, transportSignal;
+  const { workspace, s } = setup(t, async (_url, o) => {
+    transportSignal = o.signal;
+    await new Promise((r) => (release = r));
+    return Response.json({ models: [{ name: 'old' }] });
+  });
+  workspace.settings();
+  const body = s.dialogHost.body;
+  const pending = body.querySelector('[data-jev-test]').onclick();
+  body.querySelector('[data-jev-clear-keys]').click();
+  assert.equal(transportSignal.aborted, true);
+  release();
+  await pending;
+  assert.equal(body.querySelector('[name=apiKey]').value, '');
+  assert.doesNotMatch(body.querySelector('[data-jev-test-status]').textContent, /Connected/);
+});
