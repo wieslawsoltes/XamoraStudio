@@ -97,6 +97,7 @@ export const packageLayout = [
       'source-text-buffer',
       'document-session',
       'xaml-language',
+      'markup-context',
       'language-service',
       'html-animation',
       'html-states',

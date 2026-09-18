@@ -1,3 +1,4 @@
+import type { MarkupCompletionContext } from './markup-context.js';
 import type { DesignDocument, ElementNode, DesignNode } from './index.js';
 export declare const HTML_VOID: Set<string>;
 export declare const HTML_RAW: Set<string>;
@@ -41,6 +42,7 @@ export declare function moveHtmlNode(
 export declare function completeHtml(
   source: string,
   caret: number,
+  options?: { context?: MarkupCompletionContext },
 ): Array<{
   label: string;
   detail: string;

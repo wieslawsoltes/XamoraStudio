@@ -226,7 +226,10 @@ try {
       frameworks: ['WPF'],
       properties: [{ name: 'ScaleMode', values: ['Linear', 'Logarithmic'] }],
     });
-    s.importText('<Meter ScaleMode="Li"/>', 'Completion.xaml');
+    s.importText(
+      '<a:Meter xmlns:a="http://schemas.microsoft.com/winfx/2006/xaml/presentation" ScaleMode="Li"/>',
+      'Completion.xaml',
+    );
     s.setView('split');
   });
   await place('ScaleMode="Li"', 'Li');
@@ -382,6 +385,59 @@ try {
   assert.equal(await input.inputValue(), '<Grid>');
   assert.equal(await input.evaluate((el) => el.selectionStart), 2);
   assert.equal(await page.evaluate(() => window.xamora.language.matchingTagAt(2)), null);
+  // Accept namespace-sensitive completions through the editor and shared source transaction.
+  for (const [file, source, token, label, suffix] of [
+    ['Completion.svg.html', '<svg viewB></svg>', 'viewB', 'viewBox', '=""'],
+    [
+      'Completion.assigned.html',
+      "<svg viewB='0 0 100 100'></svg>",
+      'viewB',
+      'viewBox',
+      "='0 0 100 100'",
+    ],
+    ['Completion.assigned.xaml', "<Button FontWei='Bold'/>", 'FontWei', 'FontWeight', "='Bold'"],
+    ['Completion.math.html', '<math><mf></math>', 'mf', 'mfrac', ''],
+  ]) {
+    await page.evaluate(
+      ({ file, source }) => {
+        const s = window.xamora.studio;
+        s.store.session.discardDraft();
+        s.importText(source, file);
+        s.setView('split');
+        s.store.session.updateSource(source);
+      },
+      { file, source },
+    );
+    await input.focus();
+    await input.evaluate((el, token) => {
+      const at = el.value.indexOf(token) + token.length;
+      el.setSelectionRange(at, at);
+    }, token);
+    await input.press('Control+Space');
+    await page.waitForFunction(
+      (label) =>
+        !document.querySelector('.completions').hidden &&
+        document.querySelector('.completions').textContent.includes(label),
+      label,
+    );
+    await input.press('Enter');
+    await page.waitForFunction(
+      ({ label, suffix }) => window.xamora.studio.store.session.source.includes(label + suffix),
+      { label, suffix },
+    );
+    assert((await input.inputValue()).includes(label + suffix));
+    assert(
+      await page.evaluate((label) => {
+        const visit = (n) => (n.props && Object.hasOwn(n.props, label)) || n.type === label;
+        const walk = (n) => visit(n) || n.children?.some(walk);
+        return walk(window.xamora.studio.doc.root);
+      }, label),
+    );
+  }
+  console.log(
+    'PASS namespace completion: aliased XAML registry enum, SVG viewBox and MathML element acceptance through the actual editor.',
+  );
+
   assert.deepEqual(runtimeErrors, [], 'semantic editor has no uncaught browser errors');
   console.log(
     'PASS metadata completion: registry enum completion, accepted source transaction, invalid-draft rename guard',
