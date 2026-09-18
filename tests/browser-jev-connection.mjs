@@ -1,15 +1,18 @@
-/** HTTPS Pages-shaped Studio -> actual local HTTP bridge with real CORS.
- * Only the provider's server-to-server transport is a fixture; no live API key is used.
+/** Actual HTTPS Studio -> actual HTTP bridge; no browser request interception.
+ * Only server-to-server provider inference is a fixture. The temporary certificate is
+ * trusted in this test context only. CORS, mixed-content and origin checks stay enabled.
  */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile, stat, mkdir, writeFile } from 'node:fs/promises';
+import { createServer as createHTTPS } from 'node:https';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { readFile, stat, mkdir, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { createAIServer } from '../scripts/serve-ai.mjs';
 import { responseFor } from './jev-fixture.mjs';
-const origin = 'https://wieslawsoltes.github.io';
-const url = origin + '/XamoraStudio/';
+
 const token = 'bridge-fixture-private-token-1234567890';
 const root = resolve(import.meta.dirname, '../dist');
 const upstream = [],
@@ -17,73 +20,110 @@ const upstream = [],
   denied = [],
   errors = [],
   connectionDiagnostics = [];
-const bridge = createAIServer({
-  allowedOrigins: [origin],
-  authToken: token,
-  allowClientKeys: true,
-  fetch: async (url, options) => {
-    upstream.push({ url, options });
-    assert.equal(options.headers.Authorization, 'Bearer browser-fixture-key');
-    assert.equal(options.headers['X-Xamora-AI-Token'], undefined);
-    if (url.endsWith('/models')) return Response.json({ models: [{ name: 'jev-latest' }] });
-    const body = JSON.parse(options.body);
-    assert(!options.body.includes(token));
-    assert(!options.body.includes('browser-fixture-key'));
-    return Response.json(
-      responseFor(
-        body,
-        body.questions.framework
-          ? { framework: 'WPF', recipe: 'login:', palette: 'blue', title: 'Default heading' }
-          : { operation: body.state.completed.length ? 'done:' : 'new_document:' },
-      ),
-    );
-  },
-});
-bridge.on('request', (req) =>
-  network.push({ method: req.method, origin: req.headers.origin, path: req.url }),
-);
-const blocked = createServer((req, res) => {
-  denied.push(req.method);
-  res.writeHead(400).end('Origin not allowed');
-});
-await Promise.all([
-  new Promise((r) => bridge.listen(0, '127.0.0.1', r)),
-  new Promise((r) => blocked.listen(0, '127.0.0.1', r)),
-]);
-const bridgeBase = 'http://127.0.0.1:' + bridge.address().port + '/api/jev';
+const servers = [];
+const certificate = await mkdtemp(resolve(tmpdir(), 'xamora-test-tls-'));
 let browser, page;
+const listen = async (server) => {
+  servers.push(server);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  return server.address().port;
+};
 try {
-  browser = await chromium.launch({ headless: true, args: ['--disable-dev-shm-usage'] });
-  const context = await browser.newContext({ viewport: { width: 1600, height: 1050 } });
-  // Equivalent to the user's explicit local-network permission, NOT disabling CORS/security.
-  await context.grantPermissions(['local-network-access'], { origin });
-  await context.route(url + '**', async (route) => {
-    try {
-      const relative = decodeURIComponent(
-        new URL(route.request().url()).pathname.slice('/XamoraStudio'.length),
+  execFileSync(
+    'openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-keyout',
+      resolve(certificate, 'key.pem'),
+      '-out',
+      resolve(certificate, 'cert.pem'),
+      '-days',
+      '1',
+      '-subj',
+      '/CN=127.0.0.1',
+      '-addext',
+      'subjectAltName=IP:127.0.0.1',
+    ],
+    { stdio: 'ignore' },
+  );
+  // Routing a fake HTTPS origin with Playwright also intercepts CORS preflights.
+  // Use actual TLS/static serving so even the negative control observes native OPTIONS.
+  const studio = createHTTPS(
+    {
+      key: await readFile(resolve(certificate, 'key.pem')),
+      cert: await readFile(resolve(certificate, 'cert.pem')),
+    },
+    async (req, res) => {
+      try {
+        const pathname = decodeURIComponent(new URL(req.url, 'https://localhost').pathname);
+        if (!pathname.startsWith('/XamoraStudio/')) throw Error('Outside application');
+        let file = resolve(root, '.' + pathname.slice('/XamoraStudio'.length));
+        if (file !== root && !file.startsWith(root + sep)) throw Error('Outside root');
+        if ((await stat(file)).isDirectory()) file = resolve(file, 'index.html');
+        res
+          .writeHead(200, {
+            'Content-Type':
+              {
+                '.js': 'text/javascript',
+                '.html': 'text/html',
+                '.css': 'text/css',
+                '.svg': 'image/svg+xml',
+              }[extname(file)] || 'text/plain',
+          })
+          .end(await readFile(file));
+      } catch {
+        res.writeHead(404).end();
+      }
+    },
+  );
+  const origin = 'https://127.0.0.1:' + (await listen(studio));
+  const url = origin + '/XamoraStudio/';
+  const bridge = createAIServer({
+    allowedOrigins: [origin],
+    authToken: token,
+    allowClientKeys: true,
+    fetch: async (url, options) => {
+      upstream.push({ url, options });
+      assert.equal(options.headers.Authorization, 'Bearer browser-fixture-key');
+      assert.equal(options.headers['X-Xamora-AI-Token'], undefined);
+      if (url.endsWith('/models')) return Response.json({ models: [{ name: 'jev-latest' }] });
+      const body = JSON.parse(options.body);
+      assert(!options.body.includes(token));
+      assert(!options.body.includes('browser-fixture-key'));
+      return Response.json(
+        responseFor(
+          body,
+          body.questions.framework
+            ? { framework: 'WPF', recipe: 'login:', palette: 'blue', title: 'Default heading' }
+            : { operation: body.state.completed.length ? 'done:' : 'new_document:' },
+        ),
       );
-      let file = resolve(root, '.' + relative);
-      if (file !== root && !file.startsWith(root + sep)) throw Error('Outside root');
-      if ((await stat(file)).isDirectory()) file = resolve(file, 'index.html');
-      await route.fulfill({
-        body: await readFile(file),
-        contentType:
-          {
-            '.js': 'text/javascript',
-            '.html': 'text/html',
-            '.css': 'text/css',
-            '.svg': 'image/svg+xml',
-          }[extname(file)] || 'text/plain',
-      });
-    } catch {
-      await route.fulfill({ status: 404, body: 'Not found' });
-    }
+    },
   });
-  let directCalls = 0;
-  await context.route('https://api.typesafe.ai/**', (route) => {
-    directCalls++;
-    return route.abort('failed');
+
+  bridge.on('request', (req) =>
+    network.push({ method: req.method, origin: req.headers.origin, path: req.url }),
+  );
+  const blocked = createServer((req, res) => {
+    denied.push(req.method);
+    res.writeHead(400).end('Origin not allowed');
   });
+  const bridgeBase = 'http://127.0.0.1:' + (await listen(bridge)) + '/api/jev';
+  const blockedBase = 'http://127.0.0.1:' + (await listen(blocked));
+  browser = await chromium.launch({ headless: true, args: ['--disable-dev-shm-usage'] });
+  const context = await browser.newContext({
+    viewport: { width: 1600, height: 1050 },
+    ignoreHTTPSErrors: true,
+  });
+  // A test-only certificate exception is not a CORS or network-security bypass.
+  await context.grantPermissions(['local-network-access'], { origin });
   page = await context.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
@@ -106,7 +146,7 @@ try {
     } catch (e) {
       return e.name === 'TypeError';
     }
-  }, 'http://127.0.0.1:' + blocked.address().port);
+  }, blockedBase);
   assert(deniedFetch);
   assert(
     denied.includes('OPTIONS'),
@@ -142,6 +182,9 @@ try {
     window.xamora.jev.settings();
   });
   let settings = page.getByRole('dialog', { name: 'Jev AI settings', exact: true });
+  await settings.locator('[name=endpoint]').fill(blockedBase);
+  await settings.locator('[name=endpoint]').press('Tab');
+  await settings.locator('[name=trustDestination]').check();
   await settings.locator('[name=apiKey]').fill('browser-fixture-key');
   await settings.getByRole('button', { name: 'Save settings', exact: true }).click();
   const panel = page.locator('.jev-workspace');
@@ -149,16 +192,16 @@ try {
   await panel.locator('[data-jev-run]').click();
   await page.getByRole('button', { name: 'Allow and run', exact: true }).click();
   await panel.locator('[data-jev-connection-setup]').waitFor({ state: 'visible' });
-  assert.match(await panel.locator('[data-jev-status]').textContent(), /private bridge/);
-  assert.equal(directCalls, 1);
+  assert.match(await panel.locator('[data-jev-status]').textContent(), /local AI bridge/);
+  assert(denied.includes('OPTIONS'));
+  assert(!denied.includes('POST'), 'The rejected preflight must prevent a real inference POST');
+  const deniedCount = denied.length;
   assert.equal(upstream.length, 0);
   await panel.locator('[data-jev-connection-setup]').click();
   settings = page.getByRole('dialog', { name: 'Jev AI settings', exact: true });
   assert(await settings.locator('[data-jev-bridge-instructions]').evaluate((n) => n.open));
   assert(
-    (await settings.locator('[data-jev-bridge-command]').textContent()).includes(
-      'npm run start:ai:pages',
-    ),
+    (await settings.locator('[data-jev-bridge-command]').textContent()).includes('--allow-origin='),
   );
   await settings.locator('[data-jev-local-bridge]').click();
   assert.equal(await settings.locator('[name=apiKey]').inputValue(), '');
@@ -210,9 +253,9 @@ try {
     null,
   );
   assert.equal(
-    directCalls,
-    1,
-    'No fallback or hidden direct request after switching to the bridge',
+    denied.length,
+    deniedCount,
+    'No fallback or hidden request after switching to the approved bridge',
   );
   assert.deepEqual(errors, []);
   console.log(
@@ -230,8 +273,9 @@ try {
   throw e;
 } finally {
   await browser?.close();
-  for (const s of [bridge, blocked]) {
+  for (const s of servers) {
     s.closeAllConnections();
     await new Promise((r) => s.close(r));
   }
+  await rm(certificate, { recursive: true, force: true });
 }
