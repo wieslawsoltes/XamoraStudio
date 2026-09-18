@@ -77,6 +77,10 @@ export class DialogHost {
   get element() {
     return this.current?.dialog ?? null;
   }
+  /** Lifetime of the current dialog, aborted on close, replacement, or disposal. */
+  get signal() {
+    return this.current?.controller.signal ?? null;
+  }
   get body() {
     return this.current?.body ?? null;
   }
@@ -240,7 +244,7 @@ export class DialogHost {
       this.document,
       'keydown',
       (event) => {
-        if (!top()) return;
+        if (!top() || event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape' && dismissOnEscape && !event.isComposing) {
           event.preventDefault();
           event.stopPropagation();

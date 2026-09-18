@@ -35,6 +35,8 @@ export class DialogHost {
   readonly isOpen: boolean;
   readonly element: HTMLElement | null;
   readonly body: HTMLElement | null;
+  /** Aborted on close/replacement; use to release subscriptions owned by the dialog body. */
+  readonly signal: AbortSignal | null;
   readonly disposed: boolean;
   open(options?: DialogOptions): HTMLElement;
   focus(): void;
