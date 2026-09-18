@@ -1,0 +1,27 @@
+name: Inspect public Jev browser preflight
+on:
+  push:
+    branches: [fix/jev-browser-connection]
+    paths: [.github/workflows/jev-public-preflight.yml]
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Public unauthenticated preflights only
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error
+          origin = 'https://wieslawsoltes.github.io'
+          for path, method, headers in [('/v1/systemone', 'POST', 'authorization,content-type'), ('/v1/models', 'GET', 'authorization')]:
+            req = urllib.request.Request('https://api.typesafe.ai' + path, method='OPTIONS', headers={'Origin': origin, 'Access-Control-Request-Method': method, 'Access-Control-Request-Headers': headers})
+            try:
+              response = urllib.request.urlopen(req, timeout=20)
+            except urllib.error.HTTPError as error:
+              response = error
+            except Exception as error:
+              print(json.dumps({'path': path, 'error': type(error).__name__}))
+              continue
+            print(json.dumps({'path':path, 'status':response.status, 'headers':{key:value for key,value in response.headers.items() if key.lower().startswith('access-control-') or key.lower() in ['location','allow','content-type']}}))
+          PY
