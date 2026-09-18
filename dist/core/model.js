@@ -14,6 +14,34 @@ export const clone = (value) => structuredClone(value);
 export const localName = (type) => (type || '').split(':').pop();
 export const isElement = (n) => n?.kind === 'element';
 export const isProperty = (n) => isElement(n) && localName(n.type).includes('.');
+const inlineTypes = new Set([
+  'Run',
+  'Span',
+  'Bold',
+  'Italic',
+  'Underline',
+  'Hyperlink',
+  'LineBreak',
+  'InlineUIContainer',
+]);
+const xamlNamespace = (node) =>
+  !node?.namespaceURI ||
+  [
+    'http://schemas.microsoft.com/winfx/2006/xaml/presentation',
+    'https://github.com/avaloniaui',
+  ].includes(node.namespaceURI);
+export const isXamlInline = (node) =>
+  isElement(node) && xamlNamespace(node) && inlineTypes.has(localName(node.type));
+export const isXamlInlineContainer = (node) =>
+  isElement(node) &&
+  xamlNamespace(node) &&
+  ['TextBlock', 'Span', 'Bold', 'Italic', 'Underline', 'Hyperlink'].includes(localName(node.type));
+
+/** Property-element ownership uses expanded XML names, not the spelling of namespace prefixes. */
+export const isPropertyOf = (node, owner, property) =>
+  isProperty(node) &&
+  localName(node.type) === localName(owner.type) + '.' + property &&
+  (!node.namespaceURI || !owner.namespaceURI || node.namespaceURI === owner.namespaceURI);
 export const element = (type, props = {}, children = []) => ({
   id: uid(),
   kind: 'element',

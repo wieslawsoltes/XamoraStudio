@@ -7,6 +7,7 @@ import {
   orderedSelection,
   contentChildren,
   contentHost,
+  prepareInlineContent,
   logicalParent,
   parseResolvedTracks,
   gridTrackIndex,
@@ -551,7 +552,7 @@ export class CanvasController extends WorkspaceComponent {
         const descriptor = s.registry.get(type),
           prefix = type.includes(':') ? type.split(':')[0] : null;
         if (prefix && descriptor?.namespace) d.root.props['xmlns:' + prefix] = descriptor.namespace;
-        contentHost(parent).children.push(node);
+        prepareInlineContent(parent).children.push(node);
         const plan = this.createPlan(parent, [node.id], e);
         if (!plan.allowed) throw Error(plan.reason);
         applyDropPlan(d, plan);

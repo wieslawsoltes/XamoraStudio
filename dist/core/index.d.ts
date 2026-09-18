@@ -369,6 +369,19 @@ export declare function completeXaml(
 ): Completion[];
 export declare function contentChildren(node: ElementNode): ElementNode[];
 export declare function contentHost(node: ElementNode): ElementNode;
+export declare function inlineContentError(
+  parent: ElementNode,
+  nodes: ElementNode[],
+): string | null;
+export declare function prepareInlineContent(parent: ElementNode): ElementNode;
+export declare function isPropertyOf(
+  node: DesignNode,
+  owner: ElementNode,
+  property: string,
+): boolean;
+export declare function isXamlInline(node: DesignNode): boolean;
+export declare function isXamlInlineContainer(node: DesignNode): boolean;
+
 export declare function logicalParent(root: ElementNode, id: string): ElementNode | null;
 export declare function isLocked(document: DesignDocument, id: string): boolean;
 export declare function gridTrackIndex(sizes: number[], position: number, gap?: number): number;

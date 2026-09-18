@@ -8,9 +8,37 @@ import {
 } from './appearance.js';
 import { resolveStyle, selectStyles, findResource, resourceEntries } from './styling.js';
 import { resolveBinding, readPath } from './design-data.js';
-import { localName, visualChildren, isElement, isProperty, walk, clone, element } from './model.js';
+import {
+  localName,
+  visualChildren,
+  isElement,
+  isProperty,
+  isPropertyOf,
+  walk,
+  clone,
+  element,
+} from './model.js';
 const num = (v, d = 0) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : d);
 const bool = (v, d = false) => (v == null ? d : String(v).toLowerCase() === 'true');
+const inlineTypes = new Set([
+  'Run',
+  'Span',
+  'Bold',
+  'Italic',
+  'Underline',
+  'Hyperlink',
+  'LineBreak',
+  'InlineUIContainer',
+]);
+const scalarText = (node, key) => {
+  if (node.props[key] !== undefined) return node.props[key];
+  const property = node.children.find((child) => isPropertyOf(child, node, key));
+  if (!property || property.children.some(isElement)) return undefined;
+  return property.children
+    .filter((child) => child.kind === 'text' || child.kind === 'cdata')
+    .map((child) => child.text)
+    .join('');
+};
 const px = (v) =>
   /^[-+]?\d*\.?\d+$/.test(String(v)) ? `${v}px` : v === 'Auto' ? 'auto' : undefined;
 export function thickness(value) {
@@ -75,6 +103,7 @@ export class PreviewRenderer {
   }
   value(v, templated, node) {
     if (typeof v !== 'string' || !v.startsWith('{')) return v;
+    if (v.startsWith('{}')) return v.slice(2);
     let m = v.match(/^\{(?:StaticResource|DynamicResource)\s+([^}]+)\}$/);
     if (m) {
       const resource = this.lookupResource(node, m[1]);
@@ -173,13 +202,19 @@ export class PreviewRenderer {
       if (!(el instanceof Element)) throw Error(`Renderer for ${n.type} must return an Element.`);
     } else
       el = document.createElement(
-        type === 'Button' || type === 'ToggleButton'
-          ? 'button'
-          : type === 'TextBox' || type === 'PasswordBox' || type === 'NumericUpDown'
-            ? 'input'
-            : type === 'TextBlock' || type === 'Label'
-              ? 'div'
-              : 'div',
+        type === 'LineBreak'
+          ? 'br'
+          : type === 'Hyperlink'
+            ? 'a'
+            : inlineTypes.has(type)
+              ? 'span'
+              : type === 'Button' || type === 'ToggleButton'
+                ? 'button'
+                : type === 'TextBox' || type === 'PasswordBox' || type === 'NumericUpDown'
+                  ? 'input'
+                  : type === 'TextBlock' || type === 'Label'
+                    ? 'div'
+                    : 'div',
       );
     el.classList.add('design-node');
     el.dataset.nodeId = n.id;
@@ -228,6 +263,39 @@ export class PreviewRenderer {
     if (p.FontStyle) s.fontStyle = String(p.FontStyle).toLowerCase();
     if (p.LineHeight) s.lineHeight = num(p.LineHeight) + 'px';
     if (p.TextAlignment) s.textAlign = String(p.TextAlignment).toLowerCase();
+    if (p.FlowDirection) s.direction = p.FlowDirection === 'RightToLeft' ? 'rtl' : 'ltr';
+    if (p.TextDecorations !== undefined) {
+      const decorations = String(p.TextDecorations)
+        .split(/[, ]+/)
+        .map(
+          (value) =>
+            ({
+              Underline: 'underline',
+              Strikethrough: 'line-through',
+              OverLine: 'overline',
+              None: 'none',
+            })[value],
+        )
+        .filter(Boolean);
+      if (decorations.length) s.textDecorationLine = [...new Set(decorations)].join(' ');
+    }
+    if (inlineTypes.has(type)) {
+      s.display = type === 'InlineUIContainer' ? 'inline-block' : 'inline';
+      if (p.BaselineAlignment)
+        s.verticalAlign =
+          {
+            Baseline: 'baseline',
+            Top: 'top',
+            Center: 'middle',
+            Bottom: 'bottom',
+            TextTop: 'text-top',
+            TextBottom: 'text-bottom',
+            Subscript: 'sub',
+            Superscript: 'super',
+          }[p.BaselineAlignment] || 'baseline';
+      if (p['xml:space'] === 'preserve') s.whiteSpace = 'pre-wrap';
+      else if (p['xml:space'] === 'default') s.whiteSpace = 'normal';
+    }
     if (p.ToolTip) el.title = p.ToolTip;
     if (p['Panel.ZIndex']) s.zIndex = p['Panel.ZIndex'];
     if (p.IsEnabled !== undefined && !bool(p.IsEnabled, true)) {
@@ -315,12 +383,54 @@ export class PreviewRenderer {
         s.overflow = 'auto';
         break;
       case 'TextBlock':
-      case 'Label':
+      case 'Label': {
         s.whiteSpace = p.TextWrapping === 'Wrap' ? 'pre-wrap' : 'pre';
         s.lineHeight = s.lineHeight || '1.45';
-        if (p.Text !== undefined || p.Content !== undefined) el.textContent = p.Text ?? p.Content;
-        else this.appendInline(el, n.children, templated);
+        const text = p.Text ?? p.Content ?? scalarText(n, type === 'Label' ? 'Content' : 'Text');
+        if (text !== undefined) {
+          p[type === 'Label' ? 'Content' : 'Text'] = text;
+          el.textContent = text;
+        } else this.appendInline(el, n.children, templated, n);
         addChildren = false;
+        break;
+      }
+      case 'Run':
+      case 'Span':
+      case 'Bold':
+      case 'Italic':
+      case 'Underline':
+      case 'Hyperlink': {
+        if (type === 'Bold' && p.FontWeight === undefined) s.fontWeight = 'bold';
+        if (type === 'Italic' && p.FontStyle === undefined) s.fontStyle = 'italic';
+        if ((type === 'Underline' || type === 'Hyperlink') && p.TextDecorations === undefined)
+          s.textDecorationLine = 'underline';
+        const text = p.Text ?? scalarText(n, 'Text');
+        if (text !== undefined) {
+          p.Text = text;
+          el.textContent = text;
+        } else this.appendInline(el, n.children, templated, n);
+        if (type === 'Hyperlink') {
+          // Navigation remains host-owned; importing XAML cannot navigate the designer.
+          el.setAttribute('role', 'link');
+          el.tabIndex = this.interactive ? 0 : -1;
+          if (p.NavigateUri && !p.ToolTip) el.title = String(p.NavigateUri);
+          const activate = (event) => {
+            event.preventDefault();
+            if (!this.interactive || el.getAttribute('aria-disabled') === 'true') return;
+            this.emitPreview(n, 'Click', p.NavigateUri);
+          };
+          el.addEventListener('click', activate);
+          el.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') activate(event);
+          });
+        }
+        addChildren = false;
+        break;
+      }
+      case 'LineBreak':
+        addChildren = false;
+        break;
+      case 'InlineUIContainer':
         break;
       case 'Button':
       case 'ToggleButton':
@@ -562,7 +672,8 @@ export class PreviewRenderer {
       !children.length &&
       d?.container &&
       !el.textContent &&
-      !['Canvas', 'ContentPresenter'].includes(type)
+      !['Canvas', 'ContentPresenter', 'TextBlock'].includes(type) &&
+      !inlineTypes.has(type)
     ) {
       el.classList.add('empty-container');
       s.minHeight = s.minHeight || '48px';
@@ -600,6 +711,10 @@ export class PreviewRenderer {
       ) {
         el.querySelectorAll('input,select,button,textarea').forEach((c) => (c.disabled = true));
         if (['INPUT', 'BUTTON', 'SELECT', 'TEXTAREA'].includes(el.tagName)) el.disabled = true;
+        if (type === 'Hyperlink') {
+          el.setAttribute('aria-disabled', 'true');
+          el.tabIndex = -1;
+        }
         break;
       }
       ancestor = this.parents.get(ancestor.id);
@@ -874,33 +989,19 @@ export class PreviewRenderer {
         children.push(...visualChildren(property));
     return children;
   }
-  appendInline(host, children, templated) {
+  appendInline(host, children, templated, parent) {
     for (const child of children) {
       if (child.kind === 'text' || child.kind === 'cdata') {
         host.append(document.createTextNode(child.text));
-        continue;
+      } else if (isProperty(child)) {
+        // Only the owner's inline collection contributes text. Resource/style/property
+        // declarations stay in the AST and must never leak into visible content.
+        if (parent && isPropertyOf(child, parent, 'Inlines'))
+          this.appendInline(host, child.children, templated, parent);
+      } else if (isElement(child)) {
+        if (inlineTypes.has(localName(child.type)) || visualChildren({ children: [child] }).length)
+          host.append(this.node(child, parent, templated));
       }
-      if (!isElement(child) || isProperty(child)) continue;
-      const type = localName(child.type);
-      if (type === 'LineBreak') {
-        host.append(document.createElement('br'));
-        continue;
-      }
-      const span = document.createElement('span');
-      if (['Bold', 'Italic', 'Underline'].includes(type))
-        span.style[
-          type === 'Bold' ? 'fontWeight' : type === 'Italic' ? 'fontStyle' : 'textDecoration'
-        ] = type === 'Bold' ? 'bold' : type === 'Italic' ? 'italic' : 'underline';
-      if (child.props.Foreground)
-        span.style.color = color(this.value(child.props.Foreground, templated, child));
-      if (child.props.FontSize) span.style.fontSize = num(child.props.FontSize) + 'px';
-      if (child.props.FontWeight) span.style.fontWeight = child.props.FontWeight.toLowerCase();
-      if (child.props.Text !== undefined)
-        span.textContent = this.value(child.props.Text, templated, child);
-      else this.appendInline(span, child.children, templated);
-      span.dataset.nodeId = child.id;
-      this.elements.set(child.id, span);
-      host.append(span);
     }
   }
   scopeResources(n) {
