@@ -41,10 +41,48 @@ export function aiEndpoint(value, origin = globalThis.location?.origin) {
     );
   return url.href.replace(/\/+$/, '');
 }
+/** Accept a copied TypeSafe API URL as well as its base, without duplicating /v1. */
+export function jevEndpoint(value, origin) {
+  return aiEndpoint(value, origin).replace(/\/v1(?:\/(?:systemone|models))?$/, '');
+}
+const proxyErrors = Object.freeze({
+  proxy_token_required:
+    'Enter the private bridge access token printed by the server, not your TypeSafe key.',
+  proxy_not_configured:
+    'The bridge is running but has no TypeSafe key. Set TYPESAFE_API_KEY on the server, or start it with --allow-client-keys and enter your key in Jev settings.',
+  generator_not_configured:
+    'The bridge has no configured generator. Configure its server-side generator settings or disable optional generation.',
+  proxy_limit: 'The private bridge request limit was reached. Wait before running again.',
+  upstream_network:
+    'The bridge is reachable but could not connect to the AI provider. Check the bridge computer’s network, DNS and provider availability.',
+  upstream_timeout: 'The bridge connected but its upstream request timed out. Try again later.',
+  upstream_invalid_response:
+    'The bridge received an invalid provider response. Check the configured provider and model.',
+});
+/** Safe transport diagnostics: never retain request bodies, raw errors or credentials. */
+export class AITransportError extends Error {
+  constructor(message, { code = 'network', status = 0 } = {}) {
+    super(message);
+    this.name = 'AITransportError';
+    this.code = code;
+    this.status = status;
+  }
+}
+function networkMessage(url) {
+  let target;
+  try {
+    target = new URL(url, globalThis.location?.origin);
+  } catch {}
+  if (target?.origin === 'https://api.typesafe.ai')
+    return 'The browser could not connect directly to TypeSafe. Its CORS policy may reject this Studio origin. Open Connection setup and use a private bridge; no public relay or automatic retry was used.';
+  if (['127.0.0.1', 'localhost', '[::1]'].includes(target?.hostname))
+    return 'Could not reach the local AI bridge. Start it with npm run start:ai:pages, check its port and allowed Studio origin, and allow Local Network Access if your browser asks. No proposed changes were applied.';
+  return 'Could not reach the AI endpoint. Check its network, HTTPS certificate and CORS policy. Open Connection setup to configure a private bridge. The browser does not expose the exact network/CORS failure.';
+}
 export function jevSettings(input = {}, origin) {
   const out = {};
   for (const key of Object.keys(JEV_DEFAULTS)) out[key] = input[key] ?? JEV_DEFAULTS[key];
-  out.endpoint = aiEndpoint(out.endpoint, origin);
+  out.endpoint = jevEndpoint(out.endpoint, origin);
   if (out.generatorEndpoint) out.generatorEndpoint = aiEndpoint(out.generatorEndpoint, origin);
   for (const key of ['model', 'generatorModel'])
     if (typeof out[key] !== 'string' || out[key].length > 160 || /[\x00-\x1f]/.test(out[key]))
@@ -211,6 +249,15 @@ export async function aiJSON(
   } = {},
 ) {
   if (typeof request !== 'function') throw Error('This environment has no fetch transport.');
+  if (
+    ![apiKey, proxyToken].every(
+      (value) => typeof value === 'string' && value.length <= 4096 && !/[^\x21-\x7e]/.test(value),
+    )
+  )
+    throw new AITransportError(
+      'API keys and proxy tokens must be printable ASCII without spaces or line breaks.',
+      { code: 'configuration' },
+    );
   const controller = new AbortController();
   let timedOut = false;
   const abort = () => controller.abort();
@@ -227,16 +274,31 @@ export async function aiJSON(
       if (body !== undefined) headers['Content-Type'] = 'application/json';
       if (apiKey) headers.Authorization = 'Bearer ' + apiKey;
       if (proxyToken) headers['X-Xamora-AI-Token'] = proxyToken;
-      const response = await request(url, {
-        method: body === undefined ? 'GET' : 'POST',
-        headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: controller.signal,
-        credentials: 'omit',
-        cache: 'no-store',
-        redirect: 'error',
-        referrerPolicy: 'no-referrer',
-      });
+      let response;
+      try {
+        response = await request(url, {
+          method: body === undefined ? 'GET' : 'POST',
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: controller.signal,
+          credentials: 'omit',
+          cache: 'no-store',
+          redirect: 'error',
+          referrerPolicy: 'no-referrer',
+        });
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
+        // Rejected fetches do not reveal whether CORS, DNS, TLS, or local access failed.
+        throw new AITransportError(networkMessage(url));
+      }
+      const proxyCode = response.headers?.get('X-Xamora-AI-Error');
+      if (Object.hasOwn(proxyErrors, proxyCode || '')) {
+        await response.body?.cancel?.();
+        throw new AITransportError(proxyErrors[proxyCode], {
+          code: proxyCode,
+          status: response.status,
+        });
+      }
       if ([429, 503, 529].includes(response.status) && attempt < retries) {
         const retry = response.headers?.get('Retry-After');
         const seconds = Number(retry);
@@ -268,7 +330,10 @@ export async function aiJSON(
             429: 'Rate limit reached',
             529: 'TypeSafe is overloaded',
           }[response.status] || 'Provider request failed';
-        throw Error(`${description} (HTTP ${response.status}).`);
+        throw new AITransportError(`${description} (HTTP ${response.status}).`, {
+          code: 'http',
+          status: response.status,
+        });
       }
       let text = '';
       if (response.body?.getReader) {
@@ -299,14 +364,18 @@ export async function aiJSON(
       try {
         return JSON.parse(text);
       } catch {
-        throw Error('The provider did not return valid JSON.');
+        throw new AITransportError(
+          'The endpoint returned non-JSON content. A static site is not an AI proxy; check the API base URL in Connection setup.',
+          { code: 'invalid_response' },
+        );
       }
     }
   } catch (error) {
-    if (timedOut) throw Error('AI request timed out. No proposed changes were applied.');
+    if (timedOut)
+      throw new AITransportError('AI request timed out. No proposed changes were applied.', {
+        code: 'timeout',
+      });
     if (controller.signal.aborted) throw abortError();
-    if (error instanceof TypeError)
-      throw Error('Could not reach the AI endpoint. Check the network, CORS and proxy settings.');
     throw error;
   } finally {
     clearTimeout(timer);
@@ -317,7 +386,14 @@ export class JevClient {
   constructor(options = {}, transport = {}) {
     options = { ...options, ...transport };
     this.settings = jevSettings(options, options.origin);
-    this.credentials = { apiKey: options.apiKey || '', proxyToken: options.proxyToken || '' };
+    this.credentials = {
+      apiKey: options.apiKey || '',
+      // This private bridge credential has no meaning at TypeSafe; never disclose it there.
+      proxyToken:
+        new URL(this.settings.endpoint).origin === 'https://api.typesafe.ai'
+          ? ''
+          : options.proxyToken || '',
+    };
     this.fetch = options.fetch;
   }
   async evaluate(state, questions, { signal } = {}) {

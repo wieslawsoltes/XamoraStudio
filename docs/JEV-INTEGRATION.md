@@ -17,24 +17,64 @@ Examples for native mode: `Set the selected button background to "#2563EB"`; `Se
 
 Bespoke mode examples: `Generate a bespoke XAML settings page with a two-column form`; `Redesign this selected HTML section as a responsive pricing card`; `Repair the current invalid XAML source draft`. Enable and configure the separate generator first. Invalid-draft repair requires current-document scope, complete source sharing, and no locked elements. Repair is staged; Apply creates one source-history entry and Undo restores the original invalid draft verbatim.
 
-## Recommended setup: keep provider keys server-side
+## GitHub Pages: connect without moving your workspace
 
-The repository includes a dependency-free **private loopback proxy** serving Studio and three fixed API routes. From the repository root with Node 22 or later:
+**A CORS error is not necessarily a bad API key.** On 18 September 2026, an unauthenticated OPTIONS preflight from `https://wieslawsoltes.github.io` to both TypeSafe `/v1/systemone` and `/v1/models` returned HTTP 400 without `Access-Control-Allow-Origin`. The [credential-free diagnostic run](https://github.com/wieslawsoltes/XamoraStudio/actions/runs/35399728829) records the response headers. Browsers cannot read the API response when the provider does not allow the Studio origin. A static GitHub Pages deployment cannot host a Node API, and changing frontend headers or using `no-cors` cannot make the protected JSON response readable.
+
+Use the included **private local bridge** to keep using the published Studio tab and its existing browser-local workspace. From an up-to-date repository checkout with Node 22 or later:
 
 ```sh
-npm ci
-# Set TYPESAFE_API_KEY in your local process environment, not in a project file.
-# Optional XAMORA_AI_TOKEN restricts the proxy to clients holding your local access token.
+git pull
+npm run start:ai:pages
+```
+
+The bridge uses Node built-ins; this command does not require an AI SDK or an npm install. It binds only `127.0.0.1`, explicitly permits `https://wieslawsoltes.github.io`, and prints a freshly generated **Private proxy access token**. Keep that terminal running. In the existing Studio tab:
+
+1. Open **Jev → Settings** (or **Connection setup…** below a failed request) and choose **Use local bridge**. The default Jev base URL is `http://127.0.0.1:8080/api/jev`.
+2. Paste the printed token into **Private proxy access token**. Re-enter your own TypeSafe API key, or leave it empty when the bridge process has `TYPESAFE_API_KEY` set. The preset intentionally clears inherited credentials instead of silently forwarding them to a new destination.
+3. Check the destination confirmation, choose **Test connection / list models**, then **Save settings**. If the browser asks for **Local Network Access**, approve it for this trusted Studio tab. Run still asks for context approval, and Apply still requires review.
+
+**Do not clear site data or move your documents to a localhost Studio tab.** The bridge works from the existing Pages tab; a localhost tab would have a different browser-storage origin. Keep the token private and paste it only into your trusted Studio. The script's client-key mode forwards a supplied TypeSafe key only to the fixed `api.typesafe.ai` upstream, without persisting or logging it. A configured server key takes precedence. No token, provider credential or inference is sent during a CORS preflight.
+
+Stopping the process disconnects the bridge. Restarting generates a new token unless `XAMORA_AI_TOKEN` supplies a fixed one (at least 24 printable, non-space ASCII characters). Set `PORT` to use another port and update the UI URL accordingly. The bridge cannot start itself from a static web page. Browsers or enterprise policies may deny local-network access; in that case use an authenticated HTTPS proxy you control. Never disable browser security, publish the token, or send credentials through a public CORS relay.
+
+For a different trusted Studio deployment, use its **exact origin** without a path:
+
+```sh
+node scripts/serve-ai.mjs --allow-origin=https://studio.example --allow-client-keys
+```
+
+`--allow-origin` can be repeated; `XAMORA_AI_ALLOWED_ORIGINS` also accepts a comma-separated list. `XAMORA_AI_ALLOW_CLIENT_KEYS=1` is the environment equivalent of `--allow-client-keys`. Cross-origin and client-key modes require the access token; the CLI generates one when omitted. Origin approval is not authentication: GitHub project pages share their owner's origin, and every actual API call must also carry the private token. No origin wildcards or arbitrary upstream URLs are accepted.
+
+For optional generation from the Pages tab, configure the server variables described below, and use the **full** local endpoint `http://127.0.0.1:8080/api/generate` in generator settings. A relative `/api/generate` URL on GitHub Pages does not become a backend.
+
+## Local Studio or server-held provider keys
+
+The same dependency-free bridge can serve Studio and its fixed API routes. To keep provider keys entirely out of browser credentials, set `TYPESAFE_API_KEY` in the server process environment, not in a project document, and run:
+
+```sh
 npm run start:ai
 ```
 
-Open `http://127.0.0.1:8080`. In Jev settings, set **Jev API base URL** to `/api/jev`, model to `jev-latest`, and leave the browser TypeSafe key empty. Enter the private proxy access token when `XAMORA_AI_TOKEN` is set. `PORT` can change the loopback port. The proxy reads environment variables; it does not automatically read `.env`. Node's explicit `node --env-file=.env scripts/serve-ai.mjs` is an alternative, and `.env` must stay uncommitted.
+Open `http://127.0.0.1:8080`, choose **Use same-origin proxy** in Jev settings (base `/api/jev`), set model `jev-latest`, and leave the browser TypeSafe key empty. Optional `XAMORA_AI_TOKEN` restricts this same-origin mode to clients holding that token. Default same-origin mode does not accept browser provider keys. To serve the existing published tab with server-held keys, add `--allow-origin=https://wieslawsoltes.github.io` without `--allow-client-keys`, or use the Pages command with `TYPESAFE_API_KEY` configured. The latter always prefers the server key.
 
-For optional generation, configure `XAMORA_GENERATOR_ENDPOINT` as a full chat-completions URL, `XAMORA_GENERATOR_KEY`, and `XAMORA_GENERATOR_MODEL` on that process. In the UI, enable the generator, use `/api/generate`, enter the same model identifier, and leave its browser provider key empty. Select the endpoint's documented output-limit parameter: `max_tokens` or `max_completion_tokens`. Both keys remain server-side in this mode. This is a Chat Completions-compatible adapter, not an adapter for every vendor's distinct API.
+The server reads process environment variables and does not automatically load `.env`. Node's explicit `node --env-file=.env scripts/serve-ai.mjs` is an alternative; `.env` must stay uncommitted. Its static root is the repository's `dist` directory regardless of the launch directory.
 
-The proxy accepts only same-origin browser requests and fixed TypeSafe upstream routes, checks Host/Origin against loopback (or an explicitly supplied origin for embedders), rejects arbitrary relay URLs, bounds JSON bodies/responses and concurrent/request-rate usage, and does not serve repository files outside `dist`. Client disconnects abort upstream calls. It binds only `127.0.0.1`. **Do not expose this development proxy publicly as an unauthenticated paid gateway.** Production deployment needs authenticated users, TLS, per-user budgets and a deliberately configured reverse proxy. GitHub Pages cannot run the Node server; use the locally served Studio or your own appropriately secured deployment.
+For optional generation, configure `XAMORA_GENERATOR_ENDPOINT` as a full chat-completions URL, `XAMORA_GENERATOR_KEY`, and `XAMORA_GENERATOR_MODEL` on that process. Enable the generator in the UI, use `/api/generate` for the locally served Studio (or its full URL for a different Studio origin), enter the same model identifier, and leave the browser generator provider key empty. Select the endpoint's documented output-limit parameter: `max_tokens` or `max_completion_tokens`. Both provider keys remain server-side in this mode. This is a Chat Completions-compatible adapter, not an adapter for every vendor's distinct API.
 
-Direct browser mode uses `https://api.typesafe.ai`, your personal TypeSafe key and a configured model. It depends on the provider allowing your origin through CORS. Credentials are accessible to trusted scripts on the Studio origin: there is no browser-side encryption claim. They remain in memory by default. **Remember credentials in this tab session** explicitly opts into endpoint-bound `sessionStorage`; project documents and `localStorage` never contain these credential fields. Settings store only nonsensitive preferences. **Forget all stored keys** clears the memory/session vault. Dialog password-field values are cleared on dismissal. Destination changes clear inherited UI credentials and require confirmation before an existing private token can be forwarded to a changed endpoint. Direct shared production keys are not recommended.
+The bridge permits only same-origin requests by default. Explicit allowed origins receive exact CORS headers only after origin validation; OPTIONS cannot bypass actual token authentication. Fixed routes are `GET /api/jev/v1/models`, `POST /api/jev/v1/systemone`, `POST /api/generate`, and `GET /api/jev/health`. The protected health endpoint returns only service/version and configured-capability booleans, never keys or provider data, and makes no upstream call. Method/header checks, Host validation against DNS rebinding, request/concurrency limits, schema/response bounds, static-root confinement and client-disconnect cancellation remain enforced. Provider errors are redacted.
+
+**Do not expose this development bridge publicly as an unauthenticated paid gateway.** Production deployment needs TLS, authenticated users, per-user budgets and a deliberately configured reverse proxy. This repository update does not provision a hosted API service.
+
+## Connection diagnostics and credentials
+
+**Use direct TypeSafe** selects `https://api.typesafe.ai`. Direct browser mode still depends on the provider allowing your origin; Studio cannot change that policy. Copied Jev `/v1`, `/v1/models` and `/v1/systemone` URLs are normalized to the base so they do not acquire a second API path. Custom proxy path prefixes are retained. Generator URLs remain full, explicitly configured URLs.
+
+Network failures now show destination-specific recovery guidance and **Connection setup…**. The browser does not reveal whether every rejected fetch was caused by DNS, TLS, CORS or network policy; the message does not pretend otherwise. Recognized bridge responses distinguish a missing/incorrect private token, a missing TypeSafe/server generator configuration, local limits, upstream network failure and timeout. An HTML static-site response is identified as a missing JSON API. Configuration failures are not retried like provider overload. Malformed keys are rejected before transport without echoing their contents. The private bridge token is never added to requests addressed directly to TypeSafe.
+
+Opening setup, choosing a preset and editing fields make no network calls and do not change saved settings. **Test connection / list models** is explicit and sends no project context. Changing any settings or forgetting keys aborts an in-flight test; a late model list cannot overwrite the state of edited fields. Saving and context approval are still required before the next inference. There is no automatic relay selection, fallback, provider probe or local-network scan.
+
+Credentials remain accessible to trusted scripts on the Studio origin; there is no browser-side encryption claim. They stay in memory by default. **Remember credentials in this tab session** explicitly opts into endpoint-bound `sessionStorage`; project documents and `localStorage` never contain these credential fields. Settings persist only nonsensitive preferences. **Forget all stored keys** clears the memory/session vault. Password-field values are cleared on dialog dismissal. Destination changes clear inherited UI credentials and require confirmation before existing credentials can be sent to the new endpoint. Direct shared production keys are not recommended.
 
 ## Configuration and bounded context
 
@@ -66,7 +106,7 @@ No model-provided code is evaluated. Generated responses must contain bounded so
 
 ## Reusable package
 
-`@wieslawsoltes/xamora-assistant` exports `JevClient`, typed request/answer validators (Choice/Noul/Score), `JevPreferences`, `JevAssistant`, context packing/redaction helpers and starter templates. ESM, CommonJS and TypeScript declarations are generated from the same canonical modules; no duplicated application state or required AI SDK is introduced. DOM-backed HTML planning needs the host's normal parser environment. The transport alone is DOM-free.
+`@wieslawsoltes/xamora-assistant` exports `JevClient`, `jevEndpoint`, `AITransportError` (safe `code`/`status` diagnostics), typed request/answer validators (Choice/Noul/Score), `JevPreferences`, `JevAssistant`, context packing/redaction helpers and starter templates. ESM, CommonJS and TypeScript declarations are generated from the same canonical modules; no duplicated application state or required AI SDK is introduced. DOM-backed HTML planning needs the host's normal parser environment. The transport alone is DOM-free.
 
 ```js
 import { JevAssistant } from '@wieslawsoltes/xamora-assistant';
@@ -92,7 +132,9 @@ Studio exposes `window.xamora.jev.open(scope)`, `preview()`, `run(prompt?, scope
 
 Tests use faithful **mocked HTTP responses**, not a real paid key. Unit suites exercise typed protocol, credentials, limits, retry/abort, probabilities, candidates, scope/locks, AST operations, hybrid verification, draft repair, preferences and private proxy boundaries. The Chromium suite uses the full Studio and an actual detached tool window with intercepted provider requests, checking settings, context preview, staged execution, exact Undo, stale rejection, cancellation, global routing, starter creation and optional generation. Clean installed package consumers verify ESM/CommonJS/types. `npm run test:jev:live` is a separate explicit opt-in smoke check requiring `TYPESAFE_API_KEY`; it sends only a nonsensitive color-choice question and may incur charges.
 
-No live semantic-quality, billing, CORS, account-quota or production-load qualification is claimed without such credentials. Native candidates/metadata are finite, not exhaustive native XAML/HTML semantics. Large-document wholesale rewrites, arbitrary generated behavior, unrestricted app automation and every multi-intent prompt are not supported by this bounded workflow. A no-match or low-confidence response requires a narrower prompt, exact quoted values, another step or the explicitly configured generator. No npm publication or provider SDK version bump accompanies this feature.
+`tests/jev-connection.test.mjs` also exercises real loopback HTTP preflights, exact-origin/token enforcement, explicit browser-key forwarding, fixed upstreams, sanitized error codes, protected health metadata and CLI configuration. `tests/browser-jev-connection.mjs` serves the Studio under a Pages-shaped HTTPS origin and reaches the bridge over actual loopback HTTP with native browser CORS enforcement enabled. It verifies that rejected preflight prevents POST, then exercises explicit bridge setup, model discovery, approval and a reviewed login starter without changing the Studio storage origin. Only the bridge's server-to-server provider responses are fixtures; the browser-to-bridge requests are not intercepted. The local-network permission grant represents the user's permission, not disabled browser security.
+
+The public TypeSafe preflight observation is unauthenticated and establishes the reported origin rejection at the time checked, not live inference/account qualification. No live semantic-quality, billing, account-quota, production-load or universal browser-policy qualification is claimed without the relevant environment and credentials. Native candidates/metadata are finite, not exhaustive native XAML/HTML semantics. Large-document wholesale rewrites, arbitrary generated behavior, unrestricted app automation and every multi-intent prompt are not supported by this bounded workflow. A no-match or low-confidence response requires a narrower prompt, exact quoted values, another step or the explicitly configured generator. No npm publication or provider SDK version bump accompanies this feature.
 
 ## Research and API sources
 
@@ -105,3 +147,9 @@ Checked 18 September 2026. The implementation follows the current v1 native cont
 - [Smart home demo](https://docs.typesafe.ai/demos/smart-home): batching speculative decisions with code-owned workflow and optional generative help.
 - [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast): community primary implementation of indexed action routing with a separately configured text helper. Xamora implements its own guarded AST adapter; it does not adopt arbitrary browser automation or execution of generated code.
 - [TypeSafe integration guidance](https://github.com/typesafe-ai/skills/blob/main/skills/typesafe-ai/SKILL.md): live contracts, focused state, meaningful instructions, explicit uncertainty and server-side web credentials.
+
+Connection references checked 18 September 2026:
+
+- [MDN CORS guide](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS): browser-origin response authorization, preflight and the limits of frontend diagnostics.
+- [Chrome Local Network Access](https://developer.chrome.com/blog/local-network-access): explicit browser permission for public-origin requests to loopback/local services; this is not a reason to disable browser security.
+- [GitHub Pages overview](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages): static hosting, not a Node API runtime.

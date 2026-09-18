@@ -19,7 +19,8 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "start:ai": "node scripts/serve-ai.mjs",
-    "test:jev:live": "node scripts/jev-smoke.mjs"
+    "test:jev:live": "node scripts/jev-smoke.mjs",
+    "start:ai:pages": "node scripts/serve-ai.mjs --allow-origin=https://wieslawsoltes.github.io --allow-client-keys"
   },
   "engines": {
     "node": ">=22"

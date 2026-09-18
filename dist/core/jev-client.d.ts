@@ -64,6 +64,12 @@ export interface AITransportOptions extends JevCredentials {
 export declare const JEV_DEFAULTS: Readonly<JevSettings>;
 export declare function jsonBytes(value: unknown): number;
 export declare function aiEndpoint(value: string, origin?: string): string;
+export declare function jevEndpoint(value: string, origin?: string): string;
+export declare class AITransportError extends Error {
+  constructor(message: string, options?: { code?: string; status?: number });
+  readonly code: string;
+  readonly status: number;
+}
 export declare function jevSettings(input?: Partial<JevSettings>, origin?: string): JevSettings;
 export declare function validateJevRequest(request: JevRequest, maxBytes?: number): number;
 export declare function validateJevResponse(data: unknown, request: JevRequest): JevResponse;
