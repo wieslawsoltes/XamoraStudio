@@ -295,6 +295,93 @@ try {
   console.log(
     'PASS diagnostics: incremental source line changes propagate to existing designer diagnostics',
   );
+  for (const [name, source, tag, property, value] of [
+    [
+      'Structure.xaml',
+      '<Grid><TextBlock><Run><Run.Text>Hello world</Run.Text></Run></TextBlock><Button Content="Save now"/></Grid>',
+      'Run.Text',
+      'Content',
+      'Save now',
+    ],
+    [
+      'Structure.html',
+      '<!doctype html><main><p title="Hello world">Hello <strong>world</strong></p><button title="Save now">Save</button></main>',
+      'strong',
+      'title',
+      'Save now',
+    ],
+  ]) {
+    await page.evaluate(
+      ({ name, source }) => {
+        const s = window.xamora.studio;
+        s.importText(source, name);
+        s.setView('split');
+        s.store.session.updateSource(source);
+      },
+      { name, source },
+    );
+    await page.waitForFunction(() => !window.xamora.studio.sync.renderFrame);
+    const baseline = await page.evaluate(() => ({
+      revision: window.xamora.studio.store.revision,
+      source: window.xamora.studio.editor.input.value,
+    }));
+    await place('<' + tag + '>');
+    const opening = await input.evaluate((el) => el.selectionStart);
+    await input.press('Control+Shift+Backslash');
+    assert.equal(
+      await input.evaluate((el) => el.value.slice(el.selectionStart, el.selectionEnd)),
+      tag,
+    );
+    assert.equal(
+      await input.evaluate((el) => el.value.slice(el.selectionStart - 2, el.selectionStart)),
+      '</',
+    );
+    await input.press('Alt+ArrowLeft');
+    assert.equal(await input.evaluate((el) => el.selectionStart), opening);
+    await place(property + '="' + value + '"', value);
+    const caret = await input.evaluate((el) => el.selectionStart);
+    await input.press('Alt+Shift+ArrowRight');
+    assert.equal(
+      await input.evaluate((el) => el.value.slice(el.selectionStart, el.selectionEnd)),
+      value,
+    );
+    await input.press('Alt+Shift+ArrowRight');
+    assert.equal(
+      await input.evaluate((el) => el.value.slice(el.selectionStart, el.selectionEnd)),
+      property + '="' + value + '"',
+    );
+    await input.press('Alt+Shift+ArrowLeft');
+    await input.press('Alt+Shift+ArrowLeft');
+    assert.equal(await input.evaluate((el) => el.selectionStart), caret);
+    assert.equal(await input.evaluate((el) => el.selectionEnd), caret);
+    await place('<' + tag + '>');
+    await page.evaluate(() => window.xamora.studio.command('language-select-designer'));
+    const type = await page.evaluate(async () => {
+      const { find } = await import('/core/model.js');
+      const s = window.xamora.studio;
+      return find(s.doc.root, s.store.selection[0]).type;
+    });
+    assert.equal(type, name.endsWith('.html') ? 'strong' : 'Run');
+    assert.equal(await input.inputValue(), baseline.source);
+    assert.equal(await page.evaluate(() => window.xamora.studio.store.revision), baseline.revision);
+    assert((await page.evaluate(() => window.xamora.language.selectionRanges(2))).length > 0);
+    console.log(
+      name +
+        ': matching tag/back, keyboard expansion/shrink, source-to-designer identity and unchanged source/history passed.',
+    );
+  }
+  // A source-buffer edit not yet debounced must be validated before a structural command.
+  await page.evaluate(() => {
+    const s = window.xamora.studio;
+    s.importText('<Grid><Button/></Grid>', 'InvalidStructure.xaml');
+    s.editor.input.value = '<Grid>';
+    s.editor.input.setSelectionRange(2, 2);
+    s.editor.changed();
+  });
+  await input.press('Control+Shift+Backslash');
+  assert.equal(await input.inputValue(), '<Grid>');
+  assert.equal(await input.evaluate((el) => el.selectionStart), 2);
+  assert.equal(await page.evaluate(() => window.xamora.language.matchingTagAt(2)), null);
   assert.deepEqual(runtimeErrors, [], 'semantic editor has no uncaught browser errors');
   console.log(
     'PASS metadata completion: registry enum completion, accepted source transaction, invalid-draft rename guard',

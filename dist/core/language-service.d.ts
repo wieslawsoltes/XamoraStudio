@@ -29,6 +29,14 @@ export interface SemanticCompletion {
   insertText: string;
   caretOffset?: number;
 }
+export interface MarkupRange {
+  start: number;
+  end: number;
+  line: number;
+  column: number;
+  nodeId?: string;
+  kind: string;
+}
 /** Local literal markup references only. Native runtime lookup, dynamic scripts and external files are not analyzed. */
 export class SemanticLanguageService {
   constructor(
@@ -40,6 +48,11 @@ export class SemanticLanguageService {
   );
   readonly session: DocumentSession;
   symbols(): SemanticLocation[];
+  /** Returns null for invalid drafts, invalid offsets, and synthetic-only source positions. */
+  elementAt(offset: number): MarkupRange | null;
+  matchingTagAt(offset: number): MarkupRange | null;
+  /** Strictly enclosing ranges, smallest first. Offsets use UTF-16 code units. */
+  selectionRanges(start: number, end?: number): MarkupRange[];
   definitionAt(offset: number): SemanticLocation[];
   referencesAt(offset: number, options?: { includeDeclaration?: boolean }): SemanticLocation[];
   rename(

@@ -617,6 +617,102 @@ export class SemanticLanguageService {
     }
     return output;
   }
+  /** Read only committed concrete ranges; invalid drafts never navigate the old tree. */
+  _structureReady(start, end = start) {
+    return (
+      this.session.isValid &&
+      Number.isSafeInteger(start) &&
+      Number.isSafeInteger(end) &&
+      start >= 0 &&
+      end >= start &&
+      end <= this.session.validSource.length
+    );
+  }
+  _range(start, end, kind, nodeId) {
+    return { start, end, kind, ...(nodeId ? { nodeId } : {}), ...this._position(start) };
+  }
+  /** Innermost authored element at the caret; synthetic HTML wrappers are not source elements. */
+  elementAt(offset) {
+    if (!this._structureReady(offset)) return null;
+    this._ensure();
+    const span = (this.session.index?.spans || [])
+      .filter((s) => s.kind === 'element' && !s.synthetic && s.start <= offset && offset < s.end)
+      .sort((a, b) => a.end - a.start - (b.end - b.start))[0];
+    return span ? this._range(span.start, span.end, 'element', span.nodeId) : null;
+  }
+  /** The opposite tag name, only when the caret is in an actual paired opening/closing tag. */
+  matchingTagAt(offset) {
+    if (!this._structureReady(offset)) return null;
+    this._ensure();
+    const span = this.elementAt(offset);
+    if (!span) return null;
+    const source = this.session.sourceAtNode(span.nodeId);
+    if (!Number.isInteger(source.closeNameStart)) return null;
+    if (offset >= source.start && offset < source.openEnd)
+      return this._range(source.closeNameStart, source.closeNameEnd, 'closing-tag', span.nodeId);
+    if (offset >= source.closeStart && offset < source.end)
+      return this._range(source.nameStart, source.nameEnd, 'opening-tag', span.nodeId);
+    return null;
+  }
+  /** Strictly increasing, nested UTF-16 selection ranges from a token to the document. */
+  selectionRanges(start, end = start) {
+    if (!this._structureReady(start, end)) return [];
+    this._ensure();
+    const candidates = [];
+    const add = (a, b, kind, id) => {
+      if (
+        Number.isInteger(a) &&
+        Number.isInteger(b) &&
+        a >= 0 &&
+        b <= this._source.length &&
+        b > a &&
+        a <= start &&
+        b >= end &&
+        (start !== end || start < b)
+      )
+        candidates.push(this._range(a, b, kind, id));
+    };
+    for (const span of this.session.index?.spans || []) {
+      if (span.synthetic || span.start > start || span.end < end) continue;
+      if (span.kind === 'element') {
+        add(span.nameStart, span.nameEnd, 'tag-name', span.nodeId);
+        add(span.closeNameStart, span.closeNameEnd, 'tag-name', span.nodeId);
+        for (const attr of span.attrs || []) {
+          add(
+            attr.nameStart ?? attr.start,
+            (attr.nameStart ?? attr.start) + attr.name.length,
+            'attribute-name',
+            span.nodeId,
+          );
+          add(attr.valueStart, attr.valueEnd, 'attribute-value', span.nodeId);
+          add(attr.start, attr.end, 'attribute', span.nodeId);
+        }
+        add(span.start, span.openEnd, 'opening-tag', span.nodeId);
+        add(span.closeStart, span.end, 'closing-tag', span.nodeId);
+        add(span.openEnd, span.closeStart, 'content', span.nodeId);
+        add(span.start, span.end, 'element', span.nodeId);
+      } else {
+        const delimiter = span.kind === 'comment' ? [4, 3] : span.kind === 'cdata' ? [9, 3] : null;
+        if (delimiter) add(span.start + delimiter[0], span.end - delimiter[1], 'text', span.nodeId);
+        add(span.start, span.end, span.kind, span.nodeId);
+      }
+    }
+    add(0, this._source.length, 'document');
+    // Malformed/recovered HTML may yield crossing lexical spans. Never return crossing selections.
+    const result = [];
+    let current = { start, end };
+    for (const range of candidates.sort((a, b) => a.end - a.start - (b.end - b.start))) {
+      if (
+        range.start <= current.start &&
+        range.end >= current.end &&
+        (range.start !== current.start || range.end !== current.end)
+      ) {
+        result.push(range);
+        current = range;
+      }
+    }
+    return result;
+  }
   completions(source, offset, context = {}) {
     this._ensure();
     const before = source.slice(0, offset),
