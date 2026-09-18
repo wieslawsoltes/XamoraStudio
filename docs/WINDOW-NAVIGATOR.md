@@ -8,7 +8,7 @@ Search matches window names, solution-relative file paths, document/tool kinds a
 
 Use **All windows**, **Documents**, **Tools**, **Closed**, and **Browser windows** filters. A closed editor is still part of the solution and can be reopened. Location labels distinguish main-window tabs, auto-hidden panels, in-app floating panels, actual dependent browser hosts, and saved popup intent currently displayed in the main window. Filtering never opens a popup.
 
-Up/Down and Page Up/Page Down select a result while typing focus stays in search. Enter opens the selected result, not automatically the first result. Escape dismisses without changing the selection or layout. Home/End, selection shortcuts and IME composition remain native text-input operations. Pointer selection preserves touch scrolling.
+A changed query or filter selects the highest-ranked match; unrelated live registry updates preserve the selected window by identity. Up/Down and Page Up/Page Down select a result while typing focus stays in search. Enter opens the selected result, not automatically the first result. Escape dismisses without changing the selection or layout. Home/End, selection shortcuts and IME composition remain native text-input operations. Pointer selection preserves touch scrolling.
 
 Rejected source-validation guards keep the navigator open with the query and selected result intact and a text error in the dialog's alert region. Successful activation closes without returning focus to a stale old editor. A callback-created replacement dialog is never dismissed by the old action. Opening and filtering are read-only; the existing DockWorkspace guard and activation paths handle actual changes.
 

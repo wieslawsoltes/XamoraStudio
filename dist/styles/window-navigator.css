@@ -8,13 +8,15 @@ html[data-density] .ux-window-dialog {
   min-height: 0;
   gap: 10px;
 }
-.ux-window-search {
+#modal-root .ux-window-search {
   display: flex;
   align-items: center;
   gap: 10px;
   border: 1px solid var(--ux-line, var(--border));
   border-radius: 8px;
   padding: 4px 12px;
+  margin: 0;
+  min-height: 48px;
 }
 .ux-window-search:focus-within {
   outline: 2px solid var(--ux-accent, var(--accent));
@@ -24,13 +26,16 @@ html[data-density] .ux-window-dialog {
   flex: 0 0 18px;
   color: var(--ux-muted);
 }
-html[data-density] .ux-window-search input {
+#modal-root .ux-window-search input {
   border: 0;
   box-shadow: none;
   background: transparent;
   min-width: 0;
   width: 100%;
-  height: 38px;
+  flex: 1;
+  margin: 0;
+  padding: 4px 0;
+  height: 36px;
   font-size: 14px;
   outline: none;
 }
@@ -153,6 +158,9 @@ html[data-density] .ux-window-list > button {
   }
 }
 @media (pointer: coarse) {
+  #modal-root .ux-window-search input {
+    font-size: 16px;
+  }
   html[data-density] .ux-window-filters button,
   html[data-density] .ux-window-empty button {
     min-height: 44px;

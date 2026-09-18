@@ -58,6 +58,12 @@ try {
   const input = page.locator('#dock-window-search'),
     list = page.locator('#dock-window-list');
   await input.waitFor({ state: 'visible' });
+  const searchBox = await page.locator('.ux-window-search').boundingBox();
+  assert(
+    searchBox.height >= 44 && searchBox.height < 65,
+    'The search icon, input and Escape hint stay in one row',
+  );
+  assert.equal(await input.evaluate((el) => getComputedStyle(el).borderTopWidth), '0px');
   await input.fill('screens navigation');
   assert.equal(await list.locator('[data-show-dock]').count(), 1);
   assert.equal(
@@ -171,6 +177,7 @@ try {
   await small.locator('[data-window-scope="tools"]').tap();
   const button = await small.locator('[data-window-scope="tools"]').boundingBox();
   assert(button.height >= 44);
+  assert((await small.locator('.ux-window-search').boundingBox()).height < 65);
   const box = await small.locator('.ux-window-dialog').boundingBox();
   assert(box.x >= 0 && box.x + box.width <= 391);
   assert(await small.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));

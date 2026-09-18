@@ -164,9 +164,9 @@ export class WindowNavigator {
         if (reveal) row.scrollIntoView?.({ block: 'nearest' });
       } else input.removeAttribute('aria-activedescendant');
     };
-    const render = () => {
+    const render = ({ resetSelection = false } = {}) => {
       if (!current()) return;
-      const previous = results[selected]?.id,
+      const previous = resetSelection ? null : results[selected]?.id,
         scroll = list.scrollTop;
       const result = searchWindows(windowEntries(s), input.value, { scope });
       results = result.items;
@@ -236,12 +236,12 @@ export class WindowNavigator {
     });
     listen(input, 'compositionend', () => {
       composing = false;
-      render();
+      render({ resetSelection: true });
     });
     listen(input, 'input', (event) => {
       if (!composing && !event.isComposing) {
         host.showError('');
-        render();
+        render({ resetSelection: true });
       }
     });
     listen(input, 'keydown', (event) => {
@@ -278,7 +278,7 @@ export class WindowNavigator {
         for (const b of dialog.querySelectorAll('[data-window-scope]'))
           b.setAttribute('aria-pressed', String(b === button));
         host.showError('');
-        render();
+        render({ resetSelection: true });
         input.focus();
       });
     listen(dialog.querySelector('[data-window-clear]'), 'click', () => {

@@ -339,3 +339,17 @@ test('disposing navigator restores routes and closes only its own dialog', (t) =
   f.navigator.dispose();
   assert(f.studio.dialogHost.isOpen);
 });
+
+// Live registry updates retain identity; a new search is a new ranked choice.
+test('changing query or filters starts at the highest-ranked result rather than a stale last row', (t) => {
+  const f = fixture(t),
+    { input, list, dialog } = f.open();
+  f.query(input, 'templates page');
+  assert.equal(list.querySelector('[aria-selected="true"]').dataset.showDock, 'b');
+  f.query(input, 'page');
+  assert.equal(list.querySelector('[aria-selected="true"]').dataset.showDock, 'a');
+  f.key(input, 'ArrowDown');
+  assert.equal(list.querySelector('[aria-selected="true"]').dataset.showDock, 'b');
+  dialog.querySelector('[data-window-scope="documents"]').click();
+  assert.equal(list.querySelector('[aria-selected="true"]').dataset.showDock, 'a');
+});
