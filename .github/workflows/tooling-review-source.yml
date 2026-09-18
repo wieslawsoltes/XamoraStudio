@@ -1,0 +1,21 @@
+name: Tooling review source
+on:
+  push:
+    branches: [feat/html-contextual-fragments]
+    paths: [.github/workflows/tooling-review-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: git bundle create "$RUNNER_TEMP/tooling-source.bundle" HEAD refs/remotes/origin/main
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tooling-review-source
+          path: ${{ runner.temp }}/tooling-source.bundle
+          retention-days: 1
