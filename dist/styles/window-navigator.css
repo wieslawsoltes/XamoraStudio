@@ -37,11 +37,11 @@ html[data-density] .ux-window-dialog {
   padding: 4px 0;
   height: 36px;
   font-size: 14px;
-  outline: none;
+  outline: 0;
 }
 /* The enclosing search field owns the one visible keyboard-focus indicator. */
 #modal-root .ux-window-search input:focus-visible {
-  outline: none;
+  outline: 0;
   box-shadow: none;
 }
 #modal-root .ux-window-search input::placeholder {
