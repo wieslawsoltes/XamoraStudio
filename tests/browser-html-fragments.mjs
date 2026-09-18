@@ -5,6 +5,20 @@ import { readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { chromium } from 'playwright';
 const root = resolve(import.meta.dirname, '..');
+// Exercise the package's declared ESM subpath rather than assuming a standalone bundle.
+const imports = {};
+for (const id of ['markup', 'model']) {
+  const manifest = JSON.parse(
+    await readFile(resolve(root, 'packages', id, 'package.json'), 'utf8'),
+  );
+  for (const [subpath, condition] of Object.entries(manifest.exports)) {
+    const target = condition.import?.default;
+    if (typeof target === 'string' && target.endsWith('.js'))
+      imports[manifest.name + (subpath === '.' ? '' : subpath.slice(1))] =
+        `/packages/${id}/${target.slice(2)}`;
+  }
+}
+assert(imports['@wieslawsoltes/xamora-markup/html'], 'The markup package must export HTML');
 const server = createServer(async (request, response) => {
   try {
     const path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
@@ -12,7 +26,7 @@ const server = createServer(async (request, response) => {
       response
         .writeHead(200, { 'Content-Type': 'text/html' })
         .end(
-          '<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><main id="host"></main>',
+          `<!doctype html><meta charset="utf-8"><link rel="icon" href="data:,"><script type="importmap">${JSON.stringify({ imports })}</script><main id="host"></main>`,
         );
       return;
     }
@@ -43,7 +57,7 @@ try {
   page.on('response', (response) => {
     if (response.status() >= 400) failures.push(response.url());
   });
-  for (const module of ['/core/html.js', '/packages/markup/dist/browser/index.js']) {
+  for (const module of ['/core/html.js', '@wieslawsoltes/xamora-markup/html']) {
     await page.goto(base + '/fragment-check/');
     const checked = await page.evaluate(async (module) => {
       const h = await import(module);
