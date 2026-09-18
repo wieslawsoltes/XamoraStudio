@@ -39,6 +39,18 @@ html[data-density] .ux-window-dialog {
   font-size: 14px;
   outline: none;
 }
+/* The enclosing search field owns the one visible keyboard-focus indicator. */
+#modal-root .ux-window-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+#modal-root .ux-window-search input::placeholder {
+  color: var(--ux-muted);
+  opacity: 1;
+}
+#modal-root .ux-window-dialog .modal-footer:has(.modal-error:empty):not(:has(button)) {
+  display: none;
+}
 .ux-window-search kbd,
 #ux-window-hint kbd {
   border: 1px solid var(--ux-line);

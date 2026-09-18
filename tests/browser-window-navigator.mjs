@@ -58,12 +58,20 @@ try {
   const input = page.locator('#dock-window-search'),
     list = page.locator('#dock-window-list');
   await input.waitFor({ state: 'visible' });
+  await input.focus();
   const searchBox = await page.locator('.ux-window-search').boundingBox();
   assert(
     searchBox.height >= 44 && searchBox.height < 65,
     'The search icon, input and Escape hint stay in one row',
   );
   assert.equal(await input.evaluate((el) => getComputedStyle(el).borderTopWidth), '0px');
+  assert.equal(await input.evaluate((el) => getComputedStyle(el).outlineWidth), '0px');
+  assert.equal(
+    await page.locator('.ux-window-search').evaluate((el) => getComputedStyle(el).outlineWidth),
+    '2px',
+    'The encompassing search field retains one visible focus indicator',
+  );
+  assert.equal(await page.locator('.ux-window-dialog .modal-footer').isVisible(), false);
   await input.fill('screens navigation');
   assert.equal(await list.locator('[data-show-dock]').count(), 1);
   assert.equal(
@@ -154,6 +162,7 @@ try {
   });
   await input.press('Enter');
   assert(await page.locator('.ux-window-dialog').isVisible());
+  assert(await page.locator('.ux-window-dialog [role="alert"]').isVisible());
   assert.match(
     await page.locator('.ux-window-dialog [role="alert"]').innerText(),
     /Finish composing/,
