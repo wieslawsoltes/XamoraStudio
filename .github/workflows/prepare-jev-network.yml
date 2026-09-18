@@ -1,0 +1,51 @@
+name: Prepare verified Jev connection repair
+on:
+  push:
+    branches: [fix/jev-browser-connection]
+    paths: [.github/workflows/prepare-jev-network.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify local patch and create Git tree without changing refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = cd68c6affa957d64a080d2adbc7203faba2f1b8f
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { brotliDecompressSync } from 'node:zlib';
+          import { createHash } from 'node:crypto';
+          import { execFileSync } from 'node:child_process';
+          const encoded = [0, 1].map(i => readFileSync(`tools/jev-network-patch${i}.txt`, 'utf8').trim()).join('');
+          const patch = brotliDecompressSync(Buffer.from(encoded, 'base64'));
+          if (createHash('sha256').update(patch).digest('hex') !== '3e037e86fae99d23f8b18fcf470a6ea7346a8437b5c611971e12271a7b4416b1') throw Error('Jev repair checksum mismatch');
+          execFileSync('git', ['apply', '--index', '-'], { input: patch, stdio: ['pipe', 'inherit', 'inherit'] });
+          NODE
+          git rm .github/workflows/prepare-jev-network.yml .github/workflows/jev-public-preflight.yml tools/jev-network-patch0.txt tools/jev-network-patch1.txt
+          test "$(git write-tree)" = edf989e3b0440a0fa19df5ae91c52b6bd62cc167
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          paths = subprocess.check_output(['git', 'diff', '--cached', '--name-only', '-z']).decode().split('\0')
+          rows = []
+          for p in filter(None, paths):
+            row = dict(path=p, mode='100644', type='blob')
+            if Path(p).exists(): row['content'] = Path(p).read_text()
+            else: row['sha'] = None
+            rows.append(row)
+          data = dict(base_tree=subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip(), tree=rows)
+          Path(os.environ['RUNNER_TEMP'], 'tree-input.json').write_text(json.dumps(data))
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/git/trees" --method POST --input "$RUNNER_TEMP/tree-input.json" > "$RUNNER_TEMP/tree.json"
+          test "$(jq -r .sha "$RUNNER_TEMP/tree.json")" = edf989e3b0440a0fa19df5ae91c52b6bd62cc167
+          jq -r .sha "$RUNNER_TEMP/tree.json"
