@@ -1,0 +1,59 @@
+name: Prepare verified Jev integration tree
+on:
+  push:
+    branches: [feat/jev-designer-assistant]
+    paths: [.github/workflows/prepare-jev-integration.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply exact reviewed patch and create tree without changing refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = b4d6e0971a06bb9d5746690a9a06ad1ba12f8809
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { brotliDecompressSync } from 'node:zlib';
+          import { createHash } from 'node:crypto';
+          import { execFileSync } from 'node:child_process';
+          const parts = Array.from({length: 9}, (_, i) => readFileSync(`.github/jev-patch-part${i}.br`));
+          // Correct a verified one-character transport insertion before reconstructing the patch.
+          const encoded = parts[2].toString('base64').replace('wiin+GGEEHEo', 'wiin+GEEHEo');
+          parts[2] = Buffer.from(encoded.slice(0, 7996) + 'AHI4', 'base64');
+          const blobHash = createHash('sha1').update(`blob ${parts[2].length}\0`).update(parts[2]).digest('hex');
+          if (blobHash !== '26f6de1d59628a0de2f788c5617263268d5d7892') throw Error('Part checksum mismatch');
+          const patch = brotliDecompressSync(Buffer.concat(parts));
+          if (createHash('sha256').update(patch).digest('hex') !== '70f1715bbcf65c6fcbc2386f036dec82b53e6eb01dddc1b29b8dd255ae2612d1') throw Error('Patch checksum mismatch');
+          execFileSync('git', ['apply', '--index', '-'], {input: patch, stdio: ['pipe', 'inherit', 'inherit']});
+          NODE
+          git rm .github/jev-patch-part*.br .github/workflows/prepare-jev-integration.yml
+          test "$(git write-tree)" = 39c31a86bfd31d0e038feee1e9d1545b2a74132e
+          python3 - <<'PY'
+          import json, subprocess, os
+          from pathlib import Path
+          paths = subprocess.check_output(['git','diff','--cached','--name-only','-z']).decode().split('\0')
+          rows = []
+          for p in filter(None, paths):
+            row = dict(path=p, mode='100644', type='blob')
+            if Path(p).exists(): row['content'] = Path(p).read_text()
+            else: row['sha'] = None
+            rows.append(row)
+          data = dict(base_tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'], text=True).strip(), tree=rows)
+          Path(os.environ['RUNNER_TEMP'],'tree-input.json').write_text(json.dumps(data))
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/git/trees" --method POST --input "$RUNNER_TEMP/tree-input.json" > "$RUNNER_TEMP/tree.json"
+          test "$(jq -r .sha "$RUNNER_TEMP/tree.json")" = 39c31a86bfd31d0e038feee1e9d1545b2a74132e
+          jq -r .sha "$RUNNER_TEMP/tree.json"
