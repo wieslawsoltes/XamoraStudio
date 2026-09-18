@@ -1,0 +1,191 @@
+/* Scoped application chrome only; authored markup is never styled by this sheet. */
+.jev-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow: auto;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  color: var(--text);
+  background: var(--panel);
+  font-size: 13px;
+}
+.jev-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.jev-heading strong {
+  font-size: 16px;
+}
+.jev-heading span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+.jev-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+}
+.jev-field input,
+.jev-field select,
+.jev-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px;
+  font: inherit;
+  font-weight: 400;
+  min-width: 0;
+}
+.jev-field textarea {
+  resize: vertical;
+  min-height: 110px;
+  line-height: 1.55;
+}
+.jev-field :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent, #536dfe);
+  outline-offset: 2px;
+}
+.jev-note {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+  margin: 0;
+}
+.jev-context-label {
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.jev-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jev-actions button {
+  min-height: 36px;
+}
+.jev-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.jev-consent input {
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+.jev-workspace details,
+.jev-settings details {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  min-width: 0;
+}
+.jev-workspace summary,
+.jev-settings summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.jev-workspace details[open] > summary,
+.jev-settings details[open] > summary {
+  margin-bottom: 10px;
+}
+.jev-workspace pre {
+  font:
+    11px/1.6 ui-monospace,
+    monospace;
+  white-space: pre;
+  overflow: auto;
+  max-height: 300px;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px;
+  background: var(--canvas);
+  tab-size: 2;
+}
+.jev-status {
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--canvas);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.jev-error,
+[data-jev-settings-error] {
+  color: var(--danger, #bd3636);
+}
+.jev-workspace h3,
+.jev-workspace h4 {
+  margin: 10px 0;
+}
+.jev-workspace ol {
+  padding-left: 22px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.jev-workspace [hidden] {
+  display: none !important;
+}
+.jev-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.jev-settings details > :not(summary) {
+  margin-top: 12px;
+}
+.jev-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.jev-trigger {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.topbar .jev-trigger {
+  font-size: 12px;
+  margin-right: 8px;
+}
+.jev-settings button:disabled,
+.jev-workspace button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+@media (pointer: coarse) {
+  .jev-workspace button,
+  .jev-settings button,
+  .jev-field input,
+  .jev-field select {
+    min-height: 44px;
+  }
+}
+@media (max-width: 600px) {
+  .jev-settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .topbar .jev-trigger {
+    max-width: 85px;
+    overflow: hidden;
+  }
+  .jev-workspace {
+    padding: 12px;
+  }
+}

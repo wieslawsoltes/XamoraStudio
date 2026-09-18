@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@wieslawsoltes/xamora-animation": "0.8.0",
+    "@wieslawsoltes/xamora-assistant": "0.8.0",
     "@wieslawsoltes/xamora-canvas-workspace": "0.8.0",
     "@wieslawsoltes/xamora-code-editor": "0.8.0",
     "@wieslawsoltes/xamora-compiler": "0.8.0",

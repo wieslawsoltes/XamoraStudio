@@ -68,6 +68,12 @@ export const packageLayout = [
     contracts: true,
   },
   {
+    id: 'assistant',
+    description:
+      'Typed TypeSafe Jev decisions, bounded AI context and reviewable designer action plans',
+    modules: ['jev-client', 'jev-settings', 'jev-templates', 'jev-assistant'],
+  },
+  {
     id: 'model',
     description: 'Universal document AST, transaction history, and control metadata',
     modules: ['model', 'history', 'registry'],

@@ -308,6 +308,16 @@ editor.refreshLayout(); editor.setVirtualization(true); const rendered: number =
 const markupEditor: CodeEditor = new XamlEditor(editorHost); void [editor, markupEditor];
 // @ts-expect-error provider formatter must return text
 const invalidProvider: CodeLanguageProvider = { format: () => 42 };
+import {JevClient, JevAssistant, JevPreferences, type JevScope, type JevSettings, type JevPlan} from '@wieslawsoltes/xamora-assistant';
+const aiScope: JevScope = 'selection';
+const aiClient = new JevClient({model:'jev-latest', maxRequestBytes:16000, generatorTokenParameter:'max_completion_tokens'});
+const aiPreferences = new JevPreferences();
+const aiSettings: JevSettings = aiPreferences.value; void [aiScope, aiClient, aiSettings, JevAssistant];
+declare const aiPlan: JevPlan; const steps: number = aiPlan.operations.length; void steps;
+// @ts-expect-error Jev scope is a closed set, not an arbitrary execution context.
+const invalidAiScope: JevScope = 'eval';
+// @ts-expect-error API keys are separate credentials, not persisted preferences.
+const invalidAiSettings: Partial<JevSettings> = {apiKey:'not-persistable'};
 import {markupCompletionContext, htmlChildNamespace, type MarkupCompletionContext} from '@wieslawsoltes/xamora-markup/markup-context';
 const completionContext: MarkupCompletionContext = markupCompletionContext('<svg><', 6, {html:true});
 const childNamespace: string = htmlChildNamespace(completionContext.stack.at(-1)); void childNamespace;

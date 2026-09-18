@@ -45,3 +45,8 @@ export * from './runtime-element.js';
 
 export * from './semantic-compiler.js';
 export * from './conversion-project.js';
+
+export * from './jev-client.js';
+export * from './jev-settings.js';
+export * from './jev-templates.js';
+export * from './jev-assistant.js';
