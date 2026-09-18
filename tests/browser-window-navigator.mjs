@@ -114,23 +114,59 @@ try {
   );
 
   const original = await source.inputValue();
-  const otherName = await page.evaluate(() =>
-    window.xamora.studio.doc.name === 'Navigation-A.xaml'
-      ? 'Navigation-B.xaml'
-      : 'Navigation-A.xaml',
-  );
+  const draft = await page.evaluate(() => ({
+    id: window.xamora.studio.doc.id,
+    name: window.xamora.studio.doc.name,
+    root: JSON.stringify(window.xamora.studio.doc.root),
+  }));
+  const otherName = draft.name === 'Navigation-A.xaml' ? 'Navigation-B.xaml' : 'Navigation-A.xaml';
   await source.fill('<Grid><TextBlock');
   await page.waitForFunction(() => !window.xamora.studio.store.session.isValid);
+  // Invalid drafts intentionally permit document switching; their canonical source stays intact.
   await page.evaluate(() => window.xamora.studio.docking.navigator());
   await input.fill(otherName);
   await input.press('Enter');
-  assert(await page.locator('.ux-window-dialog').isVisible());
-  assert.match(await page.locator('.ux-window-dialog [role="alert"]').innerText(), /source draft/);
-  assert.equal(await input.inputValue(), otherName);
-  await input.press('Escape');
+  await page.waitForFunction((name) => window.xamora.studio.doc.name === name, otherName);
+  assert.equal(await page.locator('.ux-window-dialog').count(), 0);
+  assert.deepEqual(
+    await page.evaluate((id) => {
+      const store = window.xamora.studio.stores.find((s) => s.document.id === id);
+      return { source: store.session.source, root: JSON.stringify(store.document.root) };
+    }, draft.id),
+    { source: '<Grid><TextBlock', root: draft.root },
+  );
+  await page.evaluate(() => window.xamora.studio.docking.navigator());
+  await input.fill(draft.name);
+  await input.press('Enter');
+  await page.waitForFunction((id) => window.xamora.studio.doc.id === id, draft.id);
   assert.equal(await source.inputValue(), '<Grid><TextBlock');
+  assert.equal(await page.evaluate(() => window.xamora.studio.store.session.isValid), false);
   await source.fill(original);
   await page.waitForFunction(() => window.xamora.studio.store.session.isValid);
+
+  // Dispatch the editor's real composition handlers; no activation guard is mocked or bypassed.
+  await page.evaluate(() => window.xamora.studio.docking.navigator());
+  await input.fill(otherName);
+  const guardedLayout = await page.evaluate(() => {
+    const s = window.xamora.studio;
+    s.editor.input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    return s.docking.model.serialize();
+  });
+  await input.press('Enter');
+  assert(await page.locator('.ux-window-dialog').isVisible());
+  assert.match(
+    await page.locator('.ux-window-dialog [role="alert"]').innerText(),
+    /Finish composing/,
+  );
+  assert.equal(await input.inputValue(), otherName);
+  assert.equal(await page.evaluate(() => window.xamora.docking.model.serialize()), guardedLayout);
+  await page.evaluate(() =>
+    window.xamora.studio.editor.input.dispatchEvent(
+      new CompositionEvent('compositionend', { bubbles: true }),
+    ),
+  );
+  await input.press('Escape');
+  assert.equal(await source.inputValue(), original);
 
   // Actual dependent-host location; closing the host updates the live filter immediately.
   await page.locator('[data-dock-panel="xaml"]').click({ button: 'right' });
@@ -189,7 +225,7 @@ try {
   assert.deepEqual(errors, []);
   assert.deepEqual(failures, []);
   console.log(
-    'Window navigator: paths, keyboard selection, live filters, guarded drafts, modal return focus, real browser hosts and 390px touch layout passed.',
+    'Window navigator: paths, keyboard selection, live filters, retained invalid drafts, guarded composition, modal return focus, real browser hosts and 390px touch layout passed.',
   );
 } catch (error) {
   await mkdir('test-results/ux', { recursive: true });

@@ -221,7 +221,7 @@ test('IME keys and text-editing shortcuts do not activate or navigate windows', 
   assert.equal(f.model.serialize(), before);
 });
 
-test('a rejected source guard leaves search, selection and layout intact with accessible feedback', (t) => {
+test('a rejected activation guard leaves search, selection and layout intact with accessible feedback', (t) => {
   const f = fixture(t),
     { input, dialog } = f.open();
   f.query(input, 'templates page');
@@ -233,7 +233,7 @@ test('a rejected source guard leaves search, selection and layout intact with ac
   assert.equal(input.value, 'templates page');
   assert.equal(input.getAttribute('aria-activedescendant'), selected);
   assert.equal(f.model.serialize(), before);
-  assert.match(dialog.querySelector('[role="alert"]').textContent, /source draft/);
+  assert.match(dialog.querySelector('[role="alert"]').textContent, /current edit/);
   assert.equal(f.document.activeElement, input);
 });
 
@@ -352,4 +352,15 @@ test('changing query or filters starts at the highest-ranked result rather than 
   assert.equal(list.querySelector('[aria-selected="true"]').dataset.showDock, 'b');
   dialog.querySelector('[data-window-scope="documents"]').click();
   assert.equal(list.querySelector('[aria-selected="true"]').dataset.showDock, 'a');
+});
+
+test('blocked composition explains how to finish the edit without suggesting a draft reset', (t) => {
+  const f = fixture(t),
+    { input, dialog } = f.open();
+  f.studio.editor = { composing: true };
+  f.control.beforeActivate = () => false;
+  f.key(input, 'Enter');
+  assert.equal(f.studio.dialogHost.element, dialog);
+  assert.match(dialog.querySelector('[role="alert"]').textContent, /Finish composing/);
+  assert.equal(f.document.activeElement, input);
 });

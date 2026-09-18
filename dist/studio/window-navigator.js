@@ -199,7 +199,9 @@ export class WindowNavigator {
         if (control.show(id) === false) {
           if (current())
             host.showError(
-              'This window could not be opened. Fix or restore the current source draft, then try again.',
+              s.editor?.composing
+                ? 'Finish composing the source text, then try again.'
+                : 'This window could not be opened. Resolve the current edit, then try again.',
             );
           return;
         }
