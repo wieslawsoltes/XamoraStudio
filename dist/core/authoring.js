@@ -1,4 +1,14 @@
-import { element, find, localName, clone, parentOf, walk, isElement } from './model.js';
+import {
+  element,
+  find,
+  localName,
+  clone,
+  parentOf,
+  walk,
+  isElement,
+  textNode,
+  isPropertyOf,
+} from './model.js';
 import { findResource } from './styling.js';
 import { resolveDictionary } from './solution.js';
 export const propertyObject = (node, key) =>
@@ -31,12 +41,12 @@ export function textTarget(node) {
   const key = ['TextBlock', 'TextBox', 'Run'].includes(type) ? 'Text' : 'Content';
   if (String(node.props[key] || '').startsWith('{') && !String(node.props[key]).startsWith('{}'))
     throw Error('This text is bound. Edit its binding or data source in Properties.');
+  const property = node.children.find((child) => isPropertyOf(child, node, key));
+  if (property && property.children.some(isElement))
+    throw Error('This control contains structured content. Select its text child to edit it.');
   if (
     node.children.some(
-      (n) =>
-        (n.kind === 'element' && !n.type.includes('.')) ||
-        n.type?.endsWith('.' + key) ||
-        n.type?.endsWith('.Inlines'),
+      (n) => (n.kind === 'element' && !n.type.includes('.')) || n.type?.endsWith('.Inlines'),
     )
   )
     throw Error('This control contains structured content. Select its text child to edit it.');
@@ -44,7 +54,7 @@ export function textTarget(node) {
     key,
     value:
       node.props[key]?.replace(/^\{\}/, '') ??
-      node.children
+      (property?.children || node.children)
         .filter((n) => n.kind === 'text' || n.kind === 'cdata')
         .map((n) => n.text || n.value || '')
         .join(''),
@@ -53,6 +63,20 @@ export function textTarget(node) {
 export function setText(node, value) {
   const target = textTarget(node);
   if (!target) throw Error('Select a text control.');
+  const property = node.children.find((child) => isPropertyOf(child, node, target.key));
+  if (property && node.props[target.key] === undefined) {
+    let updated = false;
+    property.children = property.children.filter((child) => {
+      if (child.kind !== 'text' && child.kind !== 'cdata') return true;
+      if (updated) return false;
+      child.kind = 'text';
+      child.text = String(value);
+      updated = true;
+      return true;
+    });
+    if (!updated) property.children.push(textNode(String(value)));
+    return;
+  }
   node.children = node.children.filter((n) => n.kind !== 'text' && n.kind !== 'cdata');
   setLiteral(node, target.key, String(value).startsWith('{') ? '{}' + value : value);
 }

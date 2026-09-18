@@ -118,7 +118,7 @@ class ApplicationRenderer extends PreviewRenderer {
     const properties = app.properties.entries(node.id),
       defaults = {},
       styled = this.styleProperties(node);
-    const parentNode = this.parents.get(node.id),
+    const parentNode = parent || this.parents.get(node.id),
       parentValues = parentNode && this.effectiveProperties.get(parentNode.id);
     for (const [property, metadata] of app.propertyRegistry.list(node.type)) {
       if (Object.hasOwn(styled, property)) continue;
@@ -126,6 +126,15 @@ class ApplicationRenderer extends PreviewRenderer {
         defaults[property] = parentValues[property];
       else if (metadata.defaultValue !== undefined) defaults[property] = metadata.defaultValue;
     }
+    // Inline shorthand behaves like an explicitly formatted Span, not an inherited
+    // normal-weight span. Local/style/runtime values still take precedence.
+    const inlineDefaults = {
+      Bold: { FontWeight: 'Bold' },
+      Italic: { FontStyle: 'Italic' },
+      Underline: { TextDecorations: 'Underline' },
+    }[localName(node.type)];
+    for (const [property, value] of Object.entries(inlineDefaults || {}))
+      if (!Object.hasOwn(styled, property)) defaults[property] = value;
     if (Object.keys(properties).length || Object.keys(defaults).length)
       node = { ...node, props: { ...defaults, ...node.props, ...properties } };
     const result = super.node(node, parent, templated);

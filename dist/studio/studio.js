@@ -52,6 +52,9 @@ import {
   reconcileIdentities,
   contentChildren,
   contentHost,
+  inlineContentError,
+  prepareInlineContent,
+  logicalParent,
   isLocked,
 } from '../core/design-tools.js';
 import { $, $$, esc, toast, download } from './ui.js';
@@ -359,7 +362,8 @@ export class Studio {
         : e.target.closest('[data-node-id]');
       if (!hit) return;
       const node = find(this.doc.root, hit.dataset.nodeId);
-      if (['TextBlock', 'Label', 'Button'].includes(localName(node.type))) this.editText(node);
+      if (['TextBlock', 'Label', 'Button', 'Run'].includes(localName(node.type)))
+        this.editText(node);
     });
     this.documentScope.listen(document, 'keydown', (e) => this.keydown(e));
     this.documentScope.listen(document, 'keyup', (e) => {
@@ -706,7 +710,7 @@ export class Studio {
       }<div class="property-grid">${this.field('Canvas.Left', 'X', p['Canvas.Left'])}${this.field('Canvas.Top', 'Y', p['Canvas.Top'])}${this.field('Width', 'W', p.Width)}${this.field('Height', 'H', p.Height)}${this.field('HorizontalAlignment', '↔', p.HorizontalAlignment, ['Stretch', 'Left', 'Center', 'Right'])}${this.field('VerticalAlignment', '↕', p.VerticalAlignment, ['Stretch', 'Top', 'Center', 'Bottom'])}</div>${type === 'StackPanel' || type === 'WrapPanel' ? `<div class="property-line"><span>Direction</span><select data-prop="Orientation" aria-label="Orientation"><option ${p.Orientation !== 'Horizontal' ? 'selected' : ''}>Vertical</option><option ${p.Orientation === 'Horizontal' ? 'selected' : ''}>Horizontal</option></select></div>${this.doc.framework !== 'WPF' ? `<div class="property-grid" style="margin-top:9px">${this.field('Spacing', 'Gap', p.Spacing)}</div>` : ''}` : ''}${type === 'Grid' ? `<div style="margin-top:12px"><div class="prop-label">Rows</div><div class="property-grid">${this.field('$rows', '↕', gridDefinitions(n, 'Row').join(', '), null, true)}</div><div class="prop-label" style="margin-top:9px">Columns</div><div class="property-grid">${this.field('$columns', '↔', gridDefinitions(n, 'Column').join(', '), null, true)}</div><div style="font-size:10px;color:var(--muted);margin-top:7px">Separate with commas · Auto, pixels, or *</div></div>` : ''}${type === 'DockPanel' ? `<div class="property-line"><span>Last child fills</span><input data-prop="LastChildFill" type="checkbox" aria-label="Last child fills" ${p.LastChildFill !== 'False' ? 'checked' : ''}></div>` : ''}${parent && localName(parent.type) === 'Grid' ? `<div class="property-grid" style="margin-top:10px">${this.field('Grid.Row', 'Row', p['Grid.Row'] || '0')}${this.field('Grid.Column', 'Col', p['Grid.Column'] || '0')}${this.field('Grid.RowSpan', 'Rows', p['Grid.RowSpan'] || '1')}${this.field('Grid.ColumnSpan', 'Cols', p['Grid.ColumnSpan'] || '1')}</div>` : ''}${parent && localName(parent.type) === 'DockPanel' ? `<div class="property-grid" style="margin-top:10px">${this.field('DockPanel.Dock', 'Dock', p['DockPanel.Dock'] || 'Left', ['Left', 'Top', 'Right', 'Bottom'], true)}</div>` : ''}<div class="prop-label" style="margin-top:13px">Spacing</div><div class="property-grid">${this.field('Margin', 'M', p.Margin)}${this.field('Padding', 'P', p.Padding)}</div></section>
       <section class="panel-section"><div class="section-heading">Appearance<span class="spacer"></span>${button('edit-resources', 'Theme resources', 'diamond')}</div><div class="property-grid">${this.field('Opacity', '◒', p.Opacity ?? '1')}${this.field('CornerRadius', '⌜', p.CornerRadius || '0')}</div>${['Background', 'Foreground', ...(['Rectangle', 'Ellipse'].includes(type) ? ['Fill'] : [])].map((k) => this.colorField(k, p[k])).join('')}</section>
       <section class="panel-section"><div class="section-heading">Stroke</div>${this.colorField('BorderBrush', p.BorderBrush)}<div class="property-grid" style="margin-top:9px">${this.field('BorderThickness', 'Size', p.BorderThickness || '0')}${this.field('Visibility', 'Visible', p.Visibility, ['Visible', 'Hidden', 'Collapsed'])}</div></section>
-      ${['TextBlock', 'TextBox', 'Label', 'Button', 'CheckBox', 'RadioButton', 'ContentPresenter'].includes(type) ? `<section class="panel-section"><div class="section-heading">Typography</div><div class="property-grid">${this.field(['TextBlock', 'TextBox'].includes(type) ? 'Text' : 'Content', 'Text', p.Text ?? p.Content, null, true)}${this.field('FontFamily', 'Aa', p.FontFamily, null, true)}${this.field('FontSize', 'Size', p.FontSize || '14')}${this.field('FontWeight', 'Weight', p.FontWeight, ['Normal', 'Medium', 'SemiBold', 'Bold'])}${this.field('TextAlignment', 'Align', p.TextAlignment, ['Left', 'Center', 'Right', 'Justify'])}${this.field('TextWrapping', 'Wrap', p.TextWrapping, ['NoWrap', 'Wrap'])}</div></section>` : ''}
+      ${['TextBlock', 'TextBox', 'Run', 'Label', 'Button', 'CheckBox', 'RadioButton', 'ContentPresenter'].includes(type) ? `<section class="panel-section"><div class="section-heading">Typography</div><div class="property-grid">${this.field(['TextBlock', 'TextBox', 'Run'].includes(type) ? 'Text' : 'Content', 'Text', p.Text ?? p.Content, null, true)}${this.field('FontFamily', 'Aa', p.FontFamily, null, true)}${this.field('FontSize', 'Size', p.FontSize || '14')}${this.field('FontWeight', 'Weight', p.FontWeight, ['Normal', 'Medium', 'SemiBold', 'Bold'])}${this.field('TextAlignment', 'Align', p.TextAlignment, ['Left', 'Center', 'Right', 'Justify'])}${this.field('TextWrapping', 'Wrap', p.TextWrapping, ['NoWrap', 'Wrap'])}</div></section>` : ''}
       <section class="panel-section"><div class="section-heading">Data & interactions${button('binding', 'Add binding', 'binding')}</div><div class="property-grid">${this.field('DataContext', 'Data', p.DataContext, null, true)}${this.field('Command', 'Cmd', p.Command, null, true)}</div><div class="property-line"><span>Enabled</span><input type="checkbox" data-prop="IsEnabled" aria-label="IsEnabled" ${p.IsEnabled !== 'False' ? 'checked' : ''}></div></section>
       <details class="expanded-props"><summary>All properties & attached properties</summary><div style="padding:10px 13px"><label class="search-box">${icon('search')}<input id="property-search" placeholder="Filter properties…"></label><div class="property-grid" id="all-properties"></div><button class="button" data-action="custom-property" style="margin-top:12px">${icon('plus')}Custom property</button></div></details><section class="panel-section"><button class="button" data-action="edit-template" style="width:100%">${icon('diamond')}Edit control template</button><button class="button quiet" data-action="extract-control" style="width:100%;margin-top:7px">Create user control</button></section>`;
     const names = [
@@ -891,6 +895,8 @@ export class Studio {
     if (!d?.container && !['ControlTemplate', 'DataTemplate'].includes(localName(parent.type)))
       throw Error('Choose a layout container in the layer tree.');
     if (isLocked(this.doc, parent.id)) throw Error('Destination is locked.');
+    const inlineError = inlineContentError(parent, nodes);
+    if (inlineError) throw Error(inlineError);
     const existing = contentChildren(parent).filter((n) => !nodes.some((c) => c.id === n.id));
     if (
       (d?.singleChild || ['ControlTemplate', 'DataTemplate'].includes(localName(parent.type))) &&
@@ -940,7 +946,7 @@ export class Studio {
           const prefix = type.includes(':') ? type.split(':')[0] : null;
           if (prefix) this.doc.root.props['xmlns:' + prefix] = d.namespace;
         }
-        contentHost(parent).children.push(n);
+        prepareInlineContent(parent).children.push(n);
       });
       this.store.select([n.id]);
       toast(`${localName(type)} added to ${label(parent)}`);
@@ -1688,17 +1694,18 @@ export class Studio {
     }
     const selected = this.selected[0],
       parent =
-        duplicate && selected ? parentOf(this.doc.root, selected.id) : this.parentForInsert();
+        duplicate && selected ? logicalParent(this.doc.root, selected.id) : this.parentForInsert();
     if (!parent) throw Error('The document root cannot be duplicated here.');
     const nodes = this.clipboard.map((n) => this.uniqueClone(n));
     this.canContain(parent, nodes);
     this.store.transaction(duplicate ? 'Duplicate layers' : 'Paste layers', () => {
+      const host = prepareInlineContent(parent);
       for (const n of nodes) {
         if (localName(parent.type) === 'Canvas') {
           n.props['Canvas.Left'] = String(nval(n.props['Canvas.Left']) + 16);
           n.props['Canvas.Top'] = String(nval(n.props['Canvas.Top']) + 16);
         }
-        parent.children.push(n);
+        host.children.push(n);
       }
     });
     this.store.select(nodes.map((n) => n.id));
