@@ -15,7 +15,8 @@ const root = resolve(import.meta.dirname, '../dist');
 const upstream = [],
   network = [],
   denied = [],
-  errors = [];
+  errors = [],
+  connectionDiagnostics = [];
 const bridge = createAIServer({
   allowedOrigins: [origin],
   authToken: token,
@@ -85,6 +86,12 @@ try {
   });
   page = await context.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error') connectionDiagnostics.push(m.text());
+  });
+  page.on('requestfailed', (r) =>
+    connectionDiagnostics.push({ url: r.url(), failure: r.failure() }),
+  );
   await page.goto(url);
   await page.waitForFunction(() => !!window.xamora?.jev);
   // Prove native CORS enforcement remains on: denied OPTIONS prevents POST at another origin.
@@ -101,7 +108,26 @@ try {
     }
   }, 'http://127.0.0.1:' + blocked.address().port);
   assert(deniedFetch);
-  assert(denied.includes('OPTIONS'));
+  assert(
+    denied.includes('OPTIONS'),
+    JSON.stringify({
+      browser: browser.version(),
+      denied,
+      network,
+      connectionDiagnostics,
+      state: await page.evaluate(async () => {
+        const permissions = {};
+        for (const name of ['local-network-access', 'loopback-network', 'local-network']) {
+          try {
+            permissions[name] = (await navigator.permissions.query({ name })).state;
+          } catch (e) {
+            permissions[name] = e.message;
+          }
+        }
+        return { secure: isSecureContext, origin: location.origin, permissions };
+      }),
+    }),
+  );
   assert(!denied.includes('POST'));
   await page.evaluate(() => {
     const s = window.xamora.studio;
@@ -194,7 +220,12 @@ try {
   );
 } catch (e) {
   await mkdir('test-results', { recursive: true });
-  await writeFile('test-results/jev-connection-error.txt', String(e.stack || e));
+  await writeFile(
+    'test-results/jev-connection-error.txt',
+    String(e.stack || e) +
+      '\n' +
+      JSON.stringify({ network, denied, connectionDiagnostics }, null, 2),
+  );
   await page?.screenshot({ path: 'test-results/jev-connection-failure.png' }).catch(() => {});
   throw e;
 } finally {
