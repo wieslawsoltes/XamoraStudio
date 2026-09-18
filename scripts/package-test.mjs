@@ -308,6 +308,11 @@ editor.refreshLayout(); editor.setVirtualization(true); const rendered: number =
 const markupEditor: CodeEditor = new XamlEditor(editorHost); void [editor, markupEditor];
 // @ts-expect-error provider formatter must return text
 const invalidProvider: CodeLanguageProvider = { format: () => 42 };
+import {markupCompletionContext, htmlChildNamespace, type MarkupCompletionContext} from '@wieslawsoltes/xamora-markup/markup-context';
+const completionContext: MarkupCompletionContext = markupCompletionContext('<svg><', 6, {html:true});
+const childNamespace: string = htmlChildNamespace(completionContext.stack.at(-1)); void childNamespace;
+// @ts-expect-error Completion offsets are UTF-16 numbers, not strings.
+markupCompletionContext('<Grid', '5');
 import {DocumentStore,createDocument,element,type DesignDocument} from '@wieslawsoltes/xamora-model';\nimport {DocumentSession} from '@wieslawsoltes/xamora-markup';\nimport {ToolkitRegistry} from '@wieslawsoltes/xamora';\nimport {mountXaml} from '@wieslawsoltes/xamora-runtime';\nimport {mountXaml as browserMount} from '@wieslawsoltes/xamora-runtime/browser';\nimport type {DocumentStore as StoreContract} from '@wieslawsoltes/xamora-contracts';\n// @ts-expect-error Contracts are type-only, not runtime constructors.\nnew StoreContract();\nvoid browserMount;\nconst document:DesignDocument=createDocument(element('Grid'));const store=new DocumentStore(document);store.setProperty([document.root.id],'Width',120);\n// @ts-expect-error Objects cannot be assigned as scalar properties.\nstore.setProperty([document.root.id],'Width',{});\nconst registry:ToolkitRegistry=new ToolkitRegistry();registry.registerControl({type:'CustomCard',category:'Custom',mount({application,element}){application.setData('Mounted',true);const handler=()=>application.invalidate();element.addEventListener('click',handler);return()=>element.removeEventListener('click',handler);}});void[store,registry,DocumentSession,mountXaml];\n`;
   await writeFile(join(consumer, 'consumer.ts'), typeConsumer);
   await writeFile(

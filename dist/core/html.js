@@ -1,3 +1,4 @@
+import { markupCompletionContext, htmlChildNamespace } from './markup-context.js';
 import {
   createDocument,
   element,
@@ -348,41 +349,144 @@ export function moveHtmlNode(doc, id, parentId, index) {
   old.children.splice(old.children.indexOf(n), 1);
   p.children.splice(index ?? p.children.length, 0, n);
 }
-export function completeHtml(source, caret) {
+const svgCompletionTags =
+  'svg g defs symbol use path circle rect ellipse line polyline polygon text tspan textPath foreignObject desc title linearGradient radialGradient stop clipPath mask pattern marker filter feGaussianBlur feOffset feBlend feColorMatrix image'.split(
+    ' ',
+  );
+const mathCompletionTags =
+  'math mi mn mo ms mtext mrow mfrac msup msub msubsup msqrt mroot munder mover munderover mtable mtr mtd mspace mpadded mphantom semantics annotation annotation-xml mglyph malignmark'.split(
+    ' ',
+  );
+const svgAttributes =
+  'id class style role aria-label aria-hidden fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-linecap stroke-linejoin stroke-dasharray opacity transform clip-path mask filter'.split(
+    ' ',
+  );
+const svgByTag = {
+  svg: 'viewBox preserveAspectRatio width height x y',
+  symbol: 'viewBox preserveAspectRatio',
+  path: 'd pathLength',
+  circle: 'cx cy r pathLength',
+  ellipse: 'cx cy rx ry',
+  rect: 'x y width height rx ry',
+  line: 'x1 y1 x2 y2',
+  polyline: 'points',
+  polygon: 'points',
+  text: 'x y dx dy rotate textLength lengthAdjust text-anchor dominant-baseline',
+  tspan: 'x y dx dy rotate textLength lengthAdjust',
+  textpath: 'href startOffset method spacing textLength lengthAdjust',
+  lineargradient: 'x1 y1 x2 y2 gradientUnits gradientTransform spreadMethod href',
+  radialgradient: 'cx cy r fx fy fr gradientUnits gradientTransform spreadMethod href',
+  stop: 'offset stop-color stop-opacity',
+  clippath: 'clipPathUnits',
+  mask: 'x y width height maskUnits maskContentUnits',
+  pattern:
+    'x y width height viewBox preserveAspectRatio patternUnits patternContentUnits patternTransform href',
+  marker: 'refX refY markerWidth markerHeight markerUnits orient viewBox preserveAspectRatio',
+  filter: 'x y width height filterUnits primitiveUnits',
+  fegaussianblur: 'in stdDeviation edgeMode result',
+  feoffset: 'in dx dy result',
+  feblend: 'in in2 mode result',
+  fecolormatrix: 'in type values result',
+  image: 'x y width height href preserveAspectRatio',
+  use: 'x y width height href',
+  foreignobject: 'x y width height',
+};
+const mathAttributes =
+  'id class style dir display mathvariant mathsize mathcolor mathbackground scriptlevel displaystyle'.split(
+    ' ',
+  );
+const mathByTag = {
+  math: 'display',
+  mo: 'form fence separator stretchy symmetric largeop movablelimits accent lspace rspace minsize maxsize',
+  mfrac: 'linethickness',
+  mspace: 'width height depth',
+  mtable: 'columnalign rowalign columnspacing rowspacing',
+  mtd: 'columnspan rowspan',
+  'annotation-xml': 'encoding',
+  annotation: 'encoding',
+};
+export function completeHtml(source, caret, { context } = {}) {
+  if (
+    typeof source !== 'string' ||
+    !Number.isSafeInteger(caret) ||
+    caret < 0 ||
+    caret > source.length
+  )
+    return [];
+  const scan = context || markupCompletionContext(source, caret, { html: true });
+  if (scan.blocked) return [];
   const before = source.slice(0, caret),
     token = before.match(/[\w:-]*$/)?.[0] || '',
-    start = caret - token.length;
+    start = caret - token.length,
+    tail = scan.start < 0 ? '' : before.slice(scan.start),
+    parent = scan.stack.at(-1);
   let values, detail;
-  const styleOpen = before.toLowerCase().lastIndexOf('<style'),
-    styleClose = before.toLowerCase().lastIndexOf('</style');
-  if (styleOpen > styleClose || /style\s*=\s*["'][^"']*$/i.test(before)) {
+  if (scan.rawText === 'style' || scan.attribute?.name.toLowerCase() === 'style') {
+    const css = scan.attribute?.value ?? before.slice(parent?.start || 0);
+    if (css.lastIndexOf('/*') > css.lastIndexOf('*/')) return [];
     values = HTML_CSS;
     detail = 'CSS property';
-  } else if (/<\/?[\w:-]*$/.test(before)) {
-    values = [
-      ...new Set([
-        ...HTML_TAGS,
-        ...Array.from(source.matchAll(/<([a-z][\w:-]*-[\w:-]+)/g), (m) => m[1]),
-      ]),
-    ];
-    detail = 'HTML element';
-  } else if (before.lastIndexOf('<') > before.lastIndexOf('>')) {
+  } else if (scan.rawText) return [];
+  else if (/^<\/[\w:-]*$/.test(tail)) {
+    values = scan.stack.map((frame) => frame.type).reverse();
+    detail = 'Closing HTML element';
+  } else if (/^<[\w:-]*$/.test(tail)) {
+    const ns = htmlChildNamespace(parent);
     values =
-      'id class style title role aria-label aria-hidden data-name href target rel src alt width height type name value placeholder disabled checked selected required readonly multiple for action method tabindex contenteditable loading controls autoplay loop'.split(
-        ' ',
-      );
-    detail = 'HTML attribute';
+      ns === SVG_NAMESPACE
+        ? svgCompletionTags
+        : ns === MATHML_NAMESPACE
+          ? mathCompletionTags
+          : [
+              ...HTML_TAGS.filter(
+                (name) =>
+                  (!svgCompletionTags.includes(name) && !mathCompletionTags.includes(name)) ||
+                  ['svg', 'math', 'title'].includes(name),
+              ),
+              ...(scan.customElements || []),
+            ];
+    // MathML text integration points retain these two foreign children as well as HTML.
+    if (
+      parent?.namespaceURI === MATHML_NAMESPACE &&
+      ['mi', 'mo', 'mn', 'ms', 'mtext'].includes(parent.type.toLowerCase()) &&
+      ns === HTML_NAMESPACE
+    )
+      values = [...values, 'mglyph', 'malignmark'];
+    detail =
+      ns === SVG_NAMESPACE
+        ? 'SVG element'
+        : ns === MATHML_NAMESPACE
+          ? 'MathML element'
+          : 'HTML element';
+  } else if (scan.tag && !scan.quote && !scan.attribute) {
+    const tag = scan.tag.type.toLowerCase(),
+      ns = scan.tag.namespaceURI;
+    values =
+      ns === SVG_NAMESPACE
+        ? [...svgAttributes, ...(svgByTag[tag] || '').split(' ')]
+        : ns === MATHML_NAMESPACE
+          ? [...mathAttributes, ...(mathByTag[tag] || '').split(' ')]
+          : 'id class style title role aria-label aria-hidden data-name href target rel src alt width height type name value placeholder disabled checked selected required readonly multiple for action method tabindex contenteditable loading controls autoplay loop'.split(
+              ' ',
+            );
+    values = values.filter((name) => name && !scan.tag.attributes.has(name.toLowerCase()));
+    detail =
+      ns === SVG_NAMESPACE
+        ? 'SVG attribute'
+        : ns === MATHML_NAMESPACE
+          ? 'MathML attribute'
+          : 'HTML attribute';
   } else return [];
-  return values
-    .filter((v) => v.startsWith(token))
+  const attribute = detail.endsWith(' attribute');
+  return [...new Set(values)]
+    .filter((v) => v.toLowerCase().startsWith(token.toLowerCase()))
     .map((v) => ({
       label: v,
       detail,
       start,
       end: caret,
-      insertText:
-        detail === 'CSS property' ? v + ': ' : detail === 'HTML attribute' ? v + '=""' : v,
-      caretOffset: detail === 'HTML attribute' ? v.length + 2 : undefined,
+      insertText: detail === 'CSS property' ? v + ': ' : attribute ? v + '=""' : v,
+      caretOffset: attribute ? v.length + 2 : undefined,
     }));
 }
 export function newHtmlDocument(name = 'index.html') {

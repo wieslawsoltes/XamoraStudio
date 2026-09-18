@@ -1,5 +1,6 @@
 import { MOTION_TYPES, MOTION_PROPERTIES, MOTION_VALUES } from './motion-schema.js';
-import { walk, isElement, localName } from './model.js';
+import { walk, isElement, localName, isXamlInline, isXamlInlineContainer } from './model.js';
+import { markupCompletionContext } from './markup-context.js';
 import { propertyGroups } from './registry.js';
 import { bindingPaths } from './design-data.js';
 export const PROPERTY_VALUES = {
@@ -36,60 +37,86 @@ const descriptions = {
   'Grid.ColumnSpan': 'Number of grid columns occupied by the control.',
 };
 export function openTags(source) {
-  const stack = [];
-  const tokens = source.matchAll(/<!--[\s\S]*?-->|<\/?([\w:.-]+)(?:[^>"']|"[^"]*"|'[^']*')*>/g);
-  for (const m of tokens) {
-    if (m[0].startsWith('<!--')) continue;
-    if (m[0].startsWith('</')) {
-      const i = stack.lastIndexOf(m[1]);
-      if (i >= 0) stack.splice(i);
-    } else if (!m[0].endsWith('/>')) stack.push(m[1]);
-  }
-  return stack;
+  return markupCompletionContext(source).stack.map((frame) => frame.type);
 }
 export function completionContext(source) {
-  let start = -1,
-    quote = null;
-  for (let i = 0; i < source.length; i++) {
-    if (quote) {
-      if (source[i] === quote) quote = null;
-      continue;
-    }
-    if (
-      source.startsWith('<!--', i) ||
-      source.startsWith('<![CDATA[', i) ||
-      source.startsWith('<?', i)
-    ) {
-      const close = source.startsWith('<!--', i)
-          ? '-->'
-          : source.startsWith('<?', i)
-            ? '?>'
-            : ']]>',
-        end = source.indexOf(close, i + 2);
-      if (end < 0) return { start: -1, blocked: true };
-      i = end + close.length - 1;
-      start = -1;
-      continue;
-    }
-    if (source[i] === '<') start = i;
-    else if (start >= 0 && (source[i] === '"' || source[i] === "'")) quote = source[i];
-    else if (source[i] === '>') start = -1;
-  }
-  return { start, quote, blocked: false };
+  const { start, quote, blocked } = markupCompletionContext(source);
+  return { start, quote, blocked };
 }
+const frameworkNamespaces = new Set([
+  '',
+  'http://schemas.microsoft.com/winfx/2006/xaml/presentation',
+  'https://github.com/avaloniaui',
+]);
+const XAML_NAMESPACE = 'http://schemas.microsoft.com/winfx/2006/xaml';
+const ownerProperties = {
+  TextBlock: ['Text', 'Inlines', 'Resources'],
+  Run: ['Text'],
+  Span: ['Inlines'],
+  Bold: ['Inlines'],
+  Italic: ['Inlines'],
+  Underline: ['Inlines'],
+  Hyperlink: ['Inlines'],
+  InlineUIContainer: ['Child'],
+  Grid: ['Children', 'RowDefinitions', 'ColumnDefinitions', 'Resources'],
+  StackPanel: ['Children', 'Resources'],
+  Canvas: ['Children', 'Resources'],
+  DockPanel: ['Children', 'Resources'],
+  WrapPanel: ['Children', 'Resources'],
+  UniformGrid: ['Children', 'Resources'],
+  Border: ['Child', 'Background', 'BorderBrush', 'Resources'],
+  Style: ['Setters', 'Triggers'],
+  Setter: ['Value'],
+  ControlTemplate: ['Resources', 'Triggers'],
+  DataTemplate: ['Resources', 'Triggers'],
+  ResourceDictionary: ['MergedDictionaries'],
+};
 export function completeXaml(source, offset, { registry, document, context = {} }) {
+  if (
+    typeof source !== 'string' ||
+    !Number.isSafeInteger(offset) ||
+    offset < 0 ||
+    offset > source.length
+  )
+    return [];
   const before = source.slice(0, offset),
-    scan = completionContext(before),
+    scan = markupCompletionContext(source, offset),
     last = scan.start,
     tail = last < 0 ? '' : before.slice(last),
     resources = [],
     names = [];
   if (scan.blocked) return [];
+  const parent = scan.stack.at(-1),
+    namespaces = scan.tag?.namespaces || parent?.namespaces || new Map(),
+    native =
+      !scan.tag ||
+      (frameworkNamespaces.has(scan.tag.namespaceURI) &&
+        (!scan.tag.type.includes(':') || namespaces.has(scan.tag.type.split(':')[0]))),
+    descriptor =
+      scan.tag &&
+      (native || scan.tag.type.includes(':')
+        ? registry.get(scan.tag.type, scan.tag.namespaceURI)
+        : undefined),
+    qualify = (name, language = false) => {
+      const prefixes = [...namespaces].filter(([prefix, uri]) =>
+        language ? prefix && uri === XAML_NAMESPACE : frameworkNamespaces.has(uri),
+      );
+      if (!language && !namespaces.has('') && !prefixes.length) prefixes.unshift(['', '']);
+      if (language && !prefixes.length && !namespaces.has('x'))
+        prefixes.push(['x', XAML_NAMESPACE]);
+      return prefixes.map(([prefix]) => (prefix ? prefix + ':' + name : name));
+    };
   if (document?.root)
     walk(document.root, (n) => {
       if (isElement(n)) {
-        if (n.props['x:Key']) resources.push(n.props['x:Key']);
-        if (n.props['x:Name'] || n.props.Name) names.push(n.props['x:Name'] || n.props.Name);
+        for (const [key, value] of Object.entries(n.props)) {
+          const [prefix, name] = key.split(':');
+          if (key === 'Name') names.push(value);
+          if (name && (n.scope?.[prefix] === XAML_NAMESPACE || (prefix === 'x' && !n.scope))) {
+            if (name === 'Key') resources.push(value);
+            if (name === 'Name') names.push(value);
+          }
+        }
       }
     });
   const token = before.match(/[\w:.$[\]-]*$/)?.[0] || '';
@@ -112,11 +139,12 @@ export function completeXaml(source, offset, { registry, document, context = {} 
         caretOffset: undefined,
         ...v,
       }));
-  const quoted = tail.match(/([\w:.-]+)\s*=\s*(?:"([^"]*)|'([^']*))$/);
-  if (quoted) {
-    const property = quoted[1],
-      value = quoted[2] ?? quoted[3],
-      valueStart = offset - value.length;
+  const quoted = scan.attribute;
+  if (quoted?.quote) {
+    const property = quoted.name,
+      value = quoted.value,
+      valueStart = quoted.start;
+    if (value.startsWith('{}')) return [];
     if (/\{(?:StaticResource|DynamicResource)\s+[^}]*$/.test(value))
       return result(resources, 'Resource key');
     if (/\{Binding(?:\s+Path=|\s+)?[^,}]*$/.test(value)) {
@@ -136,15 +164,19 @@ export function completeXaml(source, offset, { registry, document, context = {} 
           'DynamicResource',
           'TemplateBinding',
           'RelativeSource',
-          'x:Null',
+          ...qualify('Null', true),
         ],
         'Markup extension',
         valueStart + 1,
       );
-    const tag = tail.match(/^<([\w:.-]+)/)?.[1];
-    const descriptor = registry.get(tag || '');
     const meta = descriptor?.properties?.find((p) => typeof p === 'object' && p.name === property);
-    let values = meta?.values || PROPERTY_VALUES[property] || MOTION_VALUES[property] || [];
+    const member =
+      property.includes(':') && frameworkNamespaces.has(namespaces.get(property.split(':')[0]))
+        ? localName(property)
+        : property;
+    if (meta?.values) return result(meta.values, 'Property value', valueStart);
+    if (!native && !meta) return [];
+    let values = meta?.values || PROPERTY_VALUES[member] || MOTION_VALUES[member] || [];
     if (property === 'Storyboard.TargetName' || property === 'SourceName') values = names;
     if (property === 'Storyboard.TargetProperty')
       values = [
@@ -169,52 +201,90 @@ export function completeXaml(source, offset, { registry, document, context = {} 
       !value.startsWith('{')
     )
       values = ['{Binding }', ...resources.map((k) => `{StaticResource ${k}}`)];
-    if (['Grid.Row', 'Grid.Column', 'Grid.RowSpan', 'Grid.ColumnSpan'].includes(property))
-      values = Array.from({ length: 12 }, (_, i) =>
-        String(i + (property.endsWith('Span') ? 1 : 0)),
-      );
+    if (['Grid.Row', 'Grid.Column', 'Grid.RowSpan', 'Grid.ColumnSpan'].includes(member))
+      values = Array.from({ length: 12 }, (_, i) => String(i + (member.endsWith('Span') ? 1 : 0)));
     if (['Width', 'Height'].includes(property)) values = ['Auto', '100', '240', '320', '480'];
     return result(values, 'Property value', valueStart);
   }
   if (/<\/[\w:.-]*$/.test(before))
     return result(openTags(before.slice(0, last)).reverse(), 'Closing element');
-  if (/<[\w:.-]*$/.test(before))
-    return result(
-      [
-        ...MOTION_TYPES,
-        ...registry
-          .list()
-          .map((c) => ({ label: c.type, detail: c.description || `${c.category} control` })),
-        ...[
-          'Grid.RowDefinitions',
-          'Grid.ColumnDefinitions',
-          'RowDefinition',
-          'ColumnDefinition',
-          'ControlTemplate',
-          'DataTemplate',
-          'Style',
-          'Setter',
-          'ResourceDictionary',
-          'SolidColorBrush',
-          'Run',
-          'Span',
-          'Bold',
-          'Italic',
-          'LineBreak',
-        ],
+  if (/<[\w:.-]*$/.test(before)) {
+    const inlineOwner =
+      parent &&
+      (isXamlInlineContainer({
+        kind: 'element',
+        type: parent.type,
+        namespaceURI: parent.namespaceURI,
+      }) ||
+        (frameworkNamespaces.has(parent.namespaceURI) &&
+          localName(parent.type).endsWith('.Inlines')));
+    let types = [
+      ...MOTION_TYPES,
+      ...registry
+        .list()
+        .map((c) => ({ label: c.type, detail: c.description || `${c.category} control` })),
+      ...[
+        'Grid.RowDefinitions',
+        'Grid.ColumnDefinitions',
+        'RowDefinition',
+        'ColumnDefinition',
+        'ControlTemplate',
+        'DataTemplate',
+        'Style',
+        'Setter',
+        'ResourceDictionary',
+        'SolidColorBrush',
       ],
-      'Element',
-    );
+    ];
+    if (inlineOwner)
+      types = types.filter((item) =>
+        isXamlInline({
+          kind: 'element',
+          type: typeof item === 'string' ? item : item.label,
+          namespaceURI: parent.namespaceURI,
+        }),
+      );
+    const values = types.flatMap((item) => {
+      const entry = typeof item === 'string' ? { label: item } : item;
+      return entry.label.includes(':')
+        ? [entry]
+        : qualify(entry.label).map((label) => ({ ...entry, label }));
+    });
+    if (
+      parent &&
+      frameworkNamespaces.has(parent.namespaceURI) &&
+      (!parent.type.includes(':') || parent.namespaces.has(parent.type.split(':')[0])) &&
+      !parent.type.includes('.')
+    ) {
+      const owner = localName(parent.type),
+        info = registry.get(parent.type, parent.namespaceURI);
+      const props = new Set([
+        ...(ownerProperties[owner] || []),
+        ...(info?.singleChild && !ownerProperties[owner] ? ['Content', 'Resources'] : []),
+        ...(info?.properties || []).map((p) => (typeof p === 'string' ? p : p.name)),
+      ]);
+      for (const property of props)
+        if (!parent.attributes.has(property))
+          for (const label of qualify(owner + '.' + property))
+            values.push({ label, detail: `${owner}.${property} property element` });
+    }
+    return result(values, 'Element');
+  }
   if (last >= 0 && !scan.quote) {
-    const tag = tail.match(/^<([\w:.-]+)/)?.[1],
-      descriptor = registry.get(tag || ''),
-      existing = new Set([...tail.matchAll(/([\w:.-]+)\s*=/g)].map((m) => m[1]));
+    const tag = scan.tag?.type,
+      existing = scan.tag?.attributes || new Map();
     let props = [
       ...new Set([
-        ...Object.values(propertyGroups).flat(),
-        ...MOTION_PROPERTIES,
-        'x:Name',
-        'x:Key',
+        ...(native
+          ? Object.values(propertyGroups)
+              .flat()
+              .flatMap((name) => (name.includes('.') ? qualify(name) : [name]))
+          : []),
+        ...(native
+          ? MOTION_PROPERTIES.flatMap((name) => (name.includes('.') ? qualify(name) : [name]))
+          : []),
+        ...qualify('Name', true),
+        ...qualify('Key', true),
         'Orientation',
         'LastChildFill',
         'Rows',
@@ -227,7 +297,13 @@ export function completeXaml(source, offset, { registry, document, context = {} 
         'Value',
         ...(descriptor?.properties || []).map((p) => (typeof p === 'string' ? p : p.name)),
       ]),
-    ].filter((p) => !existing.has(p));
+    ].filter(
+      (p) =>
+        !existing.has(p) &&
+        (native ||
+          p.includes(':') ||
+          (descriptor?.properties || []).some((m) => (typeof m === 'string' ? m : m.name) === p)),
+    );
     return result(
       props.map((label) => ({
         label,

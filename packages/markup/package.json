@@ -116,6 +116,16 @@
         "types": "./dist/cjs/html-states.d.cts",
         "default": "./dist/cjs/html-states.cjs"
       }
+    },
+    "./markup-context": {
+      "import": {
+        "types": "./dist/esm/markup-context.d.ts",
+        "default": "./dist/esm/markup-context.js"
+      },
+      "require": {
+        "types": "./dist/cjs/markup-context.d.cts",
+        "default": "./dist/cjs/markup-context.cjs"
+      }
     }
   },
   "files": [

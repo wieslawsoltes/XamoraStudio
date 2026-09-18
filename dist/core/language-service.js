@@ -1,7 +1,8 @@
 /** Source-backed semantic operations for literal markup references. No markup or scripts execute. */
 import { walk, localName } from './model.js';
-import { completeXaml, completionContext } from './xaml-language.js';
-import { completeHtml, HTML_CSS } from './html.js';
+import { completeXaml } from './xaml-language.js';
+import { completeHtml, HTML_CSS, HTML_NAMESPACE } from './html.js';
+import { markupCompletionContext } from './markup-context.js';
 import { builtins } from './registry.js';
 const XAML = 'http://schemas.microsoft.com/winfx/2006/xaml';
 const nativeNamespaces = new Set([
@@ -714,6 +715,13 @@ export class SemanticLanguageService {
     return result;
   }
   completions(source, offset, context = {}) {
+    if (
+      typeof source !== 'string' ||
+      !Number.isSafeInteger(offset) ||
+      offset < 0 ||
+      offset > source.length
+    )
+      return [];
     this._ensure();
     const before = source.slice(0, offset),
       token = before.match(/[\w.-]*$/)?.[0] || '',
@@ -731,7 +739,7 @@ export class SemanticLanguageService {
     let node =
       this.session.nodeAtOffset(Math.min(offset, Math.max(0, this._source.length - 1))) ||
       this.document.root;
-    if (node.kind === 'comment') return [];
+    // The completion source may be a newer, unfinished editor buffer than the valid AST.
     while (node && node.kind !== 'element') node = this.parents.get(node.id);
     node ??= this.document.root;
     const occurrence = { nodeId: node.id, scopeId: this._nameScope(node) },
@@ -750,21 +758,23 @@ export class SemanticLanguageService {
         ),
       ];
     if (this.document.framework === 'HTML') {
-      if (node.type === 'script') return [];
+      const scan = markupCompletionContext(source, offset, { html: true });
+      if (scan.blocked || (scan.rawText && scan.rawText !== 'style')) return [];
+      const current = scan.attribute,
+        key = current?.name.toLowerCase();
       if (
-        /(?:for|list|form|headers|aria-(?:labelledby|describedby|controls|owns|activedescendant|details|errormessage))\s*=\s*["'][^"']*$/i.test(
-          before,
-        ) ||
-        /(?:href|xlink:href)\s*=\s*["']#[^"']*$/i.test(before) ||
-        /url\(\s*["']?#[\w-]*$/.test(before)
+        current &&
+        (idrefs.has(key) || (['href', 'xlink:href'].includes(key) && current.value.startsWith('#')))
       )
         return make(names('html-id'), 'Local HTML id');
-      const style =
-        before.lastIndexOf('<style') > before.lastIndexOf('</style') ||
-        /style\s*=\s*["'][^"']*$/i.test(before);
+      if (scan.rawText === 'style' || key === 'style') {
+        if (/url\(\s*["']?#[\w-]*$/.test(before)) return make(names('html-id'), 'Local HTML id');
+      }
+      const style = scan.rawText === 'style' || key === 'style';
       if (style) {
-        if (before.lastIndexOf('/*') > before.lastIndexOf('*/')) return [];
-        const value = before.match(/([a-z-]+)\s*:\s*([^;{}]*)$/i);
+        const css = current?.value ?? before.slice(scan.stack.at(-1)?.start || 0);
+        if (css.lastIndexOf('/*') > css.lastIndexOf('*/')) return [];
+        const value = css.match(/([a-z-]+)\s*:\s*([^;{}]*)$/i);
         if (value) {
           const at = offset - value[2].length;
           let values =
@@ -779,13 +789,41 @@ export class SemanticLanguageService {
         if (/#[\w-]*$/.test(before)) return make(names('html-id'), 'Local CSS id');
         return make(cssProperties, 'CSS property', start, (value) => value + ': ');
       }
-      const scan = completionContext(before);
-      if (scan.blocked) return [];
-      const tail = scan.start < 0 ? '' : before.slice(scan.start),
-        attribute = tail.match(/([\w:-]+)\s*=\s*(["'])([^"']*)$/);
+      const attribute = current;
+      if (
+        attribute &&
+        scan.tag?.namespaceURI !== HTML_NAMESPACE &&
+        !key.startsWith('aria-') &&
+        key !== 'role'
+      ) {
+        const values =
+          {
+            'fill-rule': ['nonzero', 'evenodd'],
+            'clip-rule': ['nonzero', 'evenodd'],
+            'stroke-linecap': ['butt', 'round', 'square'],
+            'stroke-linejoin': ['miter', 'round', 'bevel'],
+            gradientunits: ['objectBoundingBox', 'userSpaceOnUse'],
+            spreadmethod: ['pad', 'reflect', 'repeat'],
+            clippathunits: ['objectBoundingBox', 'userSpaceOnUse'],
+            patternunits: ['objectBoundingBox', 'userSpaceOnUse'],
+            preserveaspectratio: [
+              'none',
+              'xMinYMin meet',
+              'xMidYMid meet',
+              'xMaxYMax meet',
+              'xMidYMid slice',
+            ],
+            display: ['block', 'inline'],
+            encoding: ['text/html', 'application/xhtml+xml'],
+            stretchy: ['true', 'false'],
+            displaystyle: ['true', 'false'],
+            mathvariant: ['normal', 'bold', 'italic', 'bold-italic'],
+          }[key] || [];
+        return make(values, 'Foreign attribute value', attribute.start);
+      }
       if (attribute) {
-        const key = attribute[1],
-          value = attribute[3],
+        const key = attribute.name.toLowerCase(),
+          value = attribute.value,
           values =
             key === 'role'
               ? [
@@ -813,7 +851,7 @@ export class SemanticLanguageService {
                   'tree',
                 ]
               : key === 'type'
-                ? node.type === 'button'
+                ? scan.tag?.type.toLowerCase() === 'button'
                   ? ['button', 'submit', 'reset']
                   : [
                       'text',
@@ -854,20 +892,19 @@ export class SemanticLanguageService {
                         : [];
         return make(values, 'HTML ' + key + ' value', offset - value.length);
       }
-      const existing = new Set([...tail.matchAll(/([\w:-]+)\s*=/g)].map((match) => match[1]));
-      return completeHtml(source, offset).filter(
-        (item) => item.detail !== 'HTML attribute' || !existing.has(item.label),
-      );
+      return completeHtml(source, offset, { context: scan });
     }
-    const scan = completionContext(before);
-    if (scan.blocked) return [];
+    const scan = markupCompletionContext(source, offset);
+    if (scan.blocked || scan.attribute?.value.startsWith('{}')) return [];
     if (
+      scan.attribute &&
       /(?:ElementName\s*=|(?:Storyboard\.TargetName|TargetName|SourceName)\s*=\s*["']|\{\w+:Reference\s+(?:Name\s*=\s*)?)[\w.-]*$/.test(
         before,
       )
     )
       return make(names('element'), 'Named element in this namescope');
     if (
+      scan.attribute &&
       /\{(?:\w+:)?(?:StaticResource|DynamicResource|ThemeResource)\s+(?:ResourceKey\s*=\s*)?[\w.-]*$/.test(
         before,
       )
@@ -875,7 +912,7 @@ export class SemanticLanguageService {
       return make(names('resource'), 'Visible local resource');
     const framework = this.document.framework,
       registry = {
-        get: (type) => this.registry.get(type),
+        get: (type, namespace) => this.registry.get(type, namespace),
         list: () =>
           this.registry
             .list()
