@@ -340,6 +340,7 @@
       "inspectorHost",
       "keydown",
       "leftHost",
+      "menus",
       "modal",
       "pan",
       "prepareEdit",
@@ -376,7 +377,8 @@
       ".direct-adorner,.path-point",
       ".html-drop-guide",
       ".html-inline-editor",
-      ".selection-label"
+      ".selection-label",
+      "[data-html-fragment-source]"
     ]
   },
   "motion-runtime.js": {

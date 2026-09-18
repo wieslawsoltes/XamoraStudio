@@ -178,8 +178,11 @@ export function validateDocument(doc) {
   if (html)
     walk(doc.root, (n, p) => {
       if (
-        n.kind === 'text' &&
-        ['script', 'style'].includes(p?.type) &&
+        ['text', 'cdata'].includes(n.kind) &&
+        (!p?.namespaceURI || p.namespaceURI === 'http://www.w3.org/1999/xhtml') &&
+        ['script', 'style', 'xmp', 'iframe', 'noembed', 'noframes', 'plaintext'].includes(
+          p?.type,
+        ) &&
         new RegExp('</' + p.type + '(?:[\\s/>])', 'i').test(n.text)
       )
         throw Error('Escape the closing ' + p.type + ' tag in its source text.');

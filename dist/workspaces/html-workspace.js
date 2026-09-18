@@ -8,6 +8,12 @@ import {
   htmlHead,
   HTML_TAGS,
   HTML_VOID,
+  SVG_NAMESPACE,
+  MATHML_NAMESPACE,
+  isHtmlElement,
+  isHtmlVoid,
+  canContainHtmlChildren,
+  insertHtmlFragment,
   setHtmlStyle,
   moveHtmlNode,
 } from '../core/html.js';
@@ -59,6 +65,10 @@ const options = {
   'text-align': ['left', 'center', 'right', 'justify'],
   overflow: ['visible', 'hidden', 'auto', 'scroll'],
 };
+const svgTags = new Set(
+  'g path circle rect ellipse line polyline polygon text foreignObject'.split(' '),
+);
+const mathTags = new Set('mi mn mo mrow mfrac msup msqrt'.split(' '));
 const mapped = {
   Grid: 'div',
   Canvas: 'div',
@@ -175,6 +185,7 @@ export class HtmlWorkspace extends WorkspaceComponent {
       this.environment.query('#framework-select').setAttribute('aria-label', 'Document framework');
       const command = s.command.bind(s);
       this.environment.override(s, 'command', (action, e) => {
+        if (isHtml(s.doc) && action === 'html-insert-fragment') return this.fragmentDialog();
         if (isHtml(s.doc) && this.states?.command(action)) return;
         if (isHtml(s.doc) && this.motion?.command(action)) return;
         if (isHtml(s.doc) && action === 'select-all') {
@@ -232,11 +243,31 @@ export class HtmlWorkspace extends WorkspaceComponent {
       });
       this.environment.override(this.environment.api, 'html', {
         newDocument: () => this.newFile(),
+        insertFragment: (source, parentId) =>
+          this.insertFragment(source, parentId ? find(s.doc.root, parentId) : undefined),
         import: (source) => s.importText(source, 'index.html'),
         export: () => {
           if (!isHtml(s.doc)) throw Error('Open an HTML document.');
           return serializeHtml(s.doc);
         },
+      });
+      const fragmentCommand = {
+        id: 'html-insert-fragment',
+        label: 'Insert HTML fragment…',
+        enabled: () => isHtml(s.doc),
+        run: () => this.fragmentDialog(),
+      };
+      const previousFragment = s.menus.commands.get(fragmentCommand.id);
+      s.menus.commands.set(fragmentCommand.id, fragmentCommand);
+      const editMenu = s.menus.menus.find((menu) => menu.label === 'Edit')?.children;
+      editMenu?.push(fragmentCommand);
+      this.environment.add(() => {
+        if (s.menus.commands.get(fragmentCommand.id) === fragmentCommand) {
+          if (previousFragment) s.menus.commands.set(fragmentCommand.id, previousFragment);
+          else s.menus.commands.delete(fragmentCommand.id);
+        }
+        const index = editMenu?.indexOf(fragmentCommand) ?? -1;
+        if (index >= 0) editMenu.splice(index, 1);
       });
       this.motion = this.environment.own(
         new HtmlAnimationWorkspace(this, this.environment.options),
@@ -356,12 +387,13 @@ export class HtmlWorkspace extends WorkspaceComponent {
     return find(this.s.doc.root, el?.closest?.('[data-xamora-id]')?.getAttribute('data-xamora-id'));
   }
   container(node) {
-    return node &&
-      !HTML_VOID.has(node.type) &&
-      !['script', 'style', 'title', 'textarea', 'head', 'html'].includes(node.type)
+    return canContainHtmlChildren(node) &&
+      !isHtmlElement(node, 'head') &&
+      !isHtmlElement(node, 'html')
       ? node
       : htmlBody(this.s.doc);
   }
+
   tree() {
     const s = this.s,
       host = s.leftHost('layers');
@@ -420,27 +452,17 @@ export class HtmlWorkspace extends WorkspaceComponent {
     const host = this.s.leftHost('toolkit');
     if (!host) return;
     host.innerHTML =
-      '<div class="panel-section"><div class="section-heading">HTML elements</div><input data-html-search placeholder="Search elements" aria-label="Search HTML elements"></div><div class="html-toolkit">' +
-      HTML_TAGS.filter(
-        (t) =>
-          ![
-            'script',
-            'style',
-            'title',
-            'meta',
-            'link',
-            'path',
-            'circle',
-            'rect',
-            'source',
-          ].includes(t),
-      )
+      '<div class="panel-section"><div class="section-heading">HTML elements</div><button type="button" data-html-fragment>Insert HTML fragment…</button><input data-html-search placeholder="Search elements" aria-label="Search HTML elements"></div><div class="html-toolkit">' +
+      HTML_TAGS.filter((t) => !['script', 'style', 'title', 'meta', 'link', 'source'].includes(t))
         .map(
           (t) =>
             `<button draggable="true" data-html-insert="${t}"><code>&lt;${t}&gt;</code></button>`,
         )
         .join('') +
       '</div>';
+    this.environment.handler(host.querySelector('[data-html-fragment]'), 'onclick', () =>
+      this.fragmentDialog(),
+    );
     this.environment.handler(host.querySelector('[data-html-search]'), 'oninput', (e) =>
       host
         .querySelectorAll('[data-html-insert]')
@@ -457,8 +479,66 @@ export class HtmlWorkspace extends WorkspaceComponent {
     const s = this.s;
     type = mapped[type] || type;
     if (!/^[a-z][\w:-]*$/.test(type)) throw Error('Choose an HTML element.');
+    const target = this.container(parent || s.selected[0]);
+    if (
+      (svgTags.has(type) && target.namespaceURI !== SVG_NAMESPACE) ||
+      (mathTags.has(type) && target.namespaceURI !== MATHML_NAMESPACE)
+    ) {
+      this.environment.notify(
+        'Select an ' + (svgTags.has(type) ? 'SVG' : 'MathML') + ' container first.',
+      );
+      return null;
+    }
     let n = element(type);
-    if (type === 'img')
+    if (type === 'svg') {
+      n.props = {
+        viewBox: '0 0 240 160',
+        width: '240',
+        height: '160',
+        role: 'img',
+        'aria-label': 'Drawing',
+      };
+      n.children = [
+        element('rect', {
+          x: '20',
+          y: '20',
+          width: '200',
+          height: '120',
+          rx: '12',
+          fill: '#7953e8',
+        }),
+      ];
+    } else if (target.namespaceURI === SVG_NAMESPACE && svgTags.has(type)) {
+      const defaults = {
+        path: { d: 'M20 100 L100 20 L180 100 Z', fill: '#7953e8' },
+        circle: { cx: '80', cy: '80', r: '50', fill: '#7953e8' },
+        rect: { x: '20', y: '20', width: '120', height: '80', fill: '#7953e8' },
+        ellipse: { cx: '100', cy: '80', rx: '80', ry: '40', fill: '#7953e8' },
+        line: { x1: '20', y1: '20', x2: '160', y2: '100', stroke: '#7953e8', 'stroke-width': '4' },
+        polyline: {
+          points: '20,100 80,20 140,100',
+          fill: 'none',
+          stroke: '#7953e8',
+          'stroke-width': '4',
+        },
+        polygon: { points: '20,100 80,20 140,100', fill: '#7953e8' },
+        text: { x: '20', y: '60', fill: '#252332', 'font-size': '24' },
+        foreignObject: { x: '10', y: '10', width: '200', height: '120' },
+      };
+      n.props = defaults[type] || {};
+      if (type === 'text') n.children = [textNode('Text')];
+      if (type === 'foreignObject')
+        n.children = [element('div', {}, [textNode('HTML inside SVG')])];
+    } else if (
+      type === 'math' ||
+      (target.namespaceURI === MATHML_NAMESPACE && mathTags.has(type))
+    ) {
+      if (['math', 'mrow', 'msqrt'].includes(type))
+        n.children = [element('mi', {}, [textNode('x')])];
+      else if (['mfrac', 'msup'].includes(type))
+        n.children = [element('mi', {}, [textNode('x')]), element('mn', {}, [textNode('2')])];
+      else n.children = [textNode(type === 'mi' ? 'x' : type === 'mn' ? '1' : '+')];
+    } else if (type === 'img')
       n.props = {
         src: '',
         alt: 'Image',
@@ -486,9 +566,53 @@ export class HtmlWorkspace extends WorkspaceComponent {
     if (type === 'a') n.props.href = '#';
     if (['div', 'section', 'article'].includes(type))
       n.props.style = 'min-height: 48px; padding: 16px;';
-    const target = this.container(parent || s.selected[0]);
-    if (this.perform('Insert ' + type, (doc) => find(doc.root, target.id).children.push(n)))
-      s.store.select([n.id]);
+    return this.insertFragment(serializeHtmlNode(n), target, 'Insert ' + type);
+  }
+  /** One undoable mutation; the native fragment parser determines contextual namespaces/wrappers. */
+  insertFragment(source, parent, label = 'Insert HTML fragment') {
+    const s = this.s;
+    if (!isHtml(s.doc) || this.environment.disposed) return null;
+    const target = parent === undefined ? this.container(s.selected[0]) : parent;
+    let nodes;
+    if (
+      !this.perform(label, (doc) => {
+        nodes = insertHtmlFragment(doc, target?.id, source, {
+          Parser: this.environment.window.DOMParser,
+        });
+        if (!nodes.length)
+          throw Error('The fragment contains no insertable content in this container.');
+      })
+    )
+      return null;
+    const selected = nodes.filter((node) => node.kind === 'element').map((node) => node.id);
+    s.store.select(selected.length ? selected : [target.id]);
+    return nodes;
+  }
+  fragmentDialog() {
+    const s = this.s;
+    if (this.environment.disposed || !isHtml(s.doc) || !s.prepareEdit()) return;
+    const target = this.container(s.selected[0]),
+      documentId = s.doc.id;
+    s.modal(
+      'Insert HTML fragment',
+      `<p>Insert into <code>${esc(target.type)}</code>. The browser applies this container’s HTML, SVG or MathML parsing rules. Imported scripts run only in interactive Preview.</p><label>Markup<textarea data-html-fragment-source class="html-resource-editor" rows="10" spellcheck="false" placeholder="Enter markup for this container"></textarea></label>`,
+      [
+        {
+          label: 'Insert fragment',
+          primary: true,
+          run: () => {
+            if (s.doc.id !== documentId) {
+              this.environment.notify('The active document changed. Reopen Insert HTML fragment.');
+              return;
+            }
+            const field = this.environment.query('[data-html-fragment-source]');
+            if (field && this.insertFragment(field.value, find(s.doc.root, target.id)))
+              s.closeModal();
+          },
+        },
+      ],
+      true,
+    );
   }
   inspectors() {
     const s = this.s,
@@ -714,7 +838,7 @@ export class HtmlWorkspace extends WorkspaceComponent {
     const s = this.s;
     if (!node || !s.prepareEdit()) return;
     const chunks = node.children.filter((n) => n.kind === 'text');
-    if (!chunks.length && !HTML_VOID.has(node.type)) {
+    if (!chunks.length && !isHtmlVoid(node)) {
       this.perform('Add text', (doc) => find(doc.root, node.id).children.push(textNode('Text')));
       node = find(s.doc.root, node.id);
       return this.editText(node);

@@ -9,6 +9,20 @@ import {
   parentOf,
   clone,
 } from './model.js';
+export const HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+export const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+export const MATHML_NAMESPACE = 'http://www.w3.org/1998/Math/MathML';
+/** Missing namespace metadata remains HTML for existing programmatic documents. */
+export const isHtmlElement = (node, tag) =>
+  node?.kind === 'element' &&
+  (!node.namespaceURI || node.namespaceURI === HTML_NAMESPACE) &&
+  (tag === undefined || node.type === tag);
+export const isHtmlVoid = (node) => isHtmlElement(node) && HTML_VOID.has(node.type);
+export const canContainHtmlChildren = (node) =>
+  node?.kind === 'element' &&
+  !isHtmlVoid(node) &&
+  !(isHtmlElement(node) && (HTML_RAW.has(node.type) || ['title', 'textarea'].includes(node.type)));
+
 export const HTML_VOID = new Set(
   'area base br col embed hr img input link meta param source track wbr'.split(' '),
 );
@@ -22,7 +36,7 @@ export const HTML_RAW = new Set([
   'plaintext',
 ]);
 export const HTML_TAGS =
-  'div section article header footer main nav aside p h1 h2 h3 h4 h5 h6 span a button input textarea select option label form fieldset legend img picture source video audio canvas svg path circle rect ul ol li table thead tbody tr th td details summary dialog progress meter output pre code blockquote hr br style script link meta title template slot'.split(
+  'div section article header footer main nav aside p h1 h2 h3 h4 h5 h6 span a button input textarea select option label form fieldset legend img picture source video audio canvas svg g path circle rect ellipse line polyline polygon text foreignObject math mi mn mo mrow mfrac msup msqrt ul ol li table thead tbody tr th td details summary dialog progress meter output pre code blockquote hr br style script link meta title template slot'.split(
     ' ',
   );
 export const HTML_CSS =
@@ -33,7 +47,7 @@ export const isHtml = (doc) => doc?.framework === 'HTML';
 const escapeText = (s) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escapeAttr = (s) => escapeText(s).replace(/"/g, '&quot;');
-export function projectHtmlDocument(parsed, { name = 'index.html', source } = {}) {
+function htmlProjector() {
   let count = 0;
   const convert = (native, depth = 0) => {
     if (depth > 150 || ++count > 15000) throw Error('HTML document exceeds the node/depth limit.');
@@ -49,16 +63,27 @@ export function projectHtmlDocument(parsed, { name = 'index.html', source } = {}
       const n = element(native.localName || native.tagName.toLowerCase(), props);
       n.namespaceURI = native.namespaceURI;
       n.children = Array.from(
-        native.localName === 'template' ? native.content.childNodes : native.childNodes,
+        native.namespaceURI === HTML_NAMESPACE && native.localName === 'template'
+          ? native.content.childNodes
+          : native.childNodes,
       )
         .map((c) => convert(c, depth + 1))
         .filter(Boolean);
       return n;
     }
-    if (native.nodeType === 3) return textNode(native.nodeValue || '');
+    if (native.nodeType === 3 || native.nodeType === 4) return textNode(native.nodeValue || '');
     if (native.nodeType === 8) return { id: uid(), kind: 'comment', text: native.nodeValue || '' };
     return null;
   };
+  return convert;
+}
+/** Project a DOM fragment without attaching its native nodes to a live document. */
+export function projectHtmlNodes(nodes) {
+  const convert = htmlProjector();
+  return Array.from(nodes, (node) => convert(node)).filter(Boolean);
+}
+export function projectHtmlDocument(parsed, { name = 'index.html', source } = {}) {
+  const convert = htmlProjector();
   const doc = createDocument(convert(parsed.documentElement), 'HTML', name);
   doc.metadata.html = {
     doctype: parsed.doctype
@@ -88,16 +113,97 @@ export function parseHtml(source, { name = 'index.html', Parser = globalThis.DOM
   if (!Parser) throw Error('HTML parsing requires the browser DOMParser.');
   return projectHtmlDocument(new Parser().parseFromString(source, 'text/html'), { name, source });
 }
+/** Contextual fragment parsing in a detached HTML document; never a sanitizer or script runner. */
+export function parseHtmlFragment(
+  source,
+  { context = element('body'), ancestors = [], Parser = globalThis.DOMParser } = {},
+) {
+  if (typeof source !== 'string' || source.length > 2_000_000)
+    throw Error('HTML fragment must be text smaller than 2 MB.');
+  if (!Parser) throw Error('HTML parsing requires the browser DOMParser.');
+  if (!Array.isArray(ancestors) || ancestors.length > 150)
+    throw Error('Invalid HTML fragment ancestry.');
+  const parsed = new Parser().parseFromString(
+    '<!doctype html><html><head></head><body></body></html>',
+    'text/html',
+  );
+  // The parser's document has no browsing context: imported scripts/custom elements stay inert.
+  let parent = parsed.body,
+    native;
+  for (const node of [...ancestors, context]) {
+    if (node?.kind !== 'element' || !/^[A-Za-z_][\w.:-]*$/.test(node.type))
+      throw Error('Choose an element as the HTML fragment context.');
+    const namespace = node.namespaceURI || HTML_NAMESPACE;
+    if (![HTML_NAMESPACE, SVG_NAMESPACE, MATHML_NAMESPACE].includes(namespace))
+      throw Error('Unsupported HTML fragment namespace.');
+    native = parsed.createElementNS(namespace, node.type);
+    // Only integration-point metadata matters for parsing. Do not copy URLs or event attributes.
+    if (
+      namespace === MATHML_NAMESPACE &&
+      node.type === 'annotation-xml' &&
+      node.props?.encoding != null
+    )
+      native.setAttribute('encoding', String(node.props.encoding));
+    parent.append(native);
+    parent = namespace === HTML_NAMESPACE && node.type === 'template' ? native.content : native;
+  }
+  native.innerHTML = source;
+  const nodes =
+    native.namespaceURI === HTML_NAMESPACE && native.localName === 'template'
+      ? native.content.childNodes
+      : native.childNodes;
+  return projectHtmlNodes(nodes);
+}
+/** Validate a complete candidate first; failure leaves the caller-owned AST untouched. */
+export function insertHtmlFragment(doc, parentId, source, { index, Parser } = {}) {
+  if (!isHtml(doc)) throw Error('Open an HTML document.');
+  const target = find(doc.root, parentId);
+  if (!canContainHtmlChildren(target)) throw Error('This element cannot contain an HTML fragment.');
+  if (
+    index !== undefined &&
+    (!Number.isInteger(index) || index < 0 || index > target.children.length)
+  )
+    throw RangeError('The insertion index is outside the container.');
+  const ancestors = [];
+  for (let node = parentOf(doc.root, parentId); node; node = parentOf(doc.root, node.id))
+    ancestors.unshift(node);
+  const nodes = parseHtmlFragment(source, { context: target, ancestors, Parser });
+  if (!nodes.length) return [];
+  if (
+    target.namespaceURI === SVG_NAMESPACE &&
+    !['foreignObject', 'desc', 'title'].includes(target.type) &&
+    nodes.some((node) => node.kind === 'element' && node.namespaceURI !== SVG_NAMESPACE)
+  )
+    throw Error('Use an SVG foreignObject to contain HTML elements.');
+  if (
+    isHtmlElement(target) &&
+    ['table', 'thead', 'tbody', 'tfoot', 'tr'].includes(target.type) &&
+    nodes.some((node) => node.kind === 'text' && node.text.trim())
+  )
+    throw Error('Place table text inside a cell.');
+  const candidate = clone(doc);
+  find(candidate.root, parentId).children.splice(index ?? target.children.length, 0, ...nodes);
+  validateDocument(candidate);
+  target.children.splice(index ?? target.children.length, 0, ...nodes);
+  return nodes;
+}
 export function serializeHtmlNode(n, parent = '') {
   if (n.kind === 'comment') return '<!--' + n.text + '-->';
-  if (n.kind !== 'element') return HTML_RAW.has(parent) ? n.text : escapeText(n.text || '');
+  if (n.kind !== 'element') {
+    // Preserve the legacy parent-tag API while internal calls retain namespace information.
+    const raw =
+      typeof parent === 'string'
+        ? HTML_RAW.has(parent)
+        : isHtmlElement(parent) && HTML_RAW.has(parent.type);
+    return raw ? n.text || '' : escapeText(n.text || '');
+  }
   const tag = n.type,
     attrs = Object.entries(n.props)
       .map(([key, value]) => ' ' + key + '="' + escapeAttr(value) + '"')
       .join('');
-  if (HTML_VOID.has(tag) && (!n.namespaceURI || n.namespaceURI === 'http://www.w3.org/1999/xhtml'))
-    return '<' + tag + attrs + '>';
+  if (isHtmlVoid(n)) return '<' + tag + attrs + '>';
   const leading =
+    isHtmlElement(n) &&
     ['pre', 'textarea', 'listing'].includes(tag) &&
     n.children[0]?.kind === 'text' &&
     n.children[0].text.startsWith('\n')
@@ -109,7 +215,7 @@ export function serializeHtmlNode(n, parent = '') {
     attrs +
     '>' +
     leading +
-    n.children.map((c) => serializeHtmlNode(c, tag)).join('') +
+    n.children.map((c) => serializeHtmlNode(c, n)).join('') +
     '</' +
     tag +
     '>'
@@ -131,10 +237,10 @@ export function serializeHtml(doc) {
     : current;
 }
 export function htmlBody(doc) {
-  return doc.root.children.find((n) => n.type === 'body') || doc.root;
+  return doc.root.children.find((n) => isHtmlElement(n, 'body')) || doc.root;
 }
 export function htmlHead(doc) {
-  return doc.root.children.find((n) => n.type === 'head') || doc.root;
+  return doc.root.children.find((n) => isHtmlElement(n, 'head')) || doc.root;
 }
 export function htmlDiagnostics(doc) {
   const list = [],
@@ -151,7 +257,7 @@ export function htmlDiagnostics(doc) {
         });
       ids.add(n.props.id);
     }
-    if (n.type === 'img' && !Object.hasOwn(n.props, 'alt'))
+    if (isHtmlElement(n, 'img') && !Object.hasOwn(n.props, 'alt'))
       list.push({
         id: n.id,
         line: 1,
@@ -237,8 +343,7 @@ export function moveHtmlNode(doc, id, parentId, index) {
     p = find(doc.root, parentId),
     old = parentOf(doc.root, id);
   if (!n || !p || !old) throw Error('Choose an element and a container.');
-  if (HTML_VOID.has(p.type) || ['script', 'style', 'title', 'textarea'].includes(p.type))
-    throw Error('This element cannot contain child elements.');
+  if (!canContainHtmlChildren(p)) throw Error('This element cannot contain child elements.');
   if (find(n, parentId)) throw Error('An element cannot contain itself.');
   old.children.splice(old.children.indexOf(n), 1);
   p.children.splice(index ?? p.children.length, 0, n);
@@ -321,7 +426,7 @@ export function formatHtml(source, options = {}) {
     ]);
   const format = (n, depth) => {
     if (
-      n.kind !== 'element' ||
+      !isHtmlElement(n) ||
       ['script', 'style', 'pre', 'textarea', 'listing', 'template'].includes(n.type)
     )
       return;
@@ -330,9 +435,7 @@ export function formatHtml(source, options = {}) {
     if (
       blocks.has(n.type) &&
       children.length &&
-      children.every(
-        (c) => c.kind === 'comment' || (c.kind === 'element' && blockChildren.has(c.type)),
-      )
+      children.every((c) => c.kind === 'comment' || (isHtmlElement(c) && blockChildren.has(c.type)))
     ) {
       n.children = children.flatMap((c) => [textNode('\n' + '  '.repeat(depth + 1)), c]);
       n.children.push(textNode('\n' + '  '.repeat(depth)));
