@@ -1,0 +1,20 @@
+name: AST review source
+on:
+  push:
+    branches: [feat/xaml-inline-content]
+    paths: [.github/workflows/ast-review-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: git archive --format=tar HEAD > "$RUNNER_TEMP/ast-source.tar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ast-review-source
+          path: ${{ runner.temp }}/ast-source.tar
+          retention-days: 1
