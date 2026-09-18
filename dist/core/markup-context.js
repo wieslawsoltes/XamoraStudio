@@ -121,6 +121,8 @@ export function markupCompletionContext(
     offset > source.length
   )
     return empty;
+  // Every lexical decision uses only the requested prefix, including lookahead.
+  source = source.slice(0, offset);
   let i = 0,
     count = 0;
   const base = new Map([['xml', 'http://www.w3.org/XML/1998/namespace']]);

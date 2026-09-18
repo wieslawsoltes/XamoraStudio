@@ -256,3 +256,60 @@ test('quoted equals signs remain literal values, never new XAML or HTML attribut
   assert.deepEqual(complete('<Button Tag="FontStyle=\'No'), []);
   assert.deepEqual(html('<div title="style=\'col'), []);
 });
+
+test('lexical context never reads characters beyond an explicitly supplied caret', () => {
+  for (const [source, html] of [
+    ['<Button FontWeight="Bold"/>', false],
+    [`<a:Grid xmlns:a="${WPF}"><a:Run Text="&lt;quoted&gt;"/></a:Grid>`, false],
+    ['<Grid><!-- <Fake/> --><![CDATA[<Other>]]><?pi text?></Grid>', false],
+    [
+      '<!doctype html><svg viewBox="0 0 1 1"><foreignObject><div>Text</div></foreignObject></svg>',
+      true,
+    ],
+    ['<script>"<not-a-tag>";</script><textarea>&lt;text&gt;</textarea>', true],
+    ['<div title="<fake> >" disabled><input type=text></div>', true],
+  ])
+    for (let offset = 0; offset <= source.length; offset++)
+      assert.deepEqual(
+        markupCompletionContext(source, offset, { html }),
+        markupCompletionContext(source.slice(0, offset), offset, { html }),
+        `Prefix mismatch at ${offset}: ${source}`,
+      );
+});
+
+const acceptCompletion = (source, item) =>
+  source.slice(0, item.start) + item.insertText + source.slice(item.end);
+
+test('XAML name completion replaces the full name but preserves an existing assignment and value', () => {
+  for (const source of ['<Button FontWeight="Bold"/>', "<Button FontWeight = 'Bold'/>"])
+    for (const position of ['Font', 'FontWeight']) {
+      const offset = source.indexOf('FontWeight') + position.length,
+        item = completeXaml(source, offset, { registry }).find((x) => x.label === 'FontWeight');
+      assert(item);
+      assert.equal(item.end, source.indexOf('FontWeight') + 'FontWeight'.length);
+      assert.equal(item.insertText, 'FontWeight');
+      assert.equal(acceptCompletion(source, item), source);
+      assert.equal(parseXaml(acceptCompletion(source, item)).root.props.FontWeight, 'Bold');
+    }
+  const source = `<a:Grid xmlns:a="${WPF}"></a:Grid>`,
+    offset = source.lastIndexOf('a:Grid') + 4,
+    item = completeXaml(source, offset, { registry }).find((x) => x.label === 'a:Grid');
+  assert.equal(acceptCompletion(source, item), source);
+});
+
+test('HTML namespace name completion preserves suffixes, attribute values, and authored quote style', () => {
+  const source = "<svg viewBox = '0 0 100 100'></svg>";
+  for (const prefix of ['view', 'viewBox']) {
+    const offset = source.indexOf('viewBox') + prefix.length,
+      item = completeHtml(source, offset).find((x) => x.label === 'viewBox');
+    assert(item);
+    assert.equal(item.insertText, 'viewBox');
+    assert.equal(acceptCompletion(source, item), source);
+  }
+  const math = '<math><mfrac><mi>x</mi><mi>y</mi></mfrac></math>';
+  for (const start of [math.indexOf('mfrac'), math.lastIndexOf('mfrac')]) {
+    const item = completeHtml(math, start + 2).find((x) => x.label === 'mfrac');
+    assert(item);
+    assert.equal(acceptCompletion(math, item), math);
+  }
+});

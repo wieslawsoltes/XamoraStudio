@@ -119,7 +119,8 @@ export function completeXaml(source, offset, { registry, document, context = {} 
         }
       }
     });
-  const token = before.match(/[\w:.$[\]-]*$/)?.[0] || '';
+  const token = before.match(/[\w:.$[\]-]*$/)?.[0] || '',
+    nameEnd = offset + (source.slice(offset).match(/^[\w:.-]*/)?.[0].length || 0);
   const result = (values, kind, start = offset - token.length, transform = (v) => v) =>
     [
       ...new Map(
@@ -207,7 +208,10 @@ export function completeXaml(source, offset, { registry, document, context = {} 
     return result(values, 'Property value', valueStart);
   }
   if (/<\/[\w:.-]*$/.test(before))
-    return result(openTags(before.slice(0, last)).reverse(), 'Closing element');
+    return result(openTags(before.slice(0, last)).reverse(), 'Closing element').map((item) => ({
+      ...item,
+      end: nameEnd,
+    }));
   if (/<[\w:.-]*$/.test(before)) {
     const inlineOwner =
       parent &&
@@ -268,11 +272,12 @@ export function completeXaml(source, offset, { registry, document, context = {} 
           for (const label of qualify(owner + '.' + property))
             values.push({ label, detail: `${owner}.${property} property element` });
     }
-    return result(values, 'Element');
+    return result(values, 'Element').map((item) => ({ ...item, end: nameEnd }));
   }
   if (last >= 0 && !scan.quote) {
     const tag = scan.tag?.type,
-      existing = scan.tag?.attributes || new Map();
+      existing = scan.tag?.attributes || new Map(),
+      assigned = /^\s*=/.test(source.slice(nameEnd));
     let props = [
       ...new Set([
         ...(native
@@ -308,12 +313,12 @@ export function completeXaml(source, offset, { registry, document, context = {} 
       props.map((label) => ({
         label,
         detail: descriptions[label] || `${tag || 'Element'}.${label}`,
-        caretOffset: label.length + 2,
+        caretOffset: label.length + (assigned ? 0 : 2),
       })),
       'Property',
       offset - token.length,
-      (v) => v + '=""',
-    );
+      (v) => (assigned ? v : v + '=""'),
+    ).map((item) => ({ ...item, end: nameEnd }));
   }
   return [];
 }

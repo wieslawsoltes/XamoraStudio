@@ -98,7 +98,29 @@ try {
         h.completeXaml(attribute, attribute.length, { registry })[0]?.label === 'Quiet',
         'Alias descriptor values',
       );
-      return { nativeNamespaceCases: cases.length, canonicalAndPackageAPI: true };
+      const htmlSource = "<svg viewBox = '0 0 100 100'></svg>",
+        htmlOffset = htmlSource.indexOf('viewBox') + 4,
+        htmlItem = h.completeHtml(htmlSource, htmlOffset).find((item) => item.label === 'viewBox');
+      const xamlSource = '<Button FontWeight="Bold"/>',
+        xamlOffset = xamlSource.indexOf('FontWeight') + 4,
+        xamlItem = h
+          .completeXaml(xamlSource, xamlOffset, { registry })
+          .find((item) => item.label === 'FontWeight');
+      for (const [text, item] of [
+        [htmlSource, htmlItem],
+        [xamlSource, xamlItem],
+      ]) {
+        check(!!item, 'Caret name completion remains available');
+        check(
+          text.slice(0, item.start) + item.insertText + text.slice(item.end) === text,
+          'Existing name suffix, assignment and value must survive completion',
+        );
+      }
+      return {
+        nativeNamespaceCases: cases.length,
+        canonicalAndPackageAPI: true,
+        caretRanges: true,
+      };
     }, result.outputFiles[0].text);
     assert.deepEqual(errors, []);
     console.log(packed ? 'package' : 'source', report);

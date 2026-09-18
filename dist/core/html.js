@@ -477,16 +477,18 @@ export function completeHtml(source, caret, { context } = {}) {
           ? 'MathML attribute'
           : 'HTML attribute';
   } else return [];
-  const attribute = detail.endsWith(' attribute');
+  const attribute = detail.endsWith(' attribute'),
+    nameEnd = caret + (source.slice(caret).match(/^[\w:.-]*/)?.[0].length || 0),
+    addValue = attribute && !/^\s*=/.test(source.slice(nameEnd));
   return [...new Set(values)]
     .filter((v) => v.toLowerCase().startsWith(token.toLowerCase()))
     .map((v) => ({
       label: v,
       detail,
       start,
-      end: caret,
-      insertText: detail === 'CSS property' ? v + ': ' : attribute ? v + '=""' : v,
-      caretOffset: attribute ? v.length + 2 : undefined,
+      end: detail === 'CSS property' ? caret : nameEnd,
+      insertText: detail === 'CSS property' ? v + ': ' : addValue ? v + '=""' : v,
+      caretOffset: attribute ? v.length + (addValue ? 2 : 0) : undefined,
     }));
 }
 export function newHtmlDocument(name = 'index.html') {

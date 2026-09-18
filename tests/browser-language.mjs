@@ -388,6 +388,14 @@ try {
   // Accept namespace-sensitive completions through the editor and shared source transaction.
   for (const [file, source, token, label, suffix] of [
     ['Completion.svg.html', '<svg viewB></svg>', 'viewB', 'viewBox', '=""'],
+    [
+      'Completion.assigned.html',
+      "<svg viewB='0 0 100 100'></svg>",
+      'viewB',
+      'viewBox',
+      "='0 0 100 100'",
+    ],
+    ['Completion.assigned.xaml', "<Button FontWei='Bold'/>", 'FontWei', 'FontWeight', "='Bold'"],
     ['Completion.math.html', '<math><mf></math>', 'mf', 'mfrac', ''],
   ]) {
     await page.evaluate(
@@ -420,8 +428,7 @@ try {
     assert((await input.inputValue()).includes(label + suffix));
     assert(
       await page.evaluate((label) => {
-        const visit = (n) =>
-          label === 'viewBox' ? n.props && Object.hasOwn(n.props, label) : n.type === label;
+        const visit = (n) => (n.props && Object.hasOwn(n.props, label)) || n.type === label;
         const walk = (n) => visit(n) || n.children?.some(walk);
         return walk(window.xamora.studio.doc.root);
       }, label),
