@@ -777,3 +777,8 @@ export * from './history.js';
 export * from './language-service.js';
 
 export * from './html-states.js';
+
+export * from './jev-client.js';
+export * from './jev-settings.js';
+export * from './jev-templates.js';
+export * from './jev-assistant.js';

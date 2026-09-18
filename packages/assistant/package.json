@@ -1,0 +1,95 @@
+{
+  "name": "@wieslawsoltes/xamora-assistant",
+  "version": "0.8.0",
+  "description": "Typed TypeSafe Jev decisions, bounded AI context and reviewable designer action plans",
+  "type": "module",
+  "license": "MIT",
+  "author": "Xamora contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wieslawsoltes/XamoraStudio.git",
+    "directory": "packages/assistant"
+  },
+  "homepage": "https://wieslawsoltes.github.io/XamoraStudio/",
+  "bugs": "https://github.com/wieslawsoltes/XamoraStudio/issues",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./jev-client": {
+      "import": {
+        "types": "./dist/esm/jev-client.d.ts",
+        "default": "./dist/esm/jev-client.js"
+      },
+      "require": {
+        "types": "./dist/cjs/jev-client.d.cts",
+        "default": "./dist/cjs/jev-client.cjs"
+      }
+    },
+    "./jev-settings": {
+      "import": {
+        "types": "./dist/esm/jev-settings.d.ts",
+        "default": "./dist/esm/jev-settings.js"
+      },
+      "require": {
+        "types": "./dist/cjs/jev-settings.d.cts",
+        "default": "./dist/cjs/jev-settings.cjs"
+      }
+    },
+    "./jev-templates": {
+      "import": {
+        "types": "./dist/esm/jev-templates.d.ts",
+        "default": "./dist/esm/jev-templates.js"
+      },
+      "require": {
+        "types": "./dist/cjs/jev-templates.d.cts",
+        "default": "./dist/cjs/jev-templates.cjs"
+      }
+    },
+    "./jev-assistant": {
+      "import": {
+        "types": "./dist/esm/jev-assistant.d.ts",
+        "default": "./dist/esm/jev-assistant.js"
+      },
+      "require": {
+        "types": "./dist/cjs/jev-assistant.d.cts",
+        "default": "./dist/cjs/jev-assistant.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/build-packages.mjs"
+  },
+  "dependencies": {
+    "@wieslawsoltes/xamora-contracts": "0.8.0",
+    "@wieslawsoltes/xamora-designer": "0.8.0",
+    "@wieslawsoltes/xamora-markup": "0.8.0",
+    "@wieslawsoltes/xamora-model": "0.8.0"
+  }
+}

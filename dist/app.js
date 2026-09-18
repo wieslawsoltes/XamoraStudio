@@ -3,6 +3,7 @@ import { finishDockingStartup } from './studio/startup-layout.js';
 import { ExperienceWorkspace } from './studio/experience-workspace.js';
 import { WindowNavigator } from './studio/window-navigator.js';
 import { LayoutPreferences } from './studio/layout-preferences.js';
+import { JevWorkspace } from './studio/jev-workspace.js';
 import { Studio } from './studio/studio.js';
 import { $, esc, download } from './studio/ui.js';
 import { EditorWorkspace } from './studio/editor-workspace.js';
@@ -22,6 +23,7 @@ try {
   new DockingStudio(studio);
   new EditorWorkspace(studio);
   new CompilerWorkspace(studio);
+  new JevWorkspace(studio);
   finishDockingStartup(studio, savedLayout);
   new LayoutPreferences(studio);
   new ExperienceWorkspace(studio);

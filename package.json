@@ -17,7 +17,9 @@
     "version:packages": "node scripts/package-version.mjs",
     "release:verify": "node scripts/package-release.mjs verify",
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "start:ai": "node scripts/serve-ai.mjs",
+    "test:jev:live": "node scripts/jev-smoke.mjs"
   },
   "engines": {
     "node": ">=22"
