@@ -14,7 +14,7 @@ export declare function projectHtmlDocument(
 ): DesignDocument;
 export declare function serializeHtml(document: DesignDocument): string;
 export declare function canonicalHtml(document: DesignDocument): string;
-export declare function serializeHtmlNode(node: DesignNode, parent?: string): string;
+export declare function serializeHtmlNode(node: DesignNode, parent?: string | ElementNode): string;
 export declare function formatHtml(
   source: string,
   options?: { name?: string; Parser?: typeof DOMParser },
@@ -49,3 +49,27 @@ export declare function completeHtml(
   insertText: string;
   caretOffset?: number;
 }>;
+
+export declare const HTML_NAMESPACE: string;
+export declare const SVG_NAMESPACE: string;
+export declare const MATHML_NAMESPACE: string;
+export declare function isHtmlElement(node: DesignNode | null | undefined, tag?: string): boolean;
+export declare function isHtmlVoid(node: DesignNode | null | undefined): boolean;
+export declare function canContainHtmlChildren(node: DesignNode | null | undefined): boolean;
+export declare function projectHtmlNodes(nodes: Iterable<Node> | ArrayLike<Node>): DesignNode[];
+export interface HtmlFragmentOptions {
+  context?: ElementNode;
+  ancestors?: ElementNode[];
+  Parser?: typeof DOMParser;
+}
+export declare function parseHtmlFragment(
+  source: string,
+  options?: HtmlFragmentOptions,
+): DesignNode[];
+/** Mutates the AST after candidate validation. Call inside a document transaction for undo. */
+export declare function insertHtmlFragment(
+  document: DesignDocument,
+  parentId: string,
+  source: string,
+  options?: { index?: number; Parser?: typeof DOMParser },
+): DesignNode[];
