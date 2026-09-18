@@ -1,0 +1,21 @@
+name: Jev network review source
+on:
+  push:
+    branches: [fix/jev-browser-connection]
+    paths: [.github/workflows/jev-network-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: git bundle create "$RUNNER_TEMP/jev-network-source.bundle" HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jev-network-source
+          path: ${{ runner.temp }}/jev-network-source.bundle
+          retention-days: 1
