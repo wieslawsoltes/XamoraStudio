@@ -1,3 +1,4 @@
+import { find, parentOf, isProperty } from '../core/model.js';
 import { SemanticLanguageService } from '../core/language-service.js';
 import { esc, notify, $ } from './ui.js';
 
@@ -58,6 +59,10 @@ export class LanguageWorkspace {
       ['language-definition', 'Go to definition', 'F12'],
       ['language-references', 'Find all references', 'Shift+F12'],
       ['language-rename', 'Rename symbol…', 'F2'],
+      ['language-matching-tag', 'Go to matching tag', 'Ctrl+Shift+\\'],
+      ['language-expand-selection', 'Expand syntax selection', 'Alt+Shift+Right'],
+      ['language-shrink-selection', 'Shrink syntax selection', 'Alt+Shift+Left'],
+      ['language-select-designer', 'Select element in designer', ''],
       ['language-back', 'Navigate back', 'Alt+Left'],
       ['language-forward', 'Navigate forward', 'Alt+Right'],
     ].map(([id, label, shortcut]) => ({
@@ -85,6 +90,9 @@ export class LanguageWorkspace {
     studio.docking.refreshProblems();
     window.xamora.language = {
       symbols: () => this.service.symbols(),
+      elementAt: (offset) => this.service.elementAt(offset),
+      matchingTagAt: (offset) => this.service.matchingTagAt(offset),
+      selectionRanges: (start, end) => this.service.selectionRanges(start, end),
       definitionAt: (offset) => this.service.definitionAt(offset),
       referencesAt: (offset) => this.service.referencesAt(offset),
       rename: (offset, name, options) => {
@@ -121,6 +129,11 @@ export class LanguageWorkspace {
   }
   command(command) {
     try {
+      // Flush pending valid input before consuming source coordinates. Never navigate stale syntax.
+      if (this.s.editor.composing || (this.s.sync && !this.s.sync.flush())) {
+        this.ready();
+        return false;
+      }
       if (command === 'language-back' || command === 'language-forward')
         return this.history(command === 'language-forward');
       if (!this.ready()) return false;
@@ -151,10 +164,66 @@ export class LanguageWorkspace {
         return true;
       }
       if (command === 'language-rename') return this.rename(offset);
+      if (command === 'language-matching-tag') {
+        const target = this.service.matchingTagAt(offset);
+        if (!target) {
+          notify('Place the caret in a paired opening or closing tag.');
+          return false;
+        }
+        return this.navigate(target);
+      }
+      if (command === 'language-expand-selection') return this.syntaxSelection(false);
+      if (command === 'language-shrink-selection') return this.syntaxSelection(true);
+      if (command === 'language-select-designer') {
+        const target = this.service.elementAt(offset);
+        let node = target && find(this.s.doc.root, target.nodeId);
+        while (node && this.s.doc.framework !== 'HTML' && isProperty(node))
+          node = parentOf(this.s.doc.root, node.id);
+        if (!node) {
+          notify('No authored element at the caret.');
+          return false;
+        }
+        this.s.store.select([node.id]);
+        return true;
+      }
     } catch (error) {
       notify(error.message);
       return false;
     }
+  }
+  syntaxSelection(shrink) {
+    const input = this.s.editor.input,
+      session = this.s.store.session;
+    const current = {
+      start: input.selectionStart,
+      end: input.selectionEnd,
+      direction: input.selectionDirection,
+    };
+    let trail = this.selectionTrail;
+    if (
+      !trail ||
+      trail.session !== session ||
+      trail.revision !== session.revision ||
+      trail.expected.start !== current.start ||
+      trail.expected.end !== current.end
+    )
+      trail = this.selectionTrail = {
+        session,
+        revision: session.revision,
+        expected: current,
+        entries: [],
+      };
+    const next = shrink
+      ? trail.entries.pop()
+      : this.service.selectionRanges(current.start, current.end)[0];
+    if (!next) return false;
+    if (!shrink) trail.entries.push(current);
+    trail.expected = next;
+    input.focus();
+    input.setSelectionRange(next.start, next.end, next.direction || current.direction);
+    this.s.editor.reveal(next.start);
+    this.s.editor.cursor(true);
+    return true;
   }
   show() {
     this.s.docking.control.show('code-intelligence');

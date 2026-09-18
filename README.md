@@ -152,7 +152,7 @@ To deploy on a static host, upload the contents of `dist/`. There are no runtime
 - Grid rows/columns, Auto/pixel/star definitions, cell placement and spans; StackPanel, Canvas, DockPanel, WrapPanel, UniformGrid, Border, and common input/content controls.
 - Designer property inspector with named and attached properties, color controls, enum metadata, bindings, reset-to-unset, custom properties, and resource references.
 - Template editing in a separate visual scope, template preview properties, reusable UserControl extraction, brush resources, style setters, and basic keyed/implicit style preview.
-- Code highlighting, line numbers, XML validation, formatting, tag/property completion, find/replace, indentation, comment toggling, document symbols, selected-element navigation, and automatic bidirectional synchronization.
+- Code highlighting, line numbers, XML validation, formatting, tag/property completion, find/replace, indentation, comment toggling, document symbols, selected-element navigation, and automatic bidirectional synchronization. [Structural source tooling](docs/STRUCTURAL-LANGUAGE-TOOLS.md) adds matching-tag navigation, nested syntax selection, and source-to-designer selection for XAML and HTML.
 - Per-page undo/redo with up to 100 reversible entries and a bounded retained-history budget, device-local saving, project export/import, and canvas annotations.
 - WPF/Avalonia namespace and common-property conversion with the original page retained; source preservation modes for WinUI and MAUI.
 - XAML, standalone HTML, project JSON, and browser-compatible SVG `foreignObject` export. Registered export adapters appear in the export dialog.

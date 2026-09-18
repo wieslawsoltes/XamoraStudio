@@ -517,7 +517,25 @@ export class CodeEditor {
     this.completions.hidden = true;
   }
   keydown(e) {
-    if (this.disposed || e.isComposing) return;
+    if (this.disposed || this.composing || e.isComposing) return;
+    const structureCommand =
+      (e.ctrlKey || e.metaKey) &&
+      e.shiftKey &&
+      !e.altKey &&
+      (e.code === 'Backslash' || e.key === '\\' || e.key === '|')
+        ? 'language-matching-tag'
+        : e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.key === 'ArrowRight'
+          ? 'language-expand-selection'
+          : e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.key === 'ArrowLeft'
+            ? 'language-shrink-selection'
+            : null;
+    if (structureCommand && this.onSemanticCommand) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.hideCompletions();
+      this.onSemanticCommand(structureCommand);
+      return;
+    }
     if (
       this.onSemanticCommand &&
       (e.key === 'F12' ||
