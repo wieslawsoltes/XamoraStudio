@@ -1,6 +1,7 @@
 /** Compose the designer host and its feature workspaces in dependency order. */
 import { finishDockingStartup } from './studio/startup-layout.js';
 import { ExperienceWorkspace } from './studio/experience-workspace.js';
+import { WindowNavigator } from './studio/window-navigator.js';
 import { LayoutPreferences } from './studio/layout-preferences.js';
 import { Studio } from './studio/studio.js';
 import { $, esc, download } from './studio/ui.js';
@@ -24,6 +25,7 @@ try {
   finishDockingStartup(studio, savedLayout);
   new LayoutPreferences(studio);
   new ExperienceWorkspace(studio);
+  new WindowNavigator(studio);
 } catch (error) {
   console.error(error);
   document.getElementById('app').innerHTML =

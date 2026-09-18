@@ -9,12 +9,16 @@ export function modal(studio, title, body, actions = [], wide = false) {
     studio.dialogHost?.dispose();
     studio.dialogHost = new DialogHost(root);
   }
-  studio.modalPrevious = studio.documentScope?.activeElement || document.activeElement;
-  const previous = studio.modalPrevious;
+  // Replacing one application dialog with another retains the original editor, not a
+  // soon-to-be-detached button from the previous dialog (e.g. Layouts -> Navigator).
+  const previous = studio.dialogHost.isOpen
+    ? studio.modalPrevious
+    : studio.documentScope?.activeElement || document.activeElement;
+  studio.modalPrevious = previous;
   const restore = () => {
     if (previous?.isConnected && !previous.closest('[hidden],[inert]')) {
       previous.ownerDocument.defaultView?.focus();
-      previous.focus();
+      previous.focus({ preventScroll: true });
     }
   };
   root.ownerDocument.defaultView?.focus();
