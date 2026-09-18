@@ -5,23 +5,65 @@ import {
   walk,
   isElement,
   isProperty,
+  isPropertyOf,
   localName,
   element,
   visualChildren,
+  isXamlInline,
+  isXamlInlineContainer,
 } from './model.js';
 
 export function contentChildren(node) {
   return (node.children || []).flatMap((child) =>
-    isProperty(child) && /\.(Children|Child|Content|Items)$/.test(child.type)
+    isProperty(child) && /\.(Children|Child|Content|Items|Inlines)$/.test(child.type)
       ? visualChildren(child)
       : visualChildren({ children: [child] }),
   );
 }
 export function contentHost(node) {
   return (
-    node.children.find((c) => isProperty(c) && /\.(Children|Child|Content|Items)$/.test(c.type)) ||
-    node
+    node.children.find(
+      (c) => isProperty(c) && /\.(Children|Child|Content|Items|Inlines)$/.test(c.type),
+    ) || node
   );
+}
+/** Report invalid inline placement without mutating the AST. */
+export function inlineContentError(parent, nodes) {
+  if (isXamlInlineContainer(parent)) {
+    if (nodes.some((node) => !isXamlInline(node)))
+      return 'Text containers accept inlines. Wrap a visual control in InlineUIContainer.';
+    const value = String(parent.props.Text ?? '');
+    if (value.startsWith('{') && !value.startsWith('{}'))
+      return 'Text is bound. Edit the binding before adding inline content.';
+    const property = parent.children.find((child) => isPropertyOf(child, parent, 'Text'));
+    if (property?.children.some(isElement))
+      return 'Text contains an object value. Edit it before adding inline content.';
+  } else if (nodes.some(isXamlInline))
+    return 'Insert inline text inside a TextBlock or Span, not a layout panel.';
+  return null;
+}
+/** Called inside an authoring transaction. Preserve existing literal text when adding inlines. */
+export function prepareInlineContent(parent) {
+  const host = contentHost(parent);
+  if (!isXamlInlineContainer(parent)) return host;
+  const error = inlineContentError(parent, []);
+  if (error) throw Error(error);
+  const property = parent.children.find((child) => isPropertyOf(child, parent, 'Text'));
+  const prefix = parent.type.includes(':') ? parent.type.split(':')[0] + ':' : '';
+  if (parent.props.Text !== undefined || property) {
+    const run = element(prefix + 'Run');
+    if (parent.namespaceURI) run.namespaceURI = parent.namespaceURI;
+    if (parent.scope) run.scope = { ...parent.scope };
+    if (parent.props.Text !== undefined) run.props.Text = parent.props.Text;
+    else {
+      run.props = { ...property.props };
+      run.children = property.children;
+    }
+    delete parent.props.Text;
+    if (property) parent.children = parent.children.filter((child) => child !== property);
+    host.children.unshift(run);
+  }
+  return host;
 }
 export function logicalParent(root, id) {
   let parent = parentOf(root, id);
@@ -207,6 +249,8 @@ export function planDrop({
     return { allowed: false, reason: 'This layer cannot contain controls.' };
   if (nodes.some((n) => n.id === root.id || ancestry(root, parentId).some((p) => p.id === n.id)))
     return { allowed: false, reason: 'A layer cannot move into itself or its descendants.' };
+  const inlineError = inlineContentError(parent, nodes);
+  if (inlineError) return { allowed: false, reason: inlineError };
   const host = contentHost(parent),
     existing = contentChildren(parent).filter((c) => !ids.includes(c.id));
   if (
@@ -311,6 +355,8 @@ export function applyDropPlan(document, plan) {
     }
     Object.assign(node.props, plan.updates[node.id]);
   });
+  const parent = find(document.root, plan.parentId);
+  if (parent) prepareInlineContent(parent);
   const index = anchor ? host.children.findIndex((c) => c.id === anchor) : host.children.length;
   if (index < 0) throw Error('Drop anchor was removed.');
   host.children.splice(index, 0, ...nodes);

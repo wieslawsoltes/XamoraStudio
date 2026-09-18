@@ -93,6 +93,9 @@ export const propertyGroups = {
     'TextAlignment',
     'TextWrapping',
     'LineHeight',
+    'TextDecorations',
+    'BaselineAlignment',
+    'FlowDirection',
   ],
   Content: ['Text', 'Content', 'Header', 'ToolTip', 'Watermark', 'PlaceholderText', 'Source'],
   Behavior: [
@@ -157,9 +160,25 @@ export function builtins() {
     'TextBlock',
     'Text',
     { Text: 'Your text here', FontSize: '16', Foreground: '#292834' },
-    { icon: 'text' },
+    { icon: 'text', container: true },
   );
   add('Label', 'Text', { Content: 'Label', FontSize: '14' }, { icon: 'text' });
+  add('Run', 'Text', { Text: 'Inline text' }, { icon: 'text' });
+  for (const type of ['Span', 'Bold', 'Italic', 'Underline', 'Hyperlink'])
+    add(
+      type,
+      'Text',
+      {},
+      {
+        icon: 'text',
+        container: true,
+        properties: type === 'Hyperlink' ? ['NavigateUri', 'TargetName'] : [],
+        children: [{ type: 'Run', props: { Text: type === 'Hyperlink' ? 'Link' : 'Inline text' } }],
+      },
+    );
+  add('LineBreak', 'Text', {}, { icon: 'text' });
+  add('InlineUIContainer', 'Text', {}, { container: true, singleChild: true, icon: 'text' });
+
   add(
     'TextBox',
     'Input',
