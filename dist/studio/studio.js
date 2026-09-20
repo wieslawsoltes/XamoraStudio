@@ -1370,6 +1370,7 @@ export class Studio {
         s: 'save-project',
         a: 'select-all',
         f: 'find-code',
+        h: 'replace-code',
         o: 'import',
       };
       if (actions[k]) {
@@ -1534,8 +1535,12 @@ export class Studio {
           this.editor.apply();
           break;
         case 'find-code':
-          if (this.view === 'design') this.setView('split');
-          this.editor.find();
+        case 'replace-code':
+          this.editor.find({ replace: action === 'replace-code' });
+          break;
+        case 'find-next-code':
+        case 'find-previous-code':
+          this.editor.findNext(action === 'find-previous-code');
           break;
         case 'toggle-layers':
           $('#studio').classList.toggle('show-layers');

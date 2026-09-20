@@ -54,6 +54,7 @@ export class DocumentSync {
       return result;
     };
     editor.onChange = (source, options) => this.capture(source, options);
+    editor.onTextEdits = (edits, expectedValue) => this.applyEditorEdits(edits, expectedValue);
     editor.onValidate = () => {
       this.status();
       return !editor.composing && studio.store.session.isValid;
@@ -214,6 +215,70 @@ export class DocumentSync {
     this.applySource(source);
     this.selectAtCaret();
   }
+  /** Preserve every untouched canonical newline interval during non-contiguous replacements. */
+  applyEditorEdits(edits, expectedValue) {
+    const editor = this.s.editor,
+      session = this.s.store.session;
+    if (
+      editor.disposed ||
+      session.disposed ||
+      editor.composing ||
+      editor.input.readOnly ||
+      editor.input.disabled ||
+      editor.input.value !== expectedValue
+    )
+      return false;
+    // Capture any pending input before using canonical ranges, including invalid drafts.
+    this.applySource(this.coordinates.fromEditor(expectedValue));
+    if (
+      this.s.store.session !== session ||
+      editor.input.value !== expectedValue ||
+      !this.matchesEditor()
+    )
+      return false;
+    const revision = session.revision,
+      version = session.buffer.version,
+      source = session.source;
+    const current = () =>
+      !editor.disposed &&
+      !session.disposed &&
+      !editor.composing &&
+      !editor.input.readOnly &&
+      !editor.input.disabled &&
+      this.s.store.session === session &&
+      session.revision === revision &&
+      session.buffer.version === version &&
+      session.source === source &&
+      editor.input.value === expectedValue &&
+      this.matchesEditor();
+    // Gesture cleanup is application-owned code and can synchronously commit, switch
+    // documents or disable an editor. Check after each callback, before mapping edits.
+    if (!current()) return false;
+    this.s.direct?.cancelGesture?.();
+    if (!current()) return false;
+    this.s.html?.cancelGesture?.();
+    if (!current()) return false;
+    const coords = this.coordinates;
+    const mapped = edits.map((edit) => ({
+      start: coords.toSource(edit.start),
+      end: coords.toSource(edit.end),
+      text: edit.text.replace(/\n/g, coords.newline),
+    }));
+    this.applying = true;
+    let result;
+    try {
+      result = session.applySourceEdits(mapped, {
+        origin: 'code',
+        expectedRevision: revision,
+        expectedVersion: version,
+      });
+    } finally {
+      this.applying = false;
+    }
+    if (this.s.scopeId && !find(this.s.doc.root, this.s.scopeId)) this.s.scopeId = null;
+    this.updateEditor();
+    return result?.accepted === true;
+  }
   applySource(source) {
     if (this.s.editor.composing)
       return { valid: false, diagnostics: [{ message: 'Finish composing the source text.' }] };
@@ -259,6 +324,7 @@ export class DocumentSync {
     const editor = this.s.editor,
       session = this.s.store.session;
     if (!session) return;
+    editor.setSearchContext?.(session);
     // A composing buffer belongs to its document and must never be overwritten by renders.
     if (!editor.composing) {
       editor.setValue(this.coordinates.editorText, { force: true, preserveHistory: true });

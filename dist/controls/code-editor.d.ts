@@ -1,3 +1,5 @@
+import type { EditorTextEdit } from './text-search.js';
+import type { EditorSearch } from './editor-search.js';
 import type { EditorVirtualizationOptions, EditorViewportState } from './code-viewport.js';
 export interface CodeCompletion {
   label: string;
@@ -33,6 +35,9 @@ export interface CodeEditorOptions {
   onApply?: (source: string) => void | boolean;
   onSelection?: (selection: CodeSelection) => void;
   onChange?: (source: string, options: { defer: boolean; composing: boolean }) => void;
+  /** Synchronous document-owner hook. Return true only after committing the full batch
+   * and updating this surface through setValue. false never falls back to local editing. */
+  onTextEdits?: (edits: readonly EditorTextEdit[], expectedValue: string) => boolean;
 }
 export declare class CodeEditor {
   constructor(host: HTMLElement, options?: CodeEditorOptions);
@@ -49,6 +54,8 @@ export declare class CodeEditor {
   onApply?: CodeEditorOptions['onApply'];
   onSelection?: CodeEditorOptions['onSelection'];
   onChange?: CodeEditorOptions['onChange'];
+  onTextEdits?: CodeEditorOptions['onTextEdits'];
+  readonly search: EditorSearch;
   onValidate?: () => boolean;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -75,7 +82,10 @@ export declare class CodeEditor {
   validate(): boolean;
   apply(): boolean;
   format(): void | boolean;
-  find(): void;
+  find(options?: { replace?: boolean; seed?: boolean }): boolean;
+  findNext(backwards?: boolean): boolean;
+  setSearchContext(key: unknown): void;
+  applyTextEdits(edits: readonly EditorTextEdit[], options?: { expectedValue?: string }): boolean;
   complete(): void;
   hideCompletions(): void;
   reveal(index: number): void;

@@ -320,6 +320,17 @@ import { XamlEditor } from '@wieslawsoltes/xamora-designer/editor';
 const languageProvider: CodeLanguageProvider = { validate(source) { JSON.parse(source); }, format: source => JSON.stringify(JSON.parse(source), null, 2) };
 const editorHost = globalThis.document.createElement('div');
 const editor = new CodeEditor(editorHost, { virtualization: { threshold: 1000, overscan: 8 }, language: 'JSON', languageProvider, onChange(source, options) { void [source, options.composing]; } });
+import {TextSearchIndex, applyEditorTextEdits, type EditorTextEdit} from '@wieslawsoltes/xamora-code-editor/text-search';
+const literalSearch = new TextSearchIndex('Alpha alpha', 'alpha', {matchCase:false,wholeWord:true});
+const textEdits: readonly EditorTextEdit[] = literalSearch.replacement('$&').edits;
+const replaced: string = applyEditorTextEdits('Alpha alpha',textEdits); void replaced;
+editor.onTextEdits = (edits, source) => { editor.setValue(applyEditorTextEdits(source,edits), {force:true}); return true; };
+editor.setSearchContext({id:'doc'}); editor.find({replace:true,seed:false}); editor.findNext(true);
+const applied: boolean = editor.applyTextEdits(textEdits,{expectedValue:'Alpha alpha'}); void applied;
+// @ts-expect-error Source edit coordinates must be numbers.
+const invalidSearchEdit: EditorTextEdit = {start:'1',end:2,text:'x'};
+// @ts-expect-error Document adapters must be synchronous.
+editor.onTextEdits = async () => true;
 editor.refreshLayout(); editor.setVirtualization(true); const rendered: number = editor.viewport.renderedLines; void rendered;
 const markupEditor: CodeEditor = new XamlEditor(editorHost); void [editor, markupEditor];
 // @ts-expect-error provider formatter must return text

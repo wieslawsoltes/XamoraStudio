@@ -46,3 +46,11 @@ read-only, disabled, composing and noncancelable events are not intercepted. Sma
 nonvirtualized buffers and other input types retain the native event path. This is a
 targeted insertion fix, not lazy text storage or a guarantee about every browser's
 large-buffer clipboard, deletion or IME performance.
+
+## Find and replace
+
+`editor.find({ replace: true })` opens the local find/replace bar. Ctrl/Command+F searches, Ctrl/Command+H exposes replacement, and F3 / Shift+F3 navigate. Use the buttons on platforms reserving those shortcuts. Literal search includes match counts, case/Unicode whole-word toggles, a captured selection scope and syntax-colored viewport highlights. Escape returns to the source input. Read-only and composing buffers cannot be changed; disposal removes search listeners.
+
+Set `editor.setSearchContext(documentIdentity)` when reusing a surface for another document. External edits and context changes invalidate captured selection ranges. `TextSearchIndex` and `applyEditorTextEdits` are DOM-free exports, also available from `./text-search`. Their UTF-16 ranges refer to the supplied snapshot. Replacement text is literal, including `$&` and `$1`; there is no user regex execution. Truncated result sets cannot be partially applied by Replace all.
+
+`editor.applyTextEdits(edits, { expectedValue })` guards a source-edit batch and creates one local undo entry. Hosts with their own source session can supply a synchronous `onTextEdits(edits, expectedValue)` callback: commit the whole batch, update this editor through `setValue`, and return true. Returning false never falls back to a local edit. The host owns validation and transaction rollback. See `docs/EDITOR-SEARCH.md` for Studio's canonical-newline adapter, bounds and browser qualification.

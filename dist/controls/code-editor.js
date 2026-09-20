@@ -1,3 +1,5 @@
+import { EditorSearch } from './editor-search.js';
+import { applyEditorTextEdits } from './text-search.js';
 import {
   EditorLineIndex,
   indexEditorTokens,
@@ -14,6 +16,7 @@ export class CodeEditor {
       onApply = () => {},
       onSelection,
       onChange,
+      onTextEdits,
       readOnly = false,
       virtualization = {},
     } = {},
@@ -26,6 +29,7 @@ export class CodeEditor {
     this.host = host;
     this.languageProvider = languageProvider;
     this.onChange = onChange;
+    this.onTextEdits = onTextEdits;
     this.disposed = false;
     this.listeners = [];
     host.classList.add('xamora-code-editor');
@@ -104,37 +108,7 @@ export class CodeEditor {
     });
     this.listen(this.input, 'keyup', () => this.cursor(true));
     this.listen(this.input, 'keydown', (e) => this.keydown(e));
-    this.listen(host.querySelector('.editor-find'), 'click', (e) => {
-      const action = e.target.dataset.find;
-      if (!action) return;
-      if (action === 'close') {
-        host.querySelector('.editor-find').hidden = true;
-        return;
-      }
-      const [a, b] = host.querySelectorAll('.editor-find input');
-      if (!a.value) return;
-      const value = this.input.value;
-      if (this.input.readOnly && ['all', 'replace'].includes(action)) return;
-      if (action === 'all') {
-        this.input.value = value.split(a.value).join(b.value);
-        this.changed();
-        return;
-      }
-      if (
-        action === 'replace' &&
-        value.slice(this.input.selectionStart, this.input.selectionEnd) === a.value
-      ) {
-        this.input.setRangeText(b.value, this.input.selectionStart, this.input.selectionEnd, 'end');
-        this.changed();
-      }
-      const at = this.input.value.indexOf(a.value, this.input.selectionEnd);
-      const start = at < 0 ? this.input.value.indexOf(a.value) : at;
-      if (start >= 0) {
-        this.input.focus();
-        this.input.setSelectionRange(start, start + a.value.length);
-        this.reveal(start);
-      } else this.message.textContent = 'No matches';
-    });
+    this.search = new EditorSearch(this, host.querySelector('.editor-find'));
     this.elements = [...host.children];
     this.setLanguage(language);
     this.setReadOnly(readOnly);
@@ -172,12 +146,14 @@ export class CodeEditor {
   }
   setReadOnly(value) {
     this.input.readOnly = Boolean(value);
+    this.search?.refresh(false);
   }
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
     clearTimeout(this.timer);
     this.resizeObserver?.disconnect();
+    this.search?.dispose();
     if (this.paintFrame !== null)
       (this.paintWindow || this.window).cancelAnimationFrame(this.paintFrame);
     this.paintFrame = null;
@@ -187,7 +163,7 @@ export class CodeEditor {
     this.completions.replaceChildren();
     for (const node of this.elements) node.remove();
     this.host.classList.remove('xamora-code-editor');
-    this.onChange = this.onApply = this.onSelection = null;
+    this.onChange = this.onApply = this.onSelection = this.onTextEdits = null;
     this.onValidate = this.getCompletions = this.getLanguageContext = null;
     this.onUndo = this.onRedo = this.onSemanticCommand = null;
   }
@@ -195,10 +171,7 @@ export class CodeEditor {
     this.tokenRevision = -1;
     this.language = language;
     this.input.setAttribute('aria-label', language + ' code editor');
-    this.host.querySelectorAll('.editor-find input').forEach((el, i) => {
-      el.setAttribute('aria-label', (i ? 'Replace in ' : 'Find in ') + language);
-      if (!i) el.placeholder = 'Find in ' + language;
-    });
+    this.search?.language(language);
   }
   changed({ defer = false, composing = false } = {}) {
     if (this.disposed) return;
@@ -216,6 +189,7 @@ export class CodeEditor {
     }
     this.hideCompletions();
     this.dirty = value !== this.syncedText;
+    this.search?.sourceChanged();
     this.paint();
     clearTimeout(this.timer);
     if (defer) this.timer = setTimeout(() => this.validate(), 350);
@@ -270,6 +244,7 @@ export class CodeEditor {
       this.input.scrollLeft = left;
     }
     this.dirty = false;
+    this.search?.sourceChanged();
     if (before !== value) this.paint();
     this.message.textContent = (this.language || 'Text') + ' · synchronized';
     return true;
@@ -310,6 +285,7 @@ export class CodeEditor {
   }
   paint() {
     if (this.disposed) return;
+    this.search?.refresh(false);
     const index = this.ensureIndex(),
       source = index.source;
     if (this.tokenRevision !== this.paintRevision) {
@@ -334,9 +310,15 @@ export class CodeEditor {
           this.virtualization.overscan,
         )
       : { startLine: 0, endLine: index.length, start: 0, end: source.length };
-    const signature = `${this.paintRevision}:${this.tokenRevision}:${virtualized}:${range.startLine}:${range.endLine}`;
+    const signature = `${this.search?.version || 0}:${this.paintRevision}:${this.tokenRevision}:${virtualized}:${range.startLine}:${range.endLine}`;
     if (this.renderSignature !== signature) {
-      const html = renderEditorTokens(source, this.tokenIndex, range.start, range.end);
+      const html = renderEditorTokens(
+        source,
+        this.tokenIndex,
+        range.start,
+        range.end,
+        this.search && !this.search.host.hidden ? this.search.model?.matches : undefined,
+      );
       const numbers = Array.from(
         { length: range.endLine - range.startLine },
         (_, i) => range.startLine + i + 1,
@@ -438,10 +420,52 @@ export class CodeEditor {
       this.validate();
     }
   }
-  find() {
-    if (this.disposed) return;
-    this.host.querySelector('.editor-find').hidden = false;
-    this.host.querySelector('.editor-find input').focus();
+  find(options) {
+    return this.search?.open(options) || false;
+  }
+  findNext(backwards = false) {
+    return this.search?.move(backwards) || false;
+  }
+  /** Session identity is opaque; only a change clears captured search ranges. */
+  setSearchContext(key) {
+    this.search?.setContext(key);
+  }
+  /** One guarded source-edit batch, with an optional synchronous document-owner adapter. */
+  applyTextEdits(edits, { expectedValue = this.input.value } = {}) {
+    if (
+      this.disposed ||
+      this.input.readOnly ||
+      this.input.disabled ||
+      this.composing ||
+      this.applyingTextEdits ||
+      this.input.value !== expectedValue
+    )
+      return false;
+    const normalized = edits.map((edit) => ({ ...edit, text: edit.text.replace(/\r\n?/g, '\n') }));
+    const after = applyEditorTextEdits(expectedValue, normalized);
+    if (after === expectedValue) return true;
+    this.applyingTextEdits = true;
+    try {
+      if (this.onTextEdits) {
+        // The host owns validation, session selection and updates to this surface.
+        // Never overwrite source changed by a callback or fall back after rejection.
+        const accepted = this.onTextEdits(normalized, expectedValue);
+        return accepted === true && !this.disposed && this.input.value === after;
+      }
+      const selection = mapTextSelection(
+        expectedValue,
+        after,
+        this.input.selectionStart,
+        this.input.selectionEnd,
+      );
+      this.input.value = after;
+      this.input.setSelectionRange(selection.start, selection.end);
+      this.changed();
+      return !this.disposed && this.input.value === after;
+    } finally {
+      this.applyingTextEdits = false;
+      this.search?.refresh(false);
+    }
   }
   reveal(offset) {
     if (this.disposed) return;
@@ -563,6 +587,22 @@ export class CodeEditor {
     if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key))
       this.hideCompletions();
     const mod = e.ctrlKey || e.metaKey;
+    if (
+      (!e.altKey && mod && ['f', 'h'].includes(e.key.toLowerCase())) ||
+      (!mod && !e.altKey && e.key === 'F3')
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'F3') this.findNext(e.shiftKey);
+      else this.find({ replace: e.key.toLowerCase() === 'h' });
+      return;
+    }
+    if (e.key === 'Escape' && this.search && !this.search.host.hidden && this.completions.hidden) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.search.close();
+      return;
+    }
     if (
       this.input.readOnly &&
       ((mod && ['z', 'y', '/'].includes(e.key.toLowerCase())) || ['Tab', 'Enter'].includes(e.key))

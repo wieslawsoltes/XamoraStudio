@@ -289,3 +289,7 @@ New source APIs require a checkout build; this increment does not publish npm pa
 Use **View → Document outline** or **Ctrl/Command+Alt+O** to browse named and unnamed HTML/XAML elements, property collections, resources, templates and SVG/MathML. Search retains ancestor paths; arrow keys browse, Space selects in the designer, and Enter reveals source. Breadcrumbs and parent/child/sibling commands share the existing navigation history and work across detached browser hosts. The optional panel is passive at startup and preserves per-document browsing state during the session.
 
 Windows-line-ending files retain canonical CRLF source through no-change synchronization, ordinary editing, structural navigation and Undo. Reusable `MarkupStructureIndex`, `SourceTextCoordinates` and virtualized `OutlineTree` APIs ship in the existing markup/control-primitives packages. See [the document outline guide](docs/DOCUMENT-OUTLINE.md) for APIs, source-coordinate rules, testing and remaining qualifications.
+
+### Source find and replace
+
+Use **Edit → Find in source… / Replace in source…**, Ctrl/Command+F/H and F3/Shift+F3 for literal search with counts, case/whole-word options, captured selection scope and viewport highlights. Replace all is one undoable source transaction, including in detached editors, and preserves untouched canonical newline intervals. The reusable code-editor package exposes the same search engine and batching APIs. See [docs/EDITOR-SEARCH.md](docs/EDITOR-SEARCH.md) for usage and limits.

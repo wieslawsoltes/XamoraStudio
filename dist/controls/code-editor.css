@@ -197,3 +197,85 @@
   right: 0;
   text-align: right;
 }
+
+/* Search chrome never changes the authored document or the textarea's text metrics. */
+.xamora-code-editor .editor-find {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px 10px;
+  background: var(--panel, #fff);
+  color: var(--text, #292834);
+}
+.xamora-code-editor .editor-find-row,
+.xamora-code-editor .editor-replace-row,
+.xamora-code-editor .editor-find-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+.xamora-code-editor .editor-find input {
+  flex: 1 1 160px;
+  min-width: 80px;
+  width: 0;
+  background: var(--input, #f7f7f9);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+.xamora-code-editor .editor-find button {
+  border: 1px solid var(--border, #c8c8cf);
+  border-radius: 4px;
+  padding: 4px 7px;
+  min-height: 28px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.xamora-code-editor .editor-find button[aria-pressed='true'] {
+  color: var(--accent, #7044ca);
+  background: var(--accent-soft, #8056e818);
+  border-color: var(--accent, #7044ca);
+}
+.xamora-code-editor .editor-find button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.xamora-code-editor .editor-find :focus-visible {
+  outline: 2px solid var(--accent, #885bff);
+  outline-offset: 1px;
+}
+.xamora-code-editor .editor-find-status {
+  flex: 1 1 120px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--muted, #696678);
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+.xamora-code-editor mark.editor-search-match {
+  background: var(--search-match-background, #e8ba393a);
+  color: inherit;
+  border-radius: 1px;
+  outline: 1px solid var(--search-match-border, #cf971790);
+}
+@media (pointer: coarse) {
+  .xamora-code-editor .editor-find button,
+  .xamora-code-editor .editor-find input {
+    min-height: 44px;
+  }
+  .xamora-code-editor .editor-find button {
+    min-width: 44px;
+  }
+  .xamora-code-editor .editor-find-row [data-find-query] {
+    flex-basis: 100%;
+    box-sizing: border-box;
+  }
+}
+@media (forced-colors: active) {
+  .xamora-code-editor mark.editor-search-match {
+    outline-color: Highlight;
+  }
+}

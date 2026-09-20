@@ -663,8 +663,12 @@ export class DockingStudio {
           this.refreshProblems();
           return this.control.show('problems');
         }
-        if (action === 'find-code' || action === 'format' || action === 'apply-code')
-          this.control.show('xaml');
+        if (
+          ['find-code', 'replace-code', 'find-next-code', 'find-previous-code'].includes(action)
+        ) {
+          if (this.control.activate('xaml', { focus: false }) === false) return false;
+          s.editor.input.ownerDocument.defaultView?.focus();
+        } else if (action === 'format' || action === 'apply-code') this.control.show('xaml');
         if (action === 'add') this.control.show('toolkit');
         if (action === 'raw-properties') this.control.show('raw');
         if (action === 'tree-search') this.control.show('layers');

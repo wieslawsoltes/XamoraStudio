@@ -44,6 +44,7 @@ export function renderEditorTokens(
   tokens: IndexedEditorToken[] | null,
   start?: number,
   end?: number,
+  matches?: readonly { start: number; end: number }[],
 ): string;
 export function editorVirtualization(options?: boolean | EditorVirtualizationOptions): {
   threshold: number;
