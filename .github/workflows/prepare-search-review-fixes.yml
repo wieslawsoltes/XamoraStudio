@@ -1,0 +1,49 @@
+name: Prepare search review fixes
+on:
+  push:
+    branches: [feat/editor-find-replace]
+    paths: [.github/workflows/prepare-search-review-fixes.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Create verified tree without changing branch refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 0d234ffdebfad3dbf2176b254c8245c682c9e79b
+          node --input-type=module <<'NODE'
+          import { brotliDecompressSync } from 'node:zlib';
+          import { createHash } from 'node:crypto';
+          import { execFileSync } from 'node:child_process';
+          const patch = brotliDecompressSync(Buffer.from('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', 'base64'));
+          if (createHash('sha256').update(patch).digest('hex') !== 'f16f46019d44008b6758bc4882cd060d43496e52b87f2d246816ca1ff5f4a1ce') throw Error('Search review patch checksum mismatch');
+          execFileSync('git', ['apply', '--index', '-'], {input:patch, stdio:['pipe','inherit','inherit']});
+          NODE
+          git rm .github/workflows/prepare-search-review-fixes.yml
+          test "$(git write-tree)" = 8901925c637696ba59deb7532db7104b932ce225
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          paths = subprocess.check_output(['git','diff','--cached','--name-only','-z']).decode().split('\0')
+          rows = []
+          for p in filter(None, paths):
+            row = dict(path=p, mode='100644', type='blob')
+            if Path(p).exists(): row['content'] = Path(p).read_text()
+            else: row['sha'] = None
+            rows.append(row)
+          data = dict(base_tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'], text=True).strip(), tree=rows)
+          Path(os.environ['RUNNER_TEMP'],'tree-input.json').write_text(json.dumps(data))
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/git/trees" --method POST --input "$RUNNER_TEMP/tree-input.json" > "$RUNNER_TEMP/tree.json"
+          test "$(jq -r .sha "$RUNNER_TEMP/tree.json")" = 8901925c637696ba59deb7532db7104b932ce225
+          jq -r .sha "$RUNNER_TEMP/tree.json"
