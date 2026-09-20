@@ -266,6 +266,13 @@
   .xamora-code-editor .editor-find input {
     min-height: 44px;
   }
+  .xamora-code-editor .editor-find button {
+    min-width: 44px;
+  }
+  .xamora-code-editor .editor-find-row [data-find-query] {
+    flex-basis: 100%;
+    box-sizing: border-box;
+  }
 }
 @media (forced-colors: active) {
   .xamora-code-editor mark.editor-search-match {

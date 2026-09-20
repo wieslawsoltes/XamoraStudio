@@ -207,6 +207,45 @@ try {
     s.editor.search.refresh();
   });
   await page.screenshot({ path: resolve(root, 'test-results/ux/21-editor-find-replace.png') });
+  // Repeat narrow coarse-pointer layout and actual taps for both distributions.
+  const touch = await browser.newContext({ viewport: { width: 390, height: 700 }, hasTouch: true });
+  try {
+    const mobile = await touch.newPage();
+    mobile.on('pageerror', (error) => errors.push(error.message));
+    mobile.on('response', (response) => {
+      if (response.status() >= 400) failures.push(response.url());
+    });
+    for (const source of [
+      '/controls/code-editor.js',
+      '/packages/code-editor/dist/browser/index.js',
+    ]) {
+      await mobile.goto(base + '/search-native/');
+      await mobile.evaluate(async (source) => {
+        const api = await import(source);
+        const { runEditorSearchTouchCases } = await import('/tests/editor-search-native-cases.mjs');
+        window.touchEditor = runEditorSearchTouchCases(api, document.querySelector('#host'));
+      }, source);
+      await mobile.getByRole('button', { name: 'Next match', exact: true }).tap();
+      assert.equal(
+        await mobile.evaluate(() => {
+          const input = window.touchEditor.input;
+          return input.value.slice(input.selectionStart, input.selectionEnd);
+        }),
+        'Save',
+      );
+      await mobile.getByRole('button', { name: 'Replace all', exact: true }).tap();
+      assert.equal(
+        await mobile.evaluate(() => window.touchEditor.getValue().includes('Save')),
+        false,
+      );
+      await mobile.screenshot({
+        path: resolve(root, 'test-results/ux/22-editor-search-touch.png'),
+      });
+      await mobile.evaluate(() => window.touchEditor.dispose());
+    }
+  } finally {
+    await touch.close();
+  }
   assert.deepEqual(errors, []);
   assert.deepEqual(failures, []);
   console.log(

@@ -78,3 +78,35 @@ export async function runEditorSearchNativeCases({ CodeEditor, TextSearchIndex }
     'Disposal releases search and editor DOM',
   );
 }
+
+/** Coarse-pointer geometry and hit targets; caller supplies a narrow touch browser context. */
+export function runEditorSearchTouchCases({ CodeEditor }, host) {
+  const check = (condition, message) => {
+    if (!condition) throw Error(message);
+  };
+  const view = host.ownerDocument.defaultView;
+  check(view.matchMedia('(pointer: coarse)').matches, 'A coarse-pointer test context is required');
+  host.style.width = '100%';
+  host.style.height = '520px';
+  const code = new CodeEditor(host, { language: 'XAML' });
+  code.setValue('<Grid>\n  <Button Content="Save"/>\n  <Button Content="Save"/>\n</Grid>');
+  code.input.setSelectionRange(0, 0);
+  code.find({ replace: true, seed: false });
+  code.search.query.value = 'Save';
+  code.search.replacement.value = 'Continue';
+  code.search.refresh();
+  const parent = host.getBoundingClientRect();
+  for (const button of code.search.host.querySelectorAll('[data-find]')) {
+    const rect = button.getBoundingClientRect();
+    check(rect.width >= 44 && rect.height >= 44, 'Square touch target: ' + button.dataset.find);
+    check(
+      rect.left >= parent.left && rect.right <= parent.right,
+      'Touch action stays within editor',
+    );
+  }
+  check(
+    code.search.query.getBoundingClientRect().width >= 200,
+    'Narrow touch layout keeps query readable',
+  );
+  return code;
+}
