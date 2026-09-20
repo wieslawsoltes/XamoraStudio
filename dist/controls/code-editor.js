@@ -547,7 +547,9 @@ export class CodeEditor {
       this.hideCompletions();
       this.onSemanticCommand(
         e.key === 'F2'
-          ? 'language-rename'
+          ? e.shiftKey
+            ? 'language-rename-tag'
+            : 'language-rename'
           : e.key === 'F12'
             ? e.shiftKey
               ? 'language-references'

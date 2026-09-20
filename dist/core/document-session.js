@@ -171,12 +171,46 @@ export function patchDocumentSource(
     const old = oldById.get(n.id),
       span = index.byId.get(n.id);
     if (old && span && sameNode(old, n)) return source.slice(span.start, span.end);
-    if (!old || !span)
-      return adapter.serializeNode
-        ? adapter.serializeNode(n, parentType)
-        : html
-          ? serializeHtmlNode(n, parentType)
-          : serializeNode(n, 0, { lineWidth: Infinity });
+    if (!old || !span) {
+      const serialize = (node) =>
+        adapter.serializeNode
+          ? adapter.serializeNode(node, parentType)
+          : html
+            ? serializeHtmlNode(node, parentType)
+            : serializeNode(node, 0, { lineWidth: Infinity });
+      // A new wrapper can own existing source-backed children. Serialize only its
+      // shell, not the moved subtrees: quotes, entities, comments and whitespace
+      // inside those subtrees still belong to their original concrete ranges.
+      const childSpans = (n.children || []).map((c) => index.byId.get(c.id));
+      if (
+        n.kind === 'element' &&
+        childSpans.length &&
+        childSpans.every(
+          (s, i) =>
+            s &&
+            !s.synthetic &&
+            (i === 0 ||
+              (s.start >= childSpans[i - 1].end &&
+                index.parentIds.get(s.nodeId) === index.parentIds.get(childSpans[0].nodeId))),
+        )
+      ) {
+        const shell = serialize({ ...n, children: [] }),
+          token = scanSource(shell, { html }).tokens.find((t) => t.kind === 'element');
+        if (token && !token.void) {
+          let body = '',
+            cursor = childSpans[0].start;
+          n.children.forEach((child, i) => {
+            const s = childSpans[i];
+            body += source.slice(cursor, s.start) + render(child, n.type);
+            cursor = s.end;
+          });
+          return (
+            shell.slice(0, token.openEnd).replace(/\s*\/\s*>$/, '>') + body + '</' + n.type + '>'
+          );
+        }
+      }
+      return serialize(n);
+    }
     if (n.kind !== 'element') {
       if (n.kind === 'text')
         return html && HTML_RAW.has(parentType)
@@ -284,6 +318,18 @@ export function patchDocumentSource(
       cursor = s.end;
     }
     const trailing = source.slice(cursor, end);
+    // A newly inserted wrapper inherits the whitespace preceding its first moved
+    // child, rather than an unrelated separator elsewhere in the old container.
+    for (const child of bb) {
+      const first = child.children?.[0];
+      if (
+        !leading.has(child.id) &&
+        first &&
+        leading.has(first.id) &&
+        index.parentIds.get(first.id) === old.id
+      )
+        leading.set(child.id, leading.get(first.id));
+    }
     const separators = spans
       .map((s) => leading.get(s.nodeId))
       .filter((s) => /^\s*$/.test(s) && s.includes('\n'));

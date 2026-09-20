@@ -1,0 +1,17 @@
+.markup-refactor pre {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: 12px/1.6 var(--mono, monospace);
+}
+.markup-refactor [data-refactor-status] {
+  font-weight: 600;
+}
+.markup-refactor ul {
+  padding-left: 22px;
+}

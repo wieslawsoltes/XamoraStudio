@@ -105,6 +105,7 @@ export const packageLayout = [
       'xaml-language',
       'markup-context',
       'language-service',
+      'markup-refactoring',
       'html-animation',
       'html-states',
     ],

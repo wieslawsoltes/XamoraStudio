@@ -1,3 +1,4 @@
+import { RefactorWorkspace } from './refactor-workspace.js';
 import { LanguageWorkspace } from './language-workspace.js';
 import { DocumentSync } from './document-sync.js';
 import { HtmlWorkspace } from './html-workspace.js';
@@ -28,7 +29,7 @@ export class EditorWorkspace {
     new ChromeScroll(s);
     let restored = false;
     try {
-      if (savedLayout && savedLayout.includes('\"solution\"')) {
+      if (savedLayout && savedLayout.includes('"solution"')) {
         s.docking.model.load(savedLayout, { reconcile: true });
         restored = true;
       }
@@ -77,6 +78,7 @@ export class EditorWorkspace {
     };
     new DocumentSync(s);
     new LanguageWorkspace(s);
+    new RefactorWorkspace(s);
     s.render();
     const mode = localStorage.getItem('xamora-document-mode');
     if (!restored && ['design', 'code', 'split', 'views'].includes(mode) && !s.editor.dirty)
