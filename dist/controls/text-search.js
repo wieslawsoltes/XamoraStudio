@@ -6,16 +6,6 @@ function offset(value, length) {
   if (!Number.isSafeInteger(value) || value < 0 || value > length)
     throw new RangeError('Search range must use UTF-16 offsets within the source.');
 }
-function before(source, at) {
-  if (!at) return '';
-  const tail = source.charCodeAt(at - 1);
-  const head = source.charCodeAt(at - 2);
-  const pair = tail >= 0xdc00 && tail <= 0xdfff && head >= 0xd800 && head <= 0xdbff;
-  return source.slice(pair ? at - 2 : at - 1, at);
-}
-function after(source, at) {
-  return at === source.length ? '' : String.fromCodePoint(source.codePointAt(at));
-}
 /** Immutable nonoverlapping matches. Regex syntax and replacement substitutions are never executed. */
 export class TextSearchIndex {
   constructor(
@@ -40,18 +30,15 @@ export class TextSearchIndex {
       // All metacharacters are escaped. /iu performs Unicode simple folding without
       // changing the source length (lowercasing the entire source would shift offsets).
       const pattern = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const expression = new RegExp(pattern, matchCase ? 'gu' : 'giu');
+      // Fixed one-code-point boundary assertions reject starts before testing a long
+      // literal and retry overlapping candidates without consuming rejected phrases.
+      const bounded = wholeWord ? `(?<!${word.source})${pattern}(?!${word.source})` : pattern;
+      const expression = new RegExp(bounded, matchCase ? 'gu' : 'giu');
       expression.lastIndex = start;
       for (let match; (match = expression.exec(source)) && match.index + match[0].length <= end;) {
         const at = match.index,
           until = at + match[0].length;
         if (at < start) continue;
-        if (wholeWord && (word.test(before(source, at)) || word.test(after(source, until)))) {
-          // A rejected phrase may overlap the next valid occurrence ("xa a a", "a a").
-          // Only accepted matches consume their full range; retry at the next code point.
-          expression.lastIndex = at + after(source, at).length;
-          continue;
-        }
         if (matches.length === maxMatches) {
           truncated = true;
           break;
