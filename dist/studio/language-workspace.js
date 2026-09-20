@@ -235,21 +235,25 @@ export class LanguageWorkspace {
   }
   navigate(location, { record = true } = {}) {
     if (!this.ready()) return false;
-    const target = { ...location, documentId: location.documentId || this.s.doc.id };
-    if (record) {
-      this.back.push(this.current());
-      if (this.back.length > 100) this.back.shift();
-      this.forward = [];
-    }
+    const target = { ...location, documentId: location.documentId || this.s.doc.id },
+      previous = record ? this.current() : null;
     if (target.documentId !== this.s.doc.id) {
       const index = this.s.stores.findIndex((store) => store.document.id === target.documentId);
       if (index < 0) return false;
       this.s.switchDocument(index);
       if (this.s.doc.id !== target.documentId) return false;
     }
-    this.s.docking.control.show('xaml');
+    // Navigation owns the exact text target. show() would queue generic panel focus
+    // and later move focus to the source toolbar's first button, especially in popups.
+    if (this.s.docking.control.activate('xaml', { focus: false }) === false) return false;
+    if (record) {
+      this.back.push(previous);
+      if (this.back.length > 100) this.back.shift();
+      this.forward = [];
+    }
     const editor = this.s.editor;
-    editor.input.focus();
+    editor.input.ownerDocument.defaultView?.focus();
+    editor.input.focus({ preventScroll: true });
     editor.input.setSelectionRange(target.start, target.end ?? target.start);
     editor.reveal(target.start);
     editor.cursor(true);
@@ -259,9 +263,12 @@ export class LanguageWorkspace {
     const from = forward ? this.forward : this.back,
       to = forward ? this.back : this.forward;
     if (!from.length || !this.ready()) return false;
-    const target = from.pop();
-    to.push(this.current());
-    return this.navigate(target, { record: false });
+    const target = from.at(-1),
+      previous = this.current();
+    if (!this.navigate(target, { record: false })) return false;
+    from.pop();
+    to.push(previous);
+    return true;
   }
   rename(offset) {
     const definitions = this.service.definitionAt(offset);
