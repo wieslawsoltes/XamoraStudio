@@ -126,6 +126,16 @@
         "types": "./dist/cjs/markup-context.d.cts",
         "default": "./dist/cjs/markup-context.cjs"
       }
+    },
+    "./markup-refactoring": {
+      "import": {
+        "types": "./dist/esm/markup-refactoring.d.ts",
+        "default": "./dist/esm/markup-refactoring.js"
+      },
+      "require": {
+        "types": "./dist/cjs/markup-refactoring.d.cts",
+        "default": "./dist/cjs/markup-refactoring.cjs"
+      }
     }
   },
   "files": [
