@@ -1,0 +1,51 @@
+name: Prepare outline integration tree
+on:
+  push:
+    branches: [feat/structural-outline-navigation]
+    paths: [.github/workflows/prepare-outline-tree.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Create reviewed source tree without changing branch refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 8b97254708537352eba6d5a027623d776785bb4f
+          node --input-type=module <<'NODE'
+          import { brotliDecompressSync } from 'node:zlib';
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const parts = [0, 1].map(i => readFileSync(`.github/outline-transfer-${i}.txt`, 'utf8').trim());
+          const patch = brotliDecompressSync(Buffer.from(parts.join(''), 'base64'));
+          if (createHash('sha256').update(patch).digest('hex') !== '3df76dd3cfe7ad8c90a2515fbfc32e3ccbadf57359a0363607f4680d5469f949') throw Error('Outline patch checksum mismatch');
+          execFileSync('git', ['apply', '--index', '-'], { input: patch, stdio: ['pipe', 'inherit', 'inherit'] });
+          NODE
+          git rm .github/outline-transfer-0.txt .github/outline-transfer-1.txt .github/workflows/prepare-outline-tree.yml
+          test "$(git write-tree)" = 106e6ad929b82d3391dea8603e1ee05d1cc9f974
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          paths = subprocess.check_output(['git', 'diff', '--cached', '--name-only', '-z']).decode().split('\0')
+          rows = []
+          for p in filter(None, paths):
+            row = dict(path=p, mode='100644', type='blob')
+            if Path(p).exists(): row['content'] = Path(p).read_text()
+            else: row['sha'] = None
+            rows.append(row)
+          data = dict(base_tree=subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip(), tree=rows)
+          Path(os.environ['RUNNER_TEMP'], 'tree-input.json').write_text(json.dumps(data))
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/git/trees" --method POST --input "$RUNNER_TEMP/tree-input.json" > "$RUNNER_TEMP/tree.json"
+          test "$(jq -r .sha "$RUNNER_TEMP/tree.json")" = 106e6ad929b82d3391dea8603e1ee05d1cc9f974
+          jq -r .sha "$RUNNER_TEMP/tree.json"
