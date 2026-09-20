@@ -84,6 +84,8 @@ export class MenuBar {
       ]) {
         const part = document.createElement(tag);
         part.className = cls;
+        // Checked/expanded state is conveyed by ARIA, not spoken decoration.
+        if (cls === 'menu-check' || cls === 'menu-arrow') part.setAttribute('aria-hidden', 'true');
         b.append(part);
       }
       b.children[0].textContent = this.value(entry.checked, false) ? '✓' : '';
