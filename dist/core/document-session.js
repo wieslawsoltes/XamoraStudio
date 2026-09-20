@@ -232,7 +232,17 @@ export function patchDocumentSource(
     const edits = [];
     if (n.type !== old.type) edits.push({ start: span.nameStart, end: span.nameEnd, text: n.type });
     const seen = new Set();
-    for (const a of span.attrs) {
+    // The HTML source scanner lowercases names; foreign DOM projection adjusts
+    // SVG/MathML attribute spelling. Preserve the authored value/quote ranges
+    // while comparing against the actual AST key (e.g. gradientUnits/viewBox).
+    const foreignAttributes =
+      html && old.namespaceURI && old.namespaceURI !== 'http://www.w3.org/1999/xhtml'
+        ? new Map(Object.keys(old.props).map((name) => [name.toLowerCase(), name]))
+        : null;
+    for (const raw of span.attrs) {
+      const a = foreignAttributes?.has(raw.name)
+        ? { ...raw, name: foreignAttributes.get(raw.name) }
+        : raw;
       seen.add(a.name);
       if (!Object.hasOwn(n.props, a.name)) {
         edits.push({ start: a.fullStart, end: a.end, text: '' });
@@ -388,6 +398,7 @@ export class DocumentSession extends EventTarget {
     if (!store?.addCommitHook)
       throw Error('DocumentSession requires a DocumentStore with atomic commit hooks.');
     this.store = store;
+    this.disposed = false;
     this.adapters = { ...sourceAdapters, ...adapters };
     this.origin = 'visual';
     this._applying = false;
@@ -1042,6 +1053,8 @@ export class DocumentSession extends EventTarget {
     return this;
   }
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
     this._removeHook?.();
     this.store.removeEventListener('change', this._onStoreChange);
   }

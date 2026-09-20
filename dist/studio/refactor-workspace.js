@@ -3,7 +3,7 @@ import { find, parentOf, isProperty, isXamlInline } from '../core/model.js';
 import { isLocked } from '../core/design-tools.js';
 import { esc, notify } from './ui.js';
 
-/** Source and canvas commands share the same reviewed, revision-checked AST plans. */
+/** Source and canvas commands share reviewed, revision-checked AST plans. */
 export class RefactorWorkspace {
   constructor(studio) {
     this.s = studio;
@@ -26,7 +26,7 @@ export class RefactorWorkspace {
           id,
           label,
           shortcut,
-          run: () => this.open(kind, scope),
+          run: () => !this.disposed && this.open(kind, scope),
           enabled: () =>
             !this.disposed &&
             !studio.editor.input.readOnly &&
@@ -36,7 +36,11 @@ export class RefactorWorkspace {
         },
       ]),
     );
-    for (const [id, command] of this.commands) studio.menus.commands.set(id, command);
+    this.previousCommands = new Map();
+    for (const [id, command] of this.commands) {
+      this.previousCommands.set(id, studio.menus.commands.get(id));
+      studio.menus.commands.set(id, command);
+    }
     this.menuEntries = [];
     for (const [menu, prefix] of [
       ['Edit', 'language-'],
@@ -44,26 +48,31 @@ export class RefactorWorkspace {
     ]) {
       const parent = studio.menus.menus.find((m) => m.label === menu);
       if (!parent) continue;
-      const separator = { separator: true };
-      const entry = {
-        label: 'Refactor markup',
-        children: [...this.commands.values()].filter((c) => c.id.startsWith(prefix)),
-      };
+      const separator = { separator: true },
+        entry = {
+          label: 'Refactor markup',
+          children: [...this.commands.values()].filter((c) => c.id.startsWith(prefix)),
+        };
       parent.children.push(separator, entry);
       this.menuEntries.push([parent, separator, entry]);
     }
-    const command = studio.command.bind(studio);
     this.previousCommand = studio.command;
+    const command = studio.command.bind(studio);
     this.command = studio.command = (id, event) =>
-      this.commands.has(id) ? this.commands.get(id).run() : command(id, event);
-    const semantic = studio.editor.onSemanticCommand;
-    this.previousSemantic = semantic;
+      !this.disposed && this.commands.has(id) ? this.commands.get(id).run() : command(id, event);
+    this.previousSemantic = studio.editor.onSemanticCommand;
+    const semantic = this.previousSemantic;
     this.semantic = studio.editor.onSemanticCommand = (id) =>
-      this.commands.has(id) ? this.commands.get(id).run() : semantic?.(id);
+      !this.disposed && this.commands.has(id) ? this.commands.get(id).run() : semantic?.(id);
     this.previousAPI = this.apiHost.xamora.refactoring;
     this.api = this.apiHost.xamora.refactoring = {
       open: (kind = 'rename', scope = 'source') => this.open(kind, scope),
-      linkedTagRanges: (offset) => (this.disposed ? [] : this.service.linkedTagRanges(offset)),
+      linkedTagRanges: (offset) =>
+        this.disposed ||
+        studio.editor.composing ||
+        studio.editor.input.value !== studio.store.session.source
+          ? []
+          : this.service.linkedTagRanges(offset),
     };
   }
   get service() {
@@ -125,11 +134,10 @@ export class RefactorWorkspace {
       const apply = () => {
         check(true);
         if (!plan) throw Error('Review a valid refactoring proposal first.');
-        // Parents and descendants touched by grouping/removal must respect design locks too.
         if (plan.affectedNodeIds.some((id) => isLocked(s.doc, id)))
           throw Error('Unlock all affected elements before applying this refactor.');
-        const reviewed = plan;
-        const result = service.apply(reviewed);
+        const reviewed = plan,
+          result = service.apply(reviewed);
         s.closeModal();
         s.sync?.updateEditor();
         if (scope === 'source') {
@@ -192,7 +200,7 @@ export class RefactorWorkspace {
           status.textContent =
             plan.before === plan.after
               ? 'Enter a different tag name to change this element.'
-              : 'Validated against the parser. Ready to review.';
+              : 'Source structure validated. Review retained properties and layout warnings.';
           s.dialogHost.setActionDisabled(0, plan.before === plan.after);
           const warnings = dialog.querySelector('[data-refactor-warnings]');
           warnings.replaceChildren();
@@ -215,6 +223,7 @@ export class RefactorWorkspace {
           s.dialogHost.setActionDisabled(0, true);
           status.textContent = error.message;
           dialog.querySelector('[data-refactor-after]').textContent = '';
+          dialog.querySelector('[data-refactor-warnings]').replaceChildren();
         }
       };
       input?.addEventListener('input', update, { signal });
@@ -228,15 +237,18 @@ export class RefactorWorkspace {
         },
         { signal },
       );
-      // A change in another popup invalidates the visible proposal immediately.
+      // Adopted source nodes keep these listeners; input in another window invalidates promptly.
+      s.editor.input.addEventListener('input', update, { signal });
+      s.editor.input.addEventListener('compositionstart', update, { signal });
       const invalidate = () => update();
       session.addEventListener('change', invalidate);
-      s.store.addEventListener('selection', invalidate);
+      session.store.addEventListener('selection', invalidate);
       signal.addEventListener(
         'abort',
         () => {
           session.removeEventListener('change', invalidate);
           session.store.removeEventListener('selection', invalidate);
+          if (this.dialog === dialog) this.dialog = null;
           plan = null;
         },
         { once: true },
@@ -246,7 +258,7 @@ export class RefactorWorkspace {
       input?.select();
       return true;
     } catch (error) {
-      notify(error.message);
+      if (!this.disposed) notify(error.message);
       return false;
     }
   }
@@ -266,6 +278,11 @@ export class RefactorWorkspace {
     if (this.s.editor.onSemanticCommand === this.semantic)
       this.s.editor.onSemanticCommand = this.previousSemantic;
     for (const [id, command] of this.commands)
-      if (this.s.menus.commands.get(id) === command) this.s.menus.commands.delete(id);
+      if (this.s.menus.commands.get(id) === command) {
+        const previous = this.previousCommands.get(id);
+        if (previous) this.s.menus.commands.set(id, previous);
+        else this.s.menus.commands.delete(id);
+      }
+    if (this.s.refactoring === this) this.s.refactoring = null;
   }
 }

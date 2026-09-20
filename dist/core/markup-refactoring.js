@@ -22,6 +22,17 @@ const native = new Set([
   'https://github.com/avaloniaui',
 ]);
 const protectedHTML = new Set(['html', 'head', 'body', 'template']);
+const contentControls = new Set([
+  'Button',
+  'Label',
+  'CheckBox',
+  'RadioButton',
+  'ToggleButton',
+  'ContentControl',
+  'ContentPresenter',
+  'ControlTemplate',
+  'DataTemplate',
+]);
 const owned = (node, parent) =>
   isProperty(node) &&
   localName(node.type).startsWith(localName(parent.type) + '.') &&
@@ -60,15 +71,22 @@ const frozen = (value) => {
   }
   return value;
 };
+const subtreeIds = (nodes) => {
+  const ids = [];
+  for (const node of nodes) walk(node, (n) => ids.push(n.id));
+  return ids;
+};
 
-/** Plans are read-only, session-owned and single-use. No source/model mutation occurs until apply. */
+/** Plans are immutable, session-owned and single-use. Preparation never edits the document. */
 export class MarkupRefactorService {
   #plans = new WeakMap();
+  #applying = false;
   constructor(session, { registry = builtins() } = {}) {
     if (!session?.store || typeof session.sourceAtNode !== 'function')
       throw new TypeError('MarkupRefactorService requires a DocumentSession.');
     this.session = session;
     this.registry = registry;
+    this.disposed = false;
   }
   get document() {
     return this.session.store.document;
@@ -77,6 +95,9 @@ export class MarkupRefactorService {
     return this.document.framework === 'HTML';
   }
   ready() {
+    if (this.disposed || this.session.disposed)
+      throw Error('This refactoring session is disposed.');
+    if (this.#applying) throw Error('A refactoring transaction is already active.');
     if (!this.session.isValid || this.session.source !== this.session.validSource)
       throw Error('Fix source errors before refactoring. The current draft has not been changed.');
   }
@@ -103,7 +124,6 @@ export class MarkupRefactorService {
       throw Error('Document and template boundaries must be edited explicitly in source.');
     if (span.closeNameStart === undefined && !span.selfClosing && !span.void)
       throw Error('Make this element’s closing tag explicit before refactoring.');
-    // An HTML trailing slash is not an actual self-close outside foreign content.
     if (
       this.html &&
       !span.void &&
@@ -114,7 +134,7 @@ export class MarkupRefactorService {
       throw Error('Make this HTML element’s closing tag explicit before refactoring.');
     return { node, span };
   }
-  /** Exact name locations; attributes/text/comment lookalikes never form extra links. */
+  /** Exact UTF-16 tag-name locations, not text/comment/attribute lookalikes. */
   linkedTagRanges(offset) {
     try {
       const { node, span } = this.target(offset);
@@ -165,42 +185,46 @@ export class MarkupRefactorService {
       ? value.toLowerCase()
       : value;
   }
+  descriptor(node) {
+    const ns = node.namespaceURI || '';
+    // Registry.get has a legacy unqualified fallback; do not treat foreign Button as native.
+    if (native.has(ns)) return this.registry.get(localName(node.type), ns);
+    const descriptor = this.registry.get(node.type, ns);
+    return node.type.includes(':') || descriptor?.namespaceURI === ns ? descriptor : undefined;
+  }
   container(node, children) {
-    if (this.html) return; // The native parser and whole-tree comparison are authoritative.
-    const visual = children.filter((n) => n.kind === 'element' && !isProperty(n)),
-      descriptor = native.has(node.namespaceURI || '')
-        ? this.registry.get(localName(node.type))
-        : this.registry.get(node.type, node.namespaceURI);
+    if (this.html) return; // Native HTML parse + full namespace-aware comparison is authoritative.
+    const visual = children.filter((n) => n.kind === 'element' && !isProperty(n));
+    if (isProperty(node)) {
+      const property = localName(node.type).split('.').at(-1);
+      if (!['Children', 'Child', 'Content', 'Items', 'Inlines'].includes(property))
+        throw Error(
+          'Restructure resource and non-content property collections explicitly in source.',
+        );
+      if (property === 'Inlines' && visual.some((n) => !isXamlInline(n)))
+        throw Error('An Inlines collection requires inline elements.');
+      if (['Child', 'Content'].includes(property) && visual.length > 1)
+        throw Error(`${node.type} accepts only one visual child.`);
+      return;
+    }
+    const descriptor = this.descriptor(node),
+      content = native.has(node.namespaceURI || '') && contentControls.has(localName(node.type));
     if (isXamlInlineContainer(node) && visual.some((n) => !isXamlInline(n)))
       throw Error(
         'Text containers accept inline elements; wrap visual controls in InlineUIContainer.',
       );
-    if (
-      !isXamlInlineContainer(node) &&
-      localName(node.type) !== 'InlineUIContainer' &&
-      visual.some(isXamlInline)
-    )
+    if (!isXamlInlineContainer(node) && visual.some(isXamlInline))
       throw Error('Inline elements need a TextBlock or Span-like container.');
-    if (descriptor?.singleChild && visual.length > 1)
+    if ((descriptor?.singleChild || content) && visual.length > 1)
       throw Error(`${node.type} accepts only one visual child.`);
-    if (
-      descriptor &&
-      !descriptor.container &&
-      visual.length &&
-      !['Button', 'Label', 'CheckBox', 'RadioButton', 'ToggleButton', 'ContentControl'].includes(
-        localName(node.type),
-      )
-    )
+    if (descriptor && !descriptor.container && !content && visual.length)
       throw Error(`${node.type} is not a visual container.`);
   }
   prepareRename(target, value) {
     const { node } = this.target(target),
       name = this.name(value, node),
       expected = clone(this.document),
-      next = find(expected.root, node.id),
-      warnings = [
-        'Existing properties, bindings and event handlers are retained. This does not migrate framework APIs or external code-behind.',
-      ];
+      next = find(expected.root, node.id);
     if (!this.html && this.namespace(name, node) !== this.namespace(node.type, node))
       throw Error(
         'Tag renaming must stay in the same XML namespace; edit namespace changes explicitly.',
@@ -214,30 +238,23 @@ export class MarkupRefactorService {
         'Keep the same HTML tag termination kind; document/template boundaries require explicit source editing.',
       );
     next.type = name;
-    const affected = [node.id];
     if (!this.html)
       for (const child of next.children) {
         if (!owned(child, node)) continue;
-        // Keep an existing property-prefix alias while changing the owner's local name.
         const prefix = child.type.includes(':') ? child.type.split(':')[0] + ':' : '';
         child.type =
           prefix +
           localName(name) +
           '.' +
           localName(child.type).slice(localName(node.type).length + 1);
-        affected.push(child.id);
       }
     this.container(next, next.children);
     const parent = this.parents().get(node.id);
+    // Content wrappers get the same single-child and inline rules as their owners.
     if (
-      !this.html &&
       parent &&
-      isProperty(parent) &&
-      /\.Inlines$/.test(parent.type) &&
-      !isXamlInline(next)
+      (!isProperty(parent) || /\.(Children|Child|Content|Items|Inlines)$/.test(parent.type))
     )
-      throw Error('An Inlines collection requires inline elements.');
-    if (parent && !isProperty(parent))
       this.container(
         parent,
         parent.children.map((n) => (n.id === node.id ? next : n)),
@@ -246,17 +263,27 @@ export class MarkupRefactorService {
       'rename',
       expected,
       next.id,
-      affected,
-      warnings,
+      subtreeIds([node]),
+      [
+        'Existing properties, bindings and event handlers are retained. This does not migrate framework APIs or external code-behind.',
+      ],
       `Rename ${node.type} to ${name}`,
     );
   }
   prepareWrap(targets, value) {
-    const ids = [...new Set(Array.isArray(targets) ? targets : [targets])],
-      entries = ids.map((id) => this.target(id)),
+    const values = Array.isArray(targets) ? targets : [targets];
+    if (!values.length) throw Error('Choose sibling elements to wrap.');
+    const entries = [
+        ...new Map(
+          values.map((id) => {
+            const e = this.target(id);
+            return [e.node.id, e];
+          }),
+        ).values(),
+      ],
       parents = this.parents(),
-      parent = parents.get(entries[0]?.node.id);
-    if (!entries.length || !parent || entries.some((e) => parents.get(e.node.id)?.id !== parent.id))
+      parent = parents.get(entries[0].node.id);
+    if (!parent || entries.some((e) => parents.get(e.node.id)?.id !== parent.id))
       throw Error('Choose sibling elements within one explicit container, not a document root.');
     const positions = entries
         .map((e) => parent.children.findIndex((n) => n.id === e.node.id))
@@ -287,23 +314,23 @@ export class MarkupRefactorService {
     )
       throw Error('Choose a normal container for the wrapper.');
     if (!this.html) {
-      const descriptor = native.has(namespaceURI)
-        ? this.registry.get(localName(name))
-        : this.registry.get(name, namespaceURI);
-      if (!descriptor?.container) throw Error('Choose a registered container for wrapping.');
-      if (isProperty(parent) && /\.Inlines$/.test(parent.type) && !isXamlInline(wrapper))
-        throw Error('An Inlines collection requires an inline wrapper.');
+      if (!this.descriptor(wrapper)?.container)
+        throw Error('Choose a registered container for wrapping.');
+      wrapper.scope = clone(parent.scope || {});
+      wrapper.space = parent.space;
+      // Optional parser metadata must never create an undefined history value.
+      if (wrapper.space === undefined) delete wrapper.space;
     }
     this.container(wrapper, moving);
     const expected = clone(this.document),
       nextParent = find(expected.root, parent.id);
     wrapper.children = nextParent.children.splice(first, last - first + 1, wrapper);
-    if (!isProperty(parent)) this.container(nextParent, nextParent.children);
+    this.container(nextParent, nextParent.children);
     return this.plan(
       'wrap',
       expected,
       wrapper.id,
-      [parent.id, ...moving.map((n) => n.id)],
+      [parent.id, ...subtreeIds(moving)],
       [
         'Wrapping may change layout, inheritance, selectors and data context. No properties are moved onto the wrapper.',
       ],
@@ -327,33 +354,47 @@ export class MarkupRefactorService {
       throw Error(
         'Move namespace declarations, xml:space and property elements explicitly before removing this wrapper.',
       );
-    if (
-      !this.html &&
-      isProperty(parent) &&
-      /\.Inlines$/.test(parent.type) &&
-      node.children.some((n) => n.kind === 'element' && !isXamlInline(n))
-    )
-      throw Error('Unwrapping would place non-inline elements in an Inlines collection.');
     const expected = clone(this.document),
       nextParent = find(expected.root, parent.id),
       index = nextParent.children.findIndex((n) => n.id === node.id),
       children = nextParent.children[index].children;
     nextParent.children.splice(index, 1, ...children);
-    if (!isProperty(parent)) this.container(nextParent, nextParent.children);
+    this.container(nextParent, nextParent.children);
     const properties = Object.keys(node.props);
     return this.plan(
       'unwrap',
       expected,
       children.find((n) => n.kind === 'element')?.id || parent.id,
-      [parent.id, node.id, ...children.map((n) => n.id)],
+      [parent.id, ...subtreeIds([node])],
       [
         `Removing ${node.type} also removes its attributes${properties.length ? ': ' + properties.join(', ') : ''}. Layout, inheritance and references may change.`,
       ],
       `Unwrap ${node.type}`,
     );
   }
+  stamp() {
+    return {
+      source: this.session.source,
+      revision: this.session.revision,
+      version: this.session.buffer.version,
+      state: JSON.stringify(this.document),
+    };
+  }
+  assertCurrent(data) {
+    if (this.disposed || this.session.disposed || !this.session.isValid)
+      throw Error('The refactoring session is no longer available.');
+    if (
+      data.source !== this.session.source ||
+      data.revision !== this.session.revision ||
+      data.version !== this.session.buffer.version ||
+      data.state !== JSON.stringify(this.document)
+    )
+      throw Error('The document changed. Review a new refactoring proposal.');
+  }
   plan(kind, expected, selectedId, affectedNodeIds, warnings, title) {
-    const before = this.session.source;
+    this.ready();
+    const data = this.stamp(),
+      before = data.source;
     validateDocument(expected);
     const after = patchDocumentSource(before, this.document, expected, {
       adapter: this.session.adapter,
@@ -363,11 +404,11 @@ export class MarkupRefactorService {
       name: this.document.name,
       framework: this.document.framework,
     });
-    validateDocument(parsed);
-    if (shape(parsed) !== shape(expected))
+    if (shape(validateDocument(parsed)) !== shape(expected))
       throw Error(
         'This refactor would change additional structure, text or namespaces during parsing. Make the source container explicit or choose another tag.',
       );
+    this.assertCurrent(data);
     const plan = frozen({
       kind,
       title,
@@ -376,15 +417,10 @@ export class MarkupRefactorService {
       selectedId,
       affectedNodeIds: [...new Set(affectedNodeIds)],
       warnings,
-      revision: this.session.revision,
+      revision: data.revision,
       documentId: this.document.id,
     });
-    this.#plans.set(plan, {
-      root: expected.root,
-      source: before,
-      revision: plan.revision,
-      version: this.session.buffer.version,
-    });
+    this.#plans.set(plan, { ...data, root: clone(expected.root) });
     return plan;
   }
   apply(plan) {
@@ -392,30 +428,44 @@ export class MarkupRefactorService {
     const data = plan && this.#plans.get(plan);
     if (!data)
       throw Error('This refactoring proposal is unknown, consumed, or belongs to another session.');
-    if (
-      plan.documentId !== this.document.id ||
-      data.source !== this.session.source ||
-      data.revision !== this.session.revision ||
-      data.version !== this.session.buffer.version
-    )
-      throw Error('The document changed. Review a new refactoring proposal.');
-    // Recheck the preview through the authoritative adapter before entering a transaction.
-    const expected = { ...this.document, root: clone(data.root) };
-    const parsed = this.session.adapter.parse(plan.after, {
-      name: this.document.name,
-      framework: this.document.framework,
-    });
-    if (shape(validateDocument(parsed)) !== shape(expected))
-      throw Error('The parser configuration changed. Review a new refactoring proposal.');
-    this.session.store.transaction(plan.title, (draft) => {
-      draft.root = clone(data.root);
-    });
-    this.#plans.delete(plan);
+    this.assertCurrent(data);
+    const changed = plan.before !== plan.after;
+    this.#applying = true;
+    try {
+      const expected = { ...this.document, root: clone(data.root) };
+      const parsed = this.session.adapter.parse(plan.after, {
+        name: this.document.name,
+        framework: this.document.framework,
+      });
+      if (shape(validateDocument(parsed)) !== shape(expected))
+        throw Error('The parser configuration changed. Review a new refactoring proposal.');
+      // Adapters are caller-provided code; reentrant changes invalidate the proposal too.
+      this.assertCurrent(data);
+      if (changed) {
+        // Final hook checks the exact reviewed source after the session's source patch hook.
+        const removeCheck = this.session.store.addCommitHook(({ document }) => {
+          if (document.metadata?.source?.text !== plan.after || shape(document) !== shape(expected))
+            throw Error(
+              'The applied source differs from the reviewed proposal. No refactor was committed.',
+            );
+        });
+        try {
+          this.session.store.transaction(plan.title, (draft) => {
+            draft.root = clone(data.root);
+          });
+        } finally {
+          removeCheck();
+        }
+      }
+      this.#plans.delete(plan);
+    } finally {
+      this.#applying = false;
+    }
     this.session.store.select([plan.selectedId]);
-    return {
-      changed: plan.before !== plan.after,
-      revision: this.session.revision,
-      selectedId: plan.selectedId,
-    };
+    return { changed, revision: this.session.revision, selectedId: plan.selectedId };
+  }
+  dispose() {
+    this.disposed = true;
+    this.#plans = new WeakMap();
   }
 }

@@ -91,6 +91,7 @@ export declare function patchDocumentSource(
   options?: { adapter?: SourceAdapter; index?: unknown },
 ): string;
 export declare class DocumentSession extends EventTarget {
+  readonly disposed: boolean;
   constructor(
     store: DocumentStore,
     options?: { source?: string; adapters?: Record<string, SourceAdapter>; incremental?: boolean },

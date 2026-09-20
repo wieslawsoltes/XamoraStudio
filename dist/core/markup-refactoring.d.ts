@@ -13,8 +13,8 @@ export interface MarkupRefactorPlan {
   readonly documentId: string;
 }
 /** AST-first plans preflight concrete source, semantic structure and namespaces.
- * Review a plan before apply. Plans are immutable, single-use and owned by this service.
- * This is not full native control/property API migration or an HTML content-model validator.
+ * Review before apply. Plans are immutable, single-use and owned by this service.
+ * This is not native property API migration or exhaustive content-model validation.
  */
 export declare class MarkupRefactorService {
   constructor(
@@ -22,12 +22,15 @@ export declare class MarkupRefactorService {
     options?: { registry?: { get(type: string, namespace?: string): any } },
   );
   readonly session: DocumentSession;
-  /** UTF-16 tag-name ranges only; never fabricated for an invalid draft or implicit HTML tag. */
+  readonly disposed: boolean;
+  /** UTF-16 tag-name ranges; never fabricated for invalid drafts or implicit tags. */
   linkedTagRanges(offset: number): Omit<MarkupRange, 'kind'>[];
-  /** A target is an authored AST node ID or a UTF-16 caret offset inside that element. */
+  /** A target is an authored AST ID or a UTF-16 offset inside that element. */
   prepareRename(target: string | number, name: string): MarkupRefactorPlan;
-  /** Multiple targets must be consecutive siblings; intervening text/comments move with them. */
+  /** Consecutive siblings; intervening text/comments move with the elements. */
   prepareWrap(targets: string | number | (string | number)[], wrapper: string): MarkupRefactorPlan;
   prepareUnwrap(target: string | number): MarkupRefactorPlan;
   apply(plan: MarkupRefactorPlan): { changed: boolean; revision: number; selectedId: string };
+  /** Invalidates all outstanding proposals. */
+  dispose(): void;
 }
