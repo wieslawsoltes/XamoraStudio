@@ -73,7 +73,12 @@ export class OutlineTree {
       this.observer = new window.ResizeObserver(() => this.schedule());
       this.observer.observe(this.element);
     }
-    this.install(data);
+    try {
+      this.install(data);
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
   }
   listen(target, type, callback) {
     target.addEventListener(type, callback);
@@ -154,7 +159,12 @@ export class OutlineTree {
   setItems(items) {
     if (this.disposed) return;
     const data = this.validate(items);
-    this.install(data);
+    try {
+      this.install(data);
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
   }
   setFilter(query) {
     if (this.disposed) return;
@@ -308,6 +318,14 @@ export class OutlineTree {
     // Keep the active descendant in the accessibility tree even when pointer scrolling away.
     const active = this.positions.get(this.activeId);
     if (active !== undefined) indexes.add(active);
+    for (const index of [...indexes]) {
+      for (let item = this.visible[index].item; item.parentId !== null;) {
+        const parentIndex = this.positions.get(item.parentId);
+        if (parentIndex === undefined) break;
+        indexes.add(parentIndex);
+        item = this.visible[parentIndex].item;
+      }
+    }
     const needed = new Set([...indexes].map((i) => this.visible[i].item.id));
     for (const [id, row] of this.rows)
       if (!needed.has(id)) {
@@ -334,7 +352,7 @@ export class OutlineTree {
         this.rows.set(item.id, row);
       }
       row.id = this.prefix + index;
-      row.style.top = `${index * this.rowHeight}px`;
+      row.style.top = `${(index - (this.positions.get(item.parentId) ?? 0)) * this.rowHeight}px`;
       row.style.height = `${this.rowHeight}px`;
       row.style.paddingInlineStart = `${6 + item.depth * 14}px`;
       row.setAttribute('aria-level', String(item.depth + 1));
@@ -354,7 +372,15 @@ export class OutlineTree {
       row.children[1].textContent = item.label;
       row.children[2].textContent = item.detail;
       row.title = item.label + (item.detail ? ' ' + item.detail : '');
-      this.content.append(row);
+      let group = row.querySelector(':scope > [role="group"]');
+      if (branch && !group) {
+        group = document.createElement('div');
+        group.setAttribute('role', 'group');
+        group.className = 'outline-tree-group';
+        row.append(group);
+      } else if (!branch) group?.remove();
+      const parent = this.rows.get(item.parentId);
+      (parent?.querySelector(':scope > [role="group"]') || this.content).append(row);
     }
     this.content.style.height = `${this.visible.length * this.rowHeight}px`;
     if (active !== undefined)
@@ -408,7 +434,8 @@ export class OutlineTree {
       const now = Date.now();
       this.typed = now - (this.typedAt || 0) < 800 ? (this.typed || '') + event.key : event.key;
       this.typedAt = now;
-      const needle = normalized(this.typed);
+      const typed = normalized(this.typed);
+      const needle = [...typed].every((c) => c === typed[0]) ? typed[0] : typed;
       const candidates = this.visible.slice(at + 1).concat(this.visible.slice(0, at + 1));
       next = candidates.find(({ item: candidate }) =>
         normalized(candidate.label + ' ' + candidate.detail).startsWith(needle),

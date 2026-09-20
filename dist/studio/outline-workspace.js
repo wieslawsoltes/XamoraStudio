@@ -35,7 +35,7 @@ export class OutlineWorkspace {
       this.breadcrumbs.className = 'markup-breadcrumbs';
       this.breadcrumbs.setAttribute('aria-label', 'Source element breadcrumbs');
       this.breadcrumbs.innerHTML =
-        '<button class="outline-open" title="Document outline (Ctrl+Shift+O)" aria-label="Open document outline">Outline</button><ol></ol>';
+        '<button class="outline-open" title="Document outline (Ctrl+Alt+O)" aria-label="Open document outline">Outline</button><ol></ol>';
       studio.editor.host.insertBefore(
         this.breadcrumbs,
         studio.editor.host.querySelector('.editor-body'),
@@ -79,6 +79,7 @@ export class OutlineWorkspace {
         studio.docking.registerPanel({
           id: 'document-outline',
           title: 'Document outline',
+          activate: false,
           content: this.host,
           icon: '≡',
         }),
@@ -100,21 +101,30 @@ export class OutlineWorkspace {
       if (studio.density) env.listen(studio.density, 'change', () => this.layout());
       env.listen(env.window, 'resize', () => this.layout());
       this.installCommands();
-      env.listen(env.document, 'keydown', (event) => {
-        if (
-          event.defaultPrevented ||
-          event.isComposing ||
-          studio.editor.composing ||
-          event.altKey ||
-          event.target.closest?.('#modal-root,[role=dialog],[role=alertdialog]')
-        )
-          return;
-        if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'o') {
-          event.preventDefault();
-          event.stopPropagation();
-          this.show();
-        }
-      });
+      env.listen(
+        env.document,
+        'keydown',
+        (event) => {
+          if (
+            event.defaultPrevented ||
+            event.isComposing ||
+            studio.editor.composing ||
+            event.target.closest?.('#modal-root,[role=dialog],[role=alertdialog]')
+          )
+            return;
+          if (
+            (event.ctrlKey || event.metaKey) &&
+            event.altKey &&
+            !event.shiftKey &&
+            event.key.toLowerCase() === 'o'
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            this.show();
+          }
+        },
+        true,
+      );
       env.override(env.api, 'outline', {
         show: () => this.show(),
         entries: () => (this.ready(false) ? this.index.entries() : []),
@@ -141,6 +151,7 @@ export class OutlineWorkspace {
     return this.services.get(session);
   }
   get coordinates() {
+    if (this.s.sync?.coordinates) return this.s.sync.coordinates;
     const source = this.s.store.session.source;
     if (this.sourceCoordinates?.source !== source)
       this.sourceCoordinates = new SourceTextCoordinates(source);
@@ -150,7 +161,7 @@ export class OutlineWorkspace {
     const env = this.environment,
       s = this.s;
     const specs = [
-      ['outline-show', 'Document outline', () => this.show(), 'Ctrl+Shift+O'],
+      ['outline-show', 'Document outline', () => this.show(), 'Ctrl+Alt+O'],
       ['outline-locate', 'Locate selected element in outline', () => this.locate()],
     ];
     for (const [relation, label] of [
@@ -285,7 +296,7 @@ export class OutlineWorkspace {
     const coarse = view.matchMedia?.('(pointer: coarse)').matches;
     const value = this.s.density?.value;
     this.tree.setRowHeight(
-      coarse ? 40 : value === 'comfortable' ? 36 : value === 'standard' ? 29 : 24,
+      coarse ? 44 : value === 'comfortable' ? 36 : value === 'standard' ? 29 : 24,
     );
     this.tree.render();
   }

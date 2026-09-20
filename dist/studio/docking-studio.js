@@ -860,12 +860,12 @@ export class DockingStudio {
       notify('Named layouts could not be saved on this device.');
     }
   }
-  registerPanel({ id, title, content, kind = 'tool', icon = '▤', onClose }) {
+  registerPanel({ id, title, content, kind = 'tool', icon = '▤', onClose, activate = true }) {
     if (content?.nodeType !== 1 || !content.ownerDocument || typeof content.append !== 'function')
       throw Error('Provide a live HTMLElement for panel content.');
     this.model.register({ id, title, kind, icon, onClose });
     this.control.mount(id, content);
-    this.control.show(id);
+    if (activate) this.control.show(id);
     return {
       show: () => this.control.show(id),
       close: () => this.control.hide(id),

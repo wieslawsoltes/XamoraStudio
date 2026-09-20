@@ -72,7 +72,18 @@
         "types": "./dist/cjs/document-scope.d.cts",
         "default": "./dist/cjs/document-scope.cjs"
       }
-    }
+    },
+    "./outline-tree": {
+      "import": {
+        "types": "./dist/esm/outline-tree.d.ts",
+        "default": "./dist/esm/outline-tree.js"
+      },
+      "require": {
+        "types": "./dist/cjs/outline-tree.d.cts",
+        "default": "./dist/cjs/outline-tree.cjs"
+      }
+    },
+    "./outline-tree.css": "./dist/assets/outline-tree.css"
   },
   "files": [
     "dist",

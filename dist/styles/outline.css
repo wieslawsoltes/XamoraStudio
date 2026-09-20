@@ -122,9 +122,9 @@
   .markup-breadcrumbs button,
   .outline-toolbar button,
   .outline-toolbar label {
-    min-height: 40px;
+    min-height: 44px;
   }
   .outline-filter {
-    min-height: 40px;
+    min-height: 44px;
   }
 }

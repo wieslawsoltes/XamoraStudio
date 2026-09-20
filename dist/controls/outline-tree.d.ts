@@ -31,7 +31,7 @@ export class OutlineTree {
   readonly activeId: string | null;
   readonly matchCount: number;
   readonly disposed: boolean;
-  getState(): OutlineViewState;
+  getState(): Required<OutlineViewState>;
   restoreState(state?: OutlineViewState): void;
   setRowHeight(value: number): void;
   setItems(items: readonly OutlineItem[]): void;

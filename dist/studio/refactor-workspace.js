@@ -1,3 +1,4 @@
+import { SourceTextCoordinates } from '../core/source-text-coordinates.js';
 import { MarkupRefactorService } from '../core/markup-refactoring.js';
 import { find, parentOf, isProperty, isXamlInline } from '../core/model.js';
 import { isLocked } from '../core/design-tools.js';
@@ -70,7 +71,8 @@ export class RefactorWorkspace {
       linkedTagRanges: (offset) =>
         this.disposed ||
         studio.editor.composing ||
-        studio.editor.input.value !== studio.store.session.source
+        studio.editor.input.value !==
+          new SourceTextCoordinates(studio.store.session.source).editorText
           ? []
           : this.service.linkedTagRanges(offset),
     };
@@ -102,7 +104,9 @@ export class RefactorWorkspace {
       let ids;
       if (scope === 'designer') ids = selection;
       else {
-        const range = s.language.service.elementAt(s.editor.input.selectionStart);
+        const range = s.language.service.elementAt(
+          new SourceTextCoordinates(session.source).toSource(s.editor.input.selectionStart),
+        );
         let node = range && find(s.doc.root, range.nodeId);
         while (node && s.doc.framework !== 'HTML' && isProperty(node))
           node = parentOf(s.doc.root, node.id);
@@ -126,7 +130,7 @@ export class RefactorWorkspace {
           throw Error(
             'The document or selection changed. Close this dialog and review a new proposal.',
           );
-        if (s.editor.input.value !== session.source)
+        if (s.editor.input.value !== new SourceTextCoordinates(session.source).editorText)
           throw Error('Pending source input changed. Close this dialog and review a new proposal.');
         if (ids.some((id) => isLocked(s.doc, id)))
           throw Error('Unlock the selected element before refactoring.');
