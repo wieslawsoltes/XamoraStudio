@@ -1,0 +1,61 @@
+.xamora-outline-tree {
+  position: relative;
+  height: 100%;
+  min-height: 80px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font: 12px/1.4 var(--font-ui, system-ui, sans-serif);
+  color: var(--text, #dedee6);
+  outline: none;
+}
+.outline-tree-content {
+  position: relative;
+  min-width: 100%;
+}
+.outline-tree-row {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  inset-inline: 0;
+  padding-inline-end: 8px;
+  cursor: default;
+  white-space: nowrap;
+  user-select: none;
+  border: 1px solid transparent;
+}
+.outline-tree-row:hover {
+  background: var(--hover, #ffffff0b);
+}
+.outline-tree-row[aria-selected='true'] {
+  background: var(--selected-bg, #7775ff25);
+}
+.xamora-outline-tree:focus-visible .outline-tree-row.is-active {
+  border-color: var(--accent, #9894ff);
+}
+.outline-tree-row [data-outline-toggle] {
+  flex: 0 0 18px;
+  text-align: center;
+  cursor: pointer;
+}
+.outline-tree-label {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.outline-tree-detail {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted, #92919f);
+}
+@media (forced-colors: active) {
+  .outline-tree-row[aria-selected='true'] {
+    color: HighlightText;
+    background: Highlight;
+  }
+  .xamora-outline-tree:focus-visible .outline-tree-row.is-active {
+    border-color: Highlight;
+  }
+}

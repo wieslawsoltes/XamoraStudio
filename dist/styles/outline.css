@@ -1,0 +1,130 @@
+@import url('../controls/outline-tree.css');
+.markup-outline {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  color: var(--text);
+  background: var(--panel);
+  font-size: 12px;
+}
+.outline-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.outline-heading strong {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outline-count {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.outline-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+}
+.outline-toolbar button {
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+}
+.outline-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+  font-size: 11px;
+}
+.outline-filter {
+  margin: 2px 8px 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--input);
+}
+.outline-message {
+  margin: 3px 10px 7px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.outline-tree-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.markup-outline footer {
+  border-top: 1px solid var(--border);
+}
+.markup-breadcrumbs {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  gap: 6px;
+  align-items: center;
+  background: var(--panel-alt);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.markup-breadcrumbs .outline-open {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-inline-end: 1px solid var(--border);
+}
+.markup-breadcrumbs ol {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.markup-breadcrumbs li {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+.markup-breadcrumbs li + li::before {
+  content: '';
+  display: inline-block;
+  border-inline-end: 1px solid var(--muted);
+  border-top: 1px solid var(--muted);
+  width: 4px;
+  height: 4px;
+  transform: rotate(45deg);
+  margin-inline: 5px;
+}
+.markup-breadcrumbs button {
+  padding: 5px;
+  white-space: nowrap;
+}
+.markup-breadcrumbs [aria-current='location'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+.outline-empty-crumb {
+  color: var(--muted);
+  padding: 5px;
+}
+@media (pointer: coarse) {
+  .markup-breadcrumbs button,
+  .outline-toolbar button,
+  .outline-toolbar label {
+    min-height: 40px;
+  }
+  .outline-filter {
+    min-height: 40px;
+  }
+}
