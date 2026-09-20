@@ -57,6 +57,16 @@ export async function importFile(studio, file) {
 export function importText(studio, text, name = 'Imported.xaml') {
   if (!studio.prepareEdit()) return;
   const doc = parseXaml(text, { name });
+  // Seed the canonical session with the file the user opened, not a regenerated
+  // rendering of its AST. DocumentSession validates this snapshot before use.
+  doc.metadata ??= {};
+  doc.metadata.source = {
+    version: 1,
+    language: doc.framework === 'HTML' ? 'HTML' : 'XAML',
+    text,
+    validText: text,
+    diagnostics: [],
+  };
   studio.addStore(doc);
   studio.switchDocument(studio.stores.length - 1);
   toast(doc.framework === 'HTML' ? 'HTML imported' : 'XAML imported');
