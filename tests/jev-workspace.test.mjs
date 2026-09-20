@@ -549,3 +549,22 @@ test('forgetting keys aborts discovery and cannot report the old credentials con
   assert.equal(body.querySelector('[name=apiKey]').value, '');
   assert.doesNotMatch(body.querySelector('[data-jev-test-status]').textContent, /Connected/);
 });
+
+test('reviewed Jev proposals accept normalized CRLF editor text without weakening freshness guards', async (t) => {
+  const { s, workspace, allow } = setup(t);
+  const source = '\uFEFF<Grid>\r\n  <Button Content="Before"/>\r\n</Grid>\r\n';
+  s.store.session.updateSource(source);
+  s.store.select([s.doc.root.children.find((n) => n.kind === 'element').id]);
+  s.editor.input.value = source.replace(/\r\n?/g, '\n');
+  allow();
+  await workspace.run();
+  assert(workspace.fresh(), 'Canonical source and its normalized textarea are the same draft');
+  s.editor.input.value += 'pending';
+  assert.equal(workspace.fresh(), false, 'Uncaptured input still invalidates the proposal');
+  s.editor.input.value = source.replace(/\r\n?/g, '\n');
+  assert(workspace.fresh());
+  workspace.apply();
+  assert.equal(s.doc.root.children.find((n) => n.kind === 'element').props.Content, 'After');
+  s.store.undo();
+  assert.equal(s.store.session.source, source, 'Undo restores exact imported source');
+});

@@ -478,7 +478,7 @@ export class JevWorkspace {
       s.doc.id === p.documentId &&
       s.store.revision === p.revision &&
       s.store.session.source === p.originalSource &&
-      s.editor.input.value === p.originalSource &&
+      s.editor.input.value === p.originalSource.replace(/\r\n?/g, '\n') &&
       JSON.stringify(s.store.selection) === JSON.stringify(p.selection) &&
       !s.sync.composing &&
       (p.scope !== 'application' || p.appStamp === this.appStamp())
