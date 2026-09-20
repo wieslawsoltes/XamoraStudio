@@ -1,3 +1,4 @@
+import { SourceTextCoordinates } from '../core/source-text-coordinates.js';
 import { listenStudio } from './ui.js';
 import { find, parentOf } from '../core/model.js';
 import { serializeXaml } from '../core/xaml.js';
@@ -45,7 +46,7 @@ export class DocumentSync {
       this.updateEditor();
     };
     studio.applyCode = (source) => {
-      const result = this.applySource(source);
+      const result = this.applySource(this.coordinates.fromEditor(source));
       if (!result?.valid)
         throw Error(
           result?.diagnostics?.[0]?.message || 'Finish the source edit before changing the design.',
@@ -153,6 +154,22 @@ export class DocumentSync {
       flushSource: () => this.flush(),
     });
   }
+  /** DOM offsets are LF-normalized; language/AST APIs always consume authored source offsets. */
+  get coordinates() {
+    const source = this.s.store.session.source;
+    if (this.textCoordinates?.source !== source)
+      this.textCoordinates = new SourceTextCoordinates(source);
+    return this.textCoordinates;
+  }
+  sourceOffset(offset) {
+    return this.coordinates.toSource(offset);
+  }
+  editorOffset(offset) {
+    return this.coordinates.toEditor(offset);
+  }
+  matchesEditor() {
+    return this.coordinates.editorText === this.s.editor.input.value;
+  }
   attachStores() {
     for (const store of this.s.stores) this.attach(store);
   }
@@ -179,6 +196,7 @@ export class DocumentSync {
     });
   }
   capture(source, { composing = false } = {}) {
+    source = this.coordinates.fromEditor(source);
     if (composing) {
       this.composition = {
         documentId: this.s.doc.id,
@@ -224,7 +242,7 @@ export class DocumentSync {
   }
   flush() {
     if (this.s.editor.composing) return false;
-    return this.applySource(this.s.editor.input.value)?.valid === true;
+    return this.applySource(this.coordinates.fromEditor(this.s.editor.input.value))?.valid === true;
   }
   prepareEdit() {
     if (!this.flush()) {
@@ -243,7 +261,7 @@ export class DocumentSync {
     if (!session) return;
     // A composing buffer belongs to its document and must never be overwritten by renders.
     if (!editor.composing) {
-      editor.setValue(session.source, { force: true, preserveHistory: true });
+      editor.setValue(this.coordinates.editorText, { force: true, preserveHistory: true });
       editor.dirty = !session.isValid;
     }
     this.status();
@@ -316,7 +334,9 @@ export class DocumentSync {
   }
   selectAtCaret() {
     if (this.selecting || this.s.editor.composing || !this.s.store.session.isValid) return;
-    let node = this.s.store.session.nodeAtOffset(this.s.editor.input.selectionStart);
+    let node = this.s.store.session.nodeAtOffset(
+      this.sourceOffset(this.s.editor.input.selectionStart),
+    );
     while (node && node.kind !== 'element') node = parentOf(this.s.doc.root, node.id);
     if (
       !node ||
@@ -336,25 +356,26 @@ export class DocumentSync {
     const span = this.s.store.session.sourceAtNode(this.s.store.selection[0]);
     if (!span) return;
     this.s.editor.input.setSelectionRange(
-      span.start,
-      Math.min(span.openEnd ?? span.end, span.start + 160),
+      this.editorOffset(span.start),
+      this.editorOffset(Math.min(span.openEnd ?? span.end, span.start + 160)),
     );
-    this.s.editor.reveal(span.start);
+    this.s.editor.reveal(this.editorOffset(span.start));
     this.s.editor.cursor();
   }
   revealDiagnostic(issue = this.s.store.session.diagnostics[0]) {
     if (!issue) return;
-    this.s.docking.control.show('xaml');
+    if (this.s.docking.control.activate('xaml', { focus: false }) === false) return;
     const editor = this.s.editor,
       source = editor.input.value;
     const index = Number.isFinite(issue.start)
-      ? issue.start
+      ? this.editorOffset(Math.min(this.coordinates.source.length, Math.max(0, issue.start)))
       : Number.isFinite(issue.offset)
-        ? issue.offset
+        ? this.editorOffset(Math.min(this.coordinates.source.length, Math.max(0, issue.offset)))
         : source
             .split('\n')
             .slice(0, Math.max(0, (issue.line || 1) - 1))
             .reduce((n, line) => n + line.length + 1, 0) + Math.max(0, (issue.column || 1) - 1);
+    editor.input.ownerDocument.defaultView?.focus();
     editor.input.focus();
     editor.input.setSelectionRange(
       Math.min(index, source.length),

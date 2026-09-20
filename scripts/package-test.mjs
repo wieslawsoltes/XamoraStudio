@@ -244,7 +244,23 @@ try {
     );
   }
   const typeConsumer = `import {DockWorkspace, DockBrowserWindows, DockLayout, type DockBrowserWindowOptions} from '@wieslawsoltes/xamora-docking';
-import {DocumentScope} from '@wieslawsoltes/xamora-control-primitives';
+import {DocumentScope, OutlineTree, type OutlineItem} from '@wieslawsoltes/xamora-control-primitives';
+import {MarkupStructureIndex} from '@wieslawsoltes/xamora-markup/markup-structure';
+import {SourceTextCoordinates} from '@wieslawsoltes/xamora-markup/source-text-coordinates';
+import {DocumentSession as OutlineSession} from '@wieslawsoltes/xamora-markup/document-session';
+declare const outlineSession: OutlineSession;
+const outlineIndex = new MarkupStructureIndex(outlineSession);
+const outlineItems: readonly OutlineItem[] = outlineIndex.entries();
+const outlineControl = new OutlineTree(globalThis.document.body, {items:outlineItems, onActivate(id) {outlineIndex.get(id);}});
+outlineControl.restoreState(outlineControl.getState());
+outlineControl.setRowHeight(44);
+const coordinates = new SourceTextCoordinates('a\\r\\nb');
+const authoredOffset: number = coordinates.toSource(2);
+const domOffset: number = coordinates.toEditor(authoredOffset);
+void [domOffset, coordinates.fromEditor('a\\nb'), outlineIndex.related('root','first-child')];
+// @ts-expect-error Structural relations are an explicit closed set.
+outlineIndex.related('root','invalid');
+outlineControl.dispose(); outlineIndex.dispose();
 import {WorkspaceContext} from '@wieslawsoltes/xamora-workspace-context';
 const scope = new DocumentScope(globalThis.document, globalThis.document.body);
 const browserOptions: DockBrowserWindowOptions = {onOpen(info) { return scope.add(info.document, {root:info.host,workspace:info.host}); }};

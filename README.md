@@ -283,3 +283,9 @@ CSS length math and live browser-layout capture/observation. The CLI accepts
 exposes viewport/media options. Read [Responsive compiler contracts](docs/RESPONSIVE-COMPILER.md)
 for the API, loader policy, measured-layout limits and WPF/Avalonia qualification.
 New source APIs require a checkout build; this increment does not publish npm packages.
+
+## Document outline and source breadcrumbs
+
+Use **View → Document outline** or **Ctrl/Command+Alt+O** to browse named and unnamed HTML/XAML elements, property collections, resources, templates and SVG/MathML. Search retains ancestor paths; arrow keys browse, Space selects in the designer, and Enter reveals source. Breadcrumbs and parent/child/sibling commands share the existing navigation history and work across detached browser hosts. The optional panel is passive at startup and preserves per-document browsing state during the session.
+
+Windows-line-ending files retain canonical CRLF source through no-change synchronization, ordinary editing, structural navigation and Undo. Reusable `MarkupStructureIndex`, `SourceTextCoordinates` and virtualized `OutlineTree` APIs ship in the existing markup/control-primitives packages. See [the document outline guide](docs/DOCUMENT-OUTLINE.md) for APIs, source-coordinate rules, testing and remaining qualifications.

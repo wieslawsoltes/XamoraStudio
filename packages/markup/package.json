@@ -136,6 +136,26 @@
         "types": "./dist/cjs/markup-refactoring.d.cts",
         "default": "./dist/cjs/markup-refactoring.cjs"
       }
+    },
+    "./source-text-coordinates": {
+      "import": {
+        "types": "./dist/esm/source-text-coordinates.d.ts",
+        "default": "./dist/esm/source-text-coordinates.js"
+      },
+      "require": {
+        "types": "./dist/cjs/source-text-coordinates.d.cts",
+        "default": "./dist/cjs/source-text-coordinates.cjs"
+      }
+    },
+    "./markup-structure": {
+      "import": {
+        "types": "./dist/esm/markup-structure.d.ts",
+        "default": "./dist/esm/markup-structure.js"
+      },
+      "require": {
+        "types": "./dist/cjs/markup-structure.d.cts",
+        "default": "./dist/cjs/markup-structure.cjs"
+      }
     }
   },
   "files": [

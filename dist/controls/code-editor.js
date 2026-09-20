@@ -244,7 +244,7 @@ export class CodeEditor {
 
   setValue(value, { force = false, preserveHistory = false } = {}) {
     if (this.disposed) return false;
-    value = String(value);
+    value = String(value).replace(/\r\n?/g, '\n');
     if (this.dirty && !force) return false;
     const before = this.input.value,
       selection = mapTextSelection(

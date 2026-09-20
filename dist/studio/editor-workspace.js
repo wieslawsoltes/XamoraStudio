@@ -1,3 +1,4 @@
+import { OutlineWorkspace } from './outline-workspace.js';
 import { RefactorWorkspace } from './refactor-workspace.js';
 import { LanguageWorkspace } from './language-workspace.js';
 import { DocumentSync } from './document-sync.js';
@@ -79,6 +80,7 @@ export class EditorWorkspace {
     new DocumentSync(s);
     new LanguageWorkspace(s);
     new RefactorWorkspace(s);
+    new OutlineWorkspace(s);
     s.render();
     const mode = localStorage.getItem('xamora-document-mode');
     if (!restored && ['design', 'code', 'split', 'views'].includes(mode) && !s.editor.dirty)

@@ -1,3 +1,4 @@
+import { SourceTextCoordinates } from '../core/source-text-coordinates.js';
 import { find, parentOf, isProperty } from '../core/model.js';
 import { SemanticLanguageService } from '../core/language-service.js';
 import { esc, notify, $ } from './ui.js';
@@ -23,8 +24,17 @@ export class LanguageWorkspace {
       icon: '⌘',
     });
     const editor = studio.editor;
-    editor.getCompletions = (source, offset, context) =>
-      this.service.completions(source, offset, context.context || context);
+    editor.getCompletions = (source, offset, context = {}) => {
+      const canonical = this.coordinates.fromEditor(source),
+        coordinates = new SourceTextCoordinates(canonical);
+      return this.service
+        .completions(canonical, coordinates.toSource(offset), context.context || context)
+        .map((item) => ({
+          ...item,
+          start: coordinates.toEditor(item.start),
+          end: coordinates.toEditor(item.end),
+        }));
+    };
     editor.onSemanticCommand = (command) => this.command(command);
     const baseCommand = studio.command.bind(studio);
     studio.command = (command, event) =>
@@ -102,6 +112,12 @@ export class LanguageWorkspace {
       diagnostics: () => this.service.diagnostics(),
     };
   }
+  get coordinates() {
+    const source = this.s.store.session.source ?? this.s.editor.input.value;
+    if (this.textCoordinates?.source !== source)
+      this.textCoordinates = new SourceTextCoordinates(source);
+    return this.textCoordinates;
+  }
   get service() {
     const session = this.s.store.session;
     if (!this.services.has(session))
@@ -137,7 +153,7 @@ export class LanguageWorkspace {
       if (command === 'language-back' || command === 'language-forward')
         return this.history(command === 'language-forward');
       if (!this.ready()) return false;
-      const offset = this.s.editor.input.selectionStart;
+      const offset = this.coordinates.toSource(this.s.editor.input.selectionStart);
       if (command === 'symbols') {
         this.mode = 'symbols';
         this.results = [];
@@ -195,8 +211,8 @@ export class LanguageWorkspace {
     const input = this.s.editor.input,
       session = this.s.store.session;
     const current = {
-      start: input.selectionStart,
-      end: input.selectionEnd,
+      start: this.coordinates.toSource(input.selectionStart),
+      end: this.coordinates.toSource(input.selectionEnd),
       direction: input.selectionDirection,
     };
     let trail = this.selectionTrail;
@@ -220,8 +236,12 @@ export class LanguageWorkspace {
     if (!shrink) trail.entries.push(current);
     trail.expected = next;
     input.focus();
-    input.setSelectionRange(next.start, next.end, next.direction || current.direction);
-    this.s.editor.reveal(next.start);
+    input.setSelectionRange(
+      this.coordinates.toEditor(next.start),
+      this.coordinates.toEditor(next.end),
+      next.direction || current.direction,
+    );
+    this.s.editor.reveal(this.coordinates.toEditor(next.start));
     this.s.editor.cursor(true);
     return true;
   }
@@ -231,7 +251,11 @@ export class LanguageWorkspace {
   }
   current() {
     const input = this.s.editor.input;
-    return { documentId: this.s.doc.id, start: input.selectionStart, end: input.selectionEnd };
+    return {
+      documentId: this.s.doc.id,
+      start: this.coordinates.toSource(input.selectionStart),
+      end: this.coordinates.toSource(input.selectionEnd),
+    };
   }
   navigate(location, { record = true } = {}) {
     if (!this.ready()) return false;
@@ -254,8 +278,15 @@ export class LanguageWorkspace {
     const editor = this.s.editor;
     editor.input.ownerDocument.defaultView?.focus();
     editor.input.focus({ preventScroll: true });
-    editor.input.setSelectionRange(target.start, target.end ?? target.start);
-    editor.reveal(target.start);
+    const coordinates = this.coordinates;
+    const start = coordinates.toEditor(
+        Math.min(coordinates.source.length, Math.max(0, target.start)),
+      ),
+      end = coordinates.toEditor(
+        Math.min(coordinates.source.length, Math.max(0, target.end ?? target.start)),
+      );
+    editor.input.setSelectionRange(start, end);
+    editor.reveal(start);
     editor.cursor(true);
     return true;
   }
