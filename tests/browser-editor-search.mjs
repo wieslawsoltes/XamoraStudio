@@ -161,6 +161,39 @@ try {
     await input.evaluate((n) => n.value.slice(n.selectionStart, n.selectionEnd)),
     'Done',
   );
+  // A synchronous designer cleanup callback must not apply old search offsets afterward.
+  const guarded = await page.evaluate(() => {
+    const s = window.xamora.studio,
+      e = s.editor;
+    e.search.query.value = 'Done';
+    e.search.replacement.value = 'Wrong';
+    e.find({ replace: true, seed: false });
+    e.search.refresh();
+    const originalCancel = s.direct.cancelGesture;
+    const source = s.store.session.source;
+    const independent = source.replace('Done', 'Independent change');
+    const history = s.store.history.length;
+    let accepted;
+    try {
+      s.direct.cancelGesture = () => s.store.session.updateSource(independent);
+      accepted = e.search.replace(true);
+    } finally {
+      s.direct.cancelGesture = originalCancel;
+    }
+    return {
+      accepted,
+      source: s.store.session.source,
+      independent,
+      historyDelta: s.store.history.length - history,
+    };
+  });
+  assert.equal(guarded.accepted, false);
+  assert.equal(guarded.source, guarded.independent);
+  assert.equal(guarded.historyDelta, 1);
+  await input.press('Control+z');
+  await page.waitForFunction(
+    () => window.xamora.getSource() === window.searchHtml.replaceAll('Save', 'Done'),
+  );
   await mkdir(resolve(root, 'test-results/ux'), { recursive: true });
   await popup.screenshot({ path: resolve(root, 'test-results/ux/20-editor-search-popup.png') });
   await Promise.all([

@@ -220,6 +220,8 @@ export class DocumentSync {
     const editor = this.s.editor,
       session = this.s.store.session;
     if (
+      editor.disposed ||
+      session.disposed ||
       editor.composing ||
       editor.input.readOnly ||
       editor.input.disabled ||
@@ -234,8 +236,28 @@ export class DocumentSync {
       !this.matchesEditor()
     )
       return false;
+    const revision = session.revision,
+      version = session.buffer.version,
+      source = session.source;
+    const current = () =>
+      !editor.disposed &&
+      !session.disposed &&
+      !editor.composing &&
+      !editor.input.readOnly &&
+      !editor.input.disabled &&
+      this.s.store.session === session &&
+      session.revision === revision &&
+      session.buffer.version === version &&
+      session.source === source &&
+      editor.input.value === expectedValue &&
+      this.matchesEditor();
+    // Gesture cleanup is application-owned code and can synchronously commit, switch
+    // documents or disable an editor. Check after each callback, before mapping edits.
+    if (!current()) return false;
     this.s.direct?.cancelGesture?.();
+    if (!current()) return false;
     this.s.html?.cancelGesture?.();
+    if (!current()) return false;
     const coords = this.coordinates;
     const mapped = edits.map((edit) => ({
       start: coords.toSource(edit.start),
@@ -247,8 +269,8 @@ export class DocumentSync {
     try {
       result = session.applySourceEdits(mapped, {
         origin: 'code',
-        expectedRevision: session.revision,
-        expectedVersion: session.buffer.version,
+        expectedRevision: revision,
+        expectedVersion: version,
       });
     } finally {
       this.applying = false;

@@ -9,7 +9,9 @@ function offset(value, length) {
 function before(source, at) {
   if (!at) return '';
   const tail = source.charCodeAt(at - 1);
-  return source.slice(tail >= 0xdc00 && tail <= 0xdfff && at > 1 ? at - 2 : at - 1, at);
+  const head = source.charCodeAt(at - 2);
+  const pair = tail >= 0xdc00 && tail <= 0xdfff && head >= 0xd800 && head <= 0xdbff;
+  return source.slice(pair ? at - 2 : at - 1, at);
 }
 function after(source, at) {
   return at === source.length ? '' : String.fromCodePoint(source.codePointAt(at));
@@ -44,8 +46,12 @@ export class TextSearchIndex {
         const at = match.index,
           until = at + match[0].length;
         if (at < start) continue;
-        if (wholeWord && (word.test(before(source, at)) || word.test(after(source, until))))
+        if (wholeWord && (word.test(before(source, at)) || word.test(after(source, until)))) {
+          // A rejected phrase may overlap the next valid occurrence ("xa a a", "a a").
+          // Only accepted matches consume their full range; retry at the next code point.
+          expression.lastIndex = at + after(source, at).length;
           continue;
+        }
         if (matches.length === maxMatches) {
           truncated = true;
           break;

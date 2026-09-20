@@ -56,6 +56,22 @@ export async function runEditorSearchNativeCases({ CodeEditor, TextSearchIndex }
     folding.matches.length === 2 && folding.matches[0].start === 4,
     'Unicode fold retains original offsets',
   );
+  const phrase = new TextSearchIndex('xa a a', 'a a', { wholeWord: true });
+  check(
+    phrase.matches[0]?.start === 3,
+    'A rejected whole-word overlap does not hide a valid phrase',
+  );
+  code.setValue('xa a a', { force: true });
+  code.input.setSelectionRange(0, 0);
+  code.find({ replace: true, seed: false });
+  search.query.value = 'a a';
+  search.replacement.value = 'matched';
+  search.refresh();
+  check(
+    search.replace(true) && code.getValue() === 'xa matched',
+    'Whole-word phrase replaces only the valid occurrence',
+  );
+  check(code.undoBuffer() && code.getValue() === 'xa a a', 'Phrase replacement is one undo');
   code.dispose();
   check(
     host.children.length === 0 && search.model === null,

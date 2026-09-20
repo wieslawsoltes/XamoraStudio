@@ -260,8 +260,14 @@ export class EditorSearch {
       this.refresh(false);
       return true;
     } catch (error) {
+      // Host callbacks can reject after another operation has updated the surface.
+      // Never retain a captured range from the old snapshot over that new text.
+      if (input.value !== model.source) {
+        this.scope = this.candidate = null;
+        this.signature = null;
+      }
       this.note = error.message;
-      this.refresh(false);
+      this.refresh();
       return false;
     } finally {
       this.applying = false;
