@@ -66,8 +66,35 @@ export function indexEditorTokens(source, provider = {}) {
   }
   return at === source.length ? result : null;
 }
-export function renderEditorTokens(source, tokens, start = 0, end = source.length) {
-  if (!tokens) return escape(source.slice(start, end));
+export function renderEditorTokens(source, tokens, start = 0, end = source.length, matches = []) {
+  let paintedMatches = 0;
+  const paint = (from, until) => {
+    let lo = 0,
+      hi = matches.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (matches[mid].end <= from) lo = mid + 1;
+      else hi = mid;
+    }
+    const parts = [];
+    let cursor = from;
+    for (let i = lo; i < matches.length && matches[i].start < until && paintedMatches < 1000; ++i) {
+      const start = Math.max(cursor, matches[i].start),
+        end = Math.min(until, matches[i].end);
+      if (end <= start) continue;
+      paintedMatches++;
+      parts.push(
+        escape(source.slice(cursor, start)),
+        '<mark class="editor-search-match">',
+        escape(source.slice(start, end)),
+        '</mark>',
+      );
+      cursor = end;
+    }
+    parts.push(escape(source.slice(cursor, until)));
+    return parts.join('');
+  };
+  if (!tokens) return paint(start, end);
   let lo = 0,
     hi = tokens.length;
   while (lo < hi) {
@@ -78,7 +105,7 @@ export function renderEditorTokens(source, tokens, start = 0, end = source.lengt
   const output = [];
   for (let i = lo; i < tokens.length && tokens[i].start < end; i++) {
     const token = tokens[i],
-      text = escape(source.slice(Math.max(start, token.start), Math.min(end, token.end)));
+      text = paint(Math.max(start, token.start), Math.min(end, token.end));
     output.push(kinds.has(token.kind) ? `<span class="syntax-${token.kind}">${text}</span>` : text);
   }
   return output.join('');

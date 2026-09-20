@@ -143,7 +143,7 @@ export const packageLayout = [
     id: 'code-editor',
     description: 'Standalone source editor with injectable language services and buffer history',
     modules: [],
-    controls: ['code-editor', 'code-viewport'],
+    controls: ['code-editor', 'code-viewport', 'text-search', 'editor-search'],
     assets: ['dist/controls/code-editor.css'],
     typeContracts: false,
     standalone: true,

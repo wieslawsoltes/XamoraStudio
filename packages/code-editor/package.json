@@ -51,6 +51,26 @@
     "./browser": {
       "types": "./dist/esm/index.d.ts",
       "default": "./dist/browser/index.js"
+    },
+    "./text-search": {
+      "import": {
+        "types": "./dist/esm/text-search.d.ts",
+        "default": "./dist/esm/text-search.js"
+      },
+      "require": {
+        "types": "./dist/cjs/text-search.d.cts",
+        "default": "./dist/cjs/text-search.cjs"
+      }
+    },
+    "./editor-search": {
+      "import": {
+        "types": "./dist/esm/editor-search.d.ts",
+        "default": "./dist/esm/editor-search.js"
+      },
+      "require": {
+        "types": "./dist/cjs/editor-search.d.cts",
+        "default": "./dist/cjs/editor-search.cjs"
+      }
     }
   },
   "files": [
